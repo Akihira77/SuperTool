@@ -3,6 +3,7 @@ import {
   Calendar as BigCalendar,
   dayjsLocalizer,
   type Components,
+  type DateHeaderProps,
   type EventProps,
   type Messages,
   type View,
@@ -19,6 +20,8 @@ import { useToast } from '../components/toast';
 type GoogleDate = { date?: string; dateTime?: string; timeZone?: string };
 type CalendarEvent = {
   id: string;
+  calendarId?: string;
+  calendarName?: string;
   summary: string;
   description: string;
   location: string;
@@ -28,9 +31,9 @@ type CalendarEvent = {
   status: string;
   allDay: boolean;
 };
-type CalendarResponse = { calendarId: string; timeMin: string; writeScope?: boolean; events: CalendarEvent[] };
+type CalendarResponse = { calendarId: string; account?: string; timeMin: string; writeScope?: boolean; events: CalendarEvent[] };
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
-type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; resource: CalendarEvent };
+type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; isHoliday: boolean; resource: CalendarEvent };
 type EventForm = { summary: string; start: string; end: string; location: string; description: string };
 
 const localizer = dayjsLocalizer(dayjs);
@@ -67,6 +70,7 @@ function toRbcEvent(event: CalendarEvent, noTitle: string): RbcEvent | null {
     start,
     end,
     allDay,
+    isHoliday: isHolidayEvent(event),
     resource: event,
   };
 }
@@ -96,6 +100,14 @@ function dateLabel(date: Date, locale: string): string {
 
 function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dayKey(date: Date): string {
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+}
+
+function isHolidayEvent(event: CalendarEvent): boolean {
+  return /hari libur|holiday/i.test(event.calendarName ?? '') || /#holiday@group/i.test(event.calendarId ?? '');
 }
 
 function localInput(date: Date): string {
@@ -138,19 +150,28 @@ function eventWhen(event: RbcEvent, locale: string, allDayLabel: string): string
 /** Isi kotak event di grid: judul harus selalu terlihat, bukan cuma blok warna. */
 function EventBlock({ event }: EventProps<RbcEvent>) {
   return (
-    <span className="rbc-event-title" title={event.title}>
+    <span className={event.isHoliday ? 'rbc-event-title rbc-event-holiday-title' : 'rbc-event-title'} title={event.title}>
       {event.title}
     </span>
   );
 }
 
-const CALENDAR_COMPONENTS: Components<RbcEvent> = { event: EventBlock };
+function CalendarDateHeader({ label, drilldownView, onDrillDown, isOffRange, holiday }: DateHeaderProps & { holiday: boolean }) {
+  const className = 'rbc-date-number' + (holiday ? ' rbc-holiday-date' : '') + (isOffRange ? ' rbc-off-range-date' : '');
+  if (!drilldownView) return <span className={className}>{label}</span>;
+  return (
+    <button type="button" className={'rbc-button-link ' + className} onClick={onDrillDown}>
+      {label}
+    </button>
+  );
+}
 
 export default function CalendarTool() {
   const { t, lang } = useI18n();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>('loading');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [account, setAccount] = useState('');
   const [writeScope, setWriteScope] = useState(true);
   const [message, setMessage] = useState('');
   const [configMissing, setConfigMissing] = useState(false);
@@ -193,6 +214,7 @@ export default function CalendarTool() {
         const query = new URLSearchParams({ timeMin: from, timeMax: to }).toString();
         const data = await api.get<CalendarResponse>('/calendar/events?' + query);
         setEvents(data.events ?? []);
+        setAccount(data.account ?? '');
         setWriteScope(data.writeScope !== false);
         setMessage('');
         setConfigMissing(false);
@@ -334,6 +356,44 @@ export default function CalendarTool() {
     [events, t],
   );
 
+  const holidayDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const event of events) {
+      if (!isHolidayEvent(event)) continue;
+      const start = parseDate(event.start);
+      if (!start) continue;
+      const end = parseDate(event.end) ?? new Date(start.getTime() + 86_400_000);
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const stop = Boolean(event.start?.date) || event.allDay ? end : new Date(start.getTime() + 86_400_000);
+      let guard = 0;
+      while (cursor < stop && guard++ < 40) {
+        dates.add(dayKey(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+    return dates;
+  }, [events]);
+
+  const calendarComponents = useMemo<Components<RbcEvent>>(
+    () => ({
+      event: EventBlock,
+      dateHeader: (props: DateHeaderProps) => (
+        <CalendarDateHeader {...props} holiday={holidayDates.has(dayKey(props.date))} />
+      ),
+    }),
+    [holidayDates],
+  );
+
+  const dayPropGetter = useCallback(
+    (date: Date) => (holidayDates.has(dayKey(date)) ? { className: 'rbc-holiday-day' } : {}),
+    [holidayDates],
+  );
+
+  const eventPropGetter = useCallback(
+    (event: RbcEvent) => (event.isHoliday ? { className: 'rbc-holiday-event' } : {}),
+    [],
+  );
+
   const messages = useMemo<Messages<RbcEvent>>(
     () => ({
       today: t('calendar.today'),
@@ -359,7 +419,7 @@ export default function CalendarTool() {
         ? t('calendar.notConnected')
         : phase === 'error'
           ? t('calendar.error')
-          : events.length + ' ' + t('calendar.count');
+          : events.length + ' ' + t('calendar.count') + (account ? ' · ' + account : '');
 
   const whenText = selected ? eventWhen(selected, locale, t('calendar.allDay')) : '';
 
@@ -435,7 +495,9 @@ export default function CalendarTool() {
               popup
               selectable={false}
               messages={messages}
-              components={CALENDAR_COMPONENTS}
+              components={calendarComponents}
+              dayPropGetter={dayPropGetter}
+              eventPropGetter={eventPropGetter}
               startAccessor="start"
               endAccessor="end"
               titleAccessor="title"

@@ -73,7 +73,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | sqlite | `sqlite.controller.ts` | viewer read-only database aplikasi (info tabel, isi tabel, query SELECT) |
 | backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip` lalu ganti DB aktif |
 | webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |
-| calendar | `calendar.service.ts`, `calendar.controller.ts` | OAuth2 Google Calendar baca-tulis: URL consent + state sekali pakai, token di `google_tokens`, refresh otomatis, event semua kalender terlihat (maks 250), `events.insert` ke primary |
+| calendar | `calendar.service.ts`, `calendar.controller.ts` | OAuth2 Google Calendar baca-tulis: URL consent + state sekali pakai, token di `google_tokens`, refresh otomatis, event semua kalender (maks 250), `events.insert` ke primary |
 | downloader | `downloader.service.ts`, `downloader.controller.ts` | yt-dlp + ffmpeg-static; allowlist host, metadata preview (`/info`), temp per request, stream `Content-Disposition` MP4/MP3, cleanup saat selesai/abort |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |

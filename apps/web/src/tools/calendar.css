@@ -247,3 +247,61 @@
 .calendar-shell .rbc-addons-dnd .rbc-addons-dnd-row-body {
   box-shadow: none;
 }
+
+/* Tanggal libur: kontras lebih kuat di tema gelap. */
+.calendar-shell .rbc-date-cell {
+  color: rgb(203 213 225 / 0.92);
+  font-weight: 500;
+}
+
+.calendar-shell .rbc-date-number {
+  display: inline-block;
+  min-width: 18px;
+  border-radius: 5px;
+  padding: 0 2px;
+}
+
+.calendar-shell .rbc-holiday-date {
+  color: #f87171 !important;
+  font-weight: 800;
+}
+
+.calendar-shell .rbc-off-range .rbc-holiday-date {
+  color: rgb(248 113 113 / 0.55) !important;
+}
+
+.calendar-shell .rbc-day-bg.rbc-holiday-day {
+  background: rgb(248 113 113 / 0.08);
+}
+
+.calendar-shell .rbc-event.rbc-holiday-event {
+  border-color: rgb(248 113 113 / 0.6);
+  background: rgb(248 113 113 / 0.18);
+  color: #fecaca;
+}
+
+.calendar-shell .rbc-event.rbc-holiday-event .rbc-event-title {
+  font-weight: 700;
+}
+
+/* Grid sedikit lebih terang agar garis bulan tetap terbaca di dark mode. */
+.calendar-shell .rbc-month-view,
+.calendar-shell .rbc-time-view,
+.calendar-shell .rbc-agenda-view {
+  border-color: rgb(148 163 184 / 0.28);
+}
+
+.calendar-shell .rbc-header {
+  color: rgb(203 213 225 / 0.8);
+  border-bottom-color: rgb(148 163 184 / 0.22);
+}
+
+.calendar-shell .rbc-month-row + .rbc-month-row {
+  border-top-color: rgb(148 163 184 / 0.2);
+}
+
+.calendar-shell .rbc-day-bg + .rbc-day-bg,
+.calendar-shell .rbc-header + .rbc-header,
+.calendar-shell .rbc-time-content > * + * > * {
+  border-left-color: rgb(148 163 184 / 0.2);
+}

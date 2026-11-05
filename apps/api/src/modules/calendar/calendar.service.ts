@@ -238,9 +238,13 @@ export class CalendarService {
 
     const calendar = google.calendar({ version: 'v3', auth: client });
     let items: Array<{ event: calendar_v3.Schema$Event; calendarId: string; calendarName: string }>;
+    let account = '';
     try {
-      const list = await calendar.calendarList.list({ maxResults: 100 });
-      const calendars = (list.data.items ?? []).filter((item) => item.id && item.deleted !== true && item.hidden !== true);
+      // showHidden: kalender yang disembunyikan di UI tetap bisa berisi event
+      // yang ingin dilihat; jangan diam-diam membuang event pengguna.
+      const list = await calendar.calendarList.list({ maxResults: 100, showHidden: true });
+      const calendars = (list.data.items ?? []).filter((item) => item.id && item.deleted !== true);
+      account = calendars.find((item) => item.primary)?.id ?? '';
       const sources = calendars.length ? calendars : [{ id: 'primary', summary: '' }];
       // Gabungkan semua kalender yang terlihat (termasuk kalender langganan
       // seperti hari libur); kegagalan satu kalender tidak mengosongkan semua.
@@ -272,6 +276,7 @@ export class CalendarService {
 
     return {
       calendarId: 'primary',
+      account,
       timeMin: min,
       timeMax: max ?? null,
       writeScope: hasWriteScope(this.tokenRow()?.scope),
