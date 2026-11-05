@@ -115,9 +115,16 @@ export class FilesController {
       res.status(404).json({ message: 'File tidak bisa dibaca' });
       return;
     }
-    const name = basename(abs).replace(/"/g, '');
+    const rawName = basename(abs);
+    // Header HTTP hanya boleh ASCII: nama Unicode/kontrol (newline) bikin
+    // ERR_INVALID_CHAR. Kirim fallback ASCII + filename* UTF-8 (RFC 5987).
+    const fallback = rawName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_') || 'download';
+    const encoded = encodeURIComponent(rawName).replace(/[!'()*]/g, (char) => '%' + char.charCodeAt(0).toString(16).toUpperCase());
     res.setHeader('Content-Type', mimeOf(abs));
-    res.setHeader('Content-Disposition', (download === '1' ? 'attachment' : 'inline') + '; filename="' + name + '"');
+    res.setHeader(
+      'Content-Disposition',
+      (download === '1' ? 'attachment' : 'inline') + '; filename="' + fallback + '"; filename*=UTF-8\'\'' + encoded,
+    );
     res.setHeader('Accept-Ranges', 'bytes');
 
     const header = String(req.headers.range ?? '');
