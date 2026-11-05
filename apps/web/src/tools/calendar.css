@@ -1,0 +1,241 @@
+/* Tema react-big-calendar mengikuti token Super Tool (hanya saat halaman Calendar). */
+.calendar-shell .rbc-calendar {
+  height: 100%;
+  min-height: 460px;
+  color: var(--color-ink);
+  font-family: inherit;
+}
+
+.calendar-shell .rbc-toolbar {
+  margin-bottom: 10px;
+  padding: 0 2px;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.calendar-shell .rbc-toolbar-label {
+  padding: 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.calendar-shell .rbc-btn-group {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.calendar-shell .rbc-toolbar button {
+  margin: 0;
+  cursor: pointer;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-panel2);
+  padding: 4px 9px;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.calendar-shell .rbc-toolbar button:hover,
+.calendar-shell .rbc-toolbar button:focus-visible {
+  border-color: rgb(91 140 255 / 0.6);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  outline: none;
+}
+
+.calendar-shell .rbc-toolbar button.rbc-active,
+.calendar-shell .rbc-toolbar button.rbc-active:hover {
+  border-color: rgb(91 140 255 / 0.45);
+  background: rgb(91 140 255 / 0.15);
+  color: var(--color-accent);
+  box-shadow: none;
+}
+
+.calendar-shell .rbc-month-view,
+.calendar-shell .rbc-time-view,
+.calendar-shell .rbc-agenda-view {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: rgb(15 21 28 / 0.5);
+  overflow: hidden;
+}
+
+.calendar-shell .rbc-month-row {
+  min-height: 0;
+  border-top-color: var(--color-line);
+}
+
+.calendar-shell .rbc-header {
+  padding: 6px 4px;
+  border-bottom-color: var(--color-line);
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.calendar-shell .rbc-header + .rbc-header,
+.calendar-shell .rbc-day-bg + .rbc-day-bg,
+.calendar-shell .rbc-time-content > * + * > * {
+  border-left-color: var(--color-line);
+}
+
+.calendar-shell .rbc-month-row + .rbc-month-row {
+  border-top-color: var(--color-line);
+}
+
+.calendar-shell .rbc-off-range-bg {
+  background: rgb(20 28 37 / 0.55);
+}
+
+.calendar-shell .rbc-off-range {
+  color: var(--color-muted) !important;
+  opacity: 0.55;
+}
+
+.calendar-shell .rbc-today {
+  background: rgb(91 140 255 / 0.08);
+}
+
+.calendar-shell .rbc-date-cell {
+  padding: 4px 6px;
+  color: var(--color-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.calendar-shell .rbc-date-cell.rbc-now,
+.calendar-shell .rbc-date-cell.rbc-now .rbc-button-link {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.calendar-shell .rbc-button-link {
+  color: inherit;
+  font: inherit;
+}
+
+.calendar-shell .rbc-row-segment {
+  padding: 1px 2px;
+}
+
+.calendar-shell .rbc-event {
+  border: 1px solid rgb(91 140 255 / 0.4);
+  border-radius: 6px;
+  background: rgb(91 140 255 / 0.18);
+  padding: 1px 5px;
+  color: var(--color-ink);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.calendar-shell .rbc-event.rbc-selected {
+  background: rgb(91 140 255 / 0.35);
+}
+
+.calendar-shell .rbc-event:focus {
+  outline: 2px solid rgb(91 140 255 / 0.5);
+  outline-offset: 1px;
+}
+
+.calendar-shell .rbc-event-content {
+  white-space: normal;
+  overflow: hidden;
+}
+
+.calendar-shell .rbc-show-more {
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.calendar-shell .rbc-overlay {
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-panel);
+  padding: 6px;
+  color: var(--color-ink);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+.calendar-shell .rbc-overlay-header {
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-line);
+  padding: 2px 4px 6px;
+  font-size: 11.5px;
+}
+
+.calendar-shell .rbc-agenda-view table.rbc-agenda-table {
+  border: 0;
+}
+
+.calendar-shell .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  border-color: var(--color-line);
+  padding: 7px 8px;
+  color: var(--color-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.calendar-shell .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  border-color: var(--color-line);
+  padding: 7px 8px;
+  color: var(--color-ink);
+  font-size: 12px;
+}
+
+.calendar-shell .rbc-agenda-view table.rbc-agenda-table .rbc-agenda-time-cell,
+.calendar-shell .rbc-agenda-date-cell {
+  color: var(--color-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.calendar-shell .rbc-agenda-empty {
+  padding: 24px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.calendar-shell .rbc-time-header,
+.calendar-shell .rbc-time-header-content,
+.calendar-shell .rbc-time-content,
+.calendar-shell .rbc-timeslot-group {
+  border-color: var(--color-line);
+}
+
+.calendar-shell .rbc-time-header .rbc-header {
+  border-bottom-color: var(--color-line);
+}
+
+.calendar-shell .rbc-time-slot {
+  color: var(--color-muted);
+  font-size: 10.5px;
+}
+
+.calendar-shell .rbc-label {
+  color: var(--color-muted);
+  font-size: 10.5px;
+}
+
+.calendar-shell .rbc-current-time-indicator {
+  background: var(--color-accent);
+}
+
+.calendar-shell .rbc-day-slot .rbc-time-slot {
+  border-top-color: rgb(30 42 54 / 0.55);
+}
+
+.calendar-shell .rbc-addons-dnd .rbc-addons-dnd-row-body {
+  box-shadow: none;
+}

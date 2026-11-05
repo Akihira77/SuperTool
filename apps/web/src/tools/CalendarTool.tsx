@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Calendar as BigCalendar, dayjsLocalizer, type Messages, type View } from 'react-big-calendar';
+import dayjs from 'dayjs';
+import 'dayjs/locale/id';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './calendar.css';
 import { Icon, PageHeader, Spinner } from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -18,6 +23,10 @@ type CalendarEvent = {
 };
 type CalendarResponse = { calendarId: string; timeMin: string; events: CalendarEvent[] };
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
+type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; resource: CalendarEvent };
+
+const localizer = dayjsLocalizer(dayjs);
+const VIEWS: View[] = ['month', 'week', 'agenda'];
 
 function parseDate(value: GoogleDate | null | undefined): Date | null {
   if (!value) return null;
@@ -33,43 +42,28 @@ function parseDate(value: GoogleDate | null | undefined): Date | null {
   return null;
 }
 
-const startOf = (event: CalendarEvent) => parseDate(event.start);
-const endOf = (event: CalendarEvent) => parseDate(event.end);
-
-function dayKey(date: Date): string {
-  return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
-}
-
-function dayLabel(date: Date, locale: string, today: string, tomorrow: string): string {
-  const base = new Date();
-  base.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.round((target.getTime() - base.getTime()) / 86_400_000);
-  if (diff === 0) return today;
-  if (diff === 1) return tomorrow;
-  const sameYear = target.getFullYear() === base.getFullYear();
-  return target.toLocaleDateString(locale, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  });
-}
-
-function timeRange(event: CalendarEvent, locale: string, allDayLabel: string): string {
-  if (event.allDay || !event.start?.dateTime) return allDayLabel;
-  const start = startOf(event);
-  if (!start) return allDayLabel;
-  const clock = (date: Date) => date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-  const end = endOf(event);
-  return end ? clock(start) + ' – ' + clock(end) : clock(start);
+/** Google end.date eksklusif, sama seperti react-big-calendar untuk all-day. */
+function toRbcEvent(event: CalendarEvent, noTitle: string): RbcEvent | null {
+  const start = parseDate(event.start);
+  if (!start) return null;
+  const allDay = event.allDay || !event.start?.dateTime;
+  let end = parseDate(event.end);
+  if (!end || end.getTime() <= start.getTime()) {
+    end = new Date(start.getTime() + (allDay ? 86_400_000 : 3_600_000));
+  }
+  return {
+    id: event.id,
+    title: event.summary || noTitle,
+    start,
+    end,
+    allDay,
+    resource: event,
+  };
 }
 
 export default function CalendarTool() {
   const { t, lang } = useI18n();
   const toast = useToast();
-  const locale = lang === 'id' ? 'id-ID' : 'en-US';
   const [phase, setPhase] = useState<Phase>('loading');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [message, setMessage] = useState('');
@@ -123,6 +117,10 @@ export default function CalendarTool() {
     void fetchEvents(true);
   }, [fetchEvents, t, toast]);
 
+  useEffect(() => {
+    dayjs.locale(lang);
+  }, [lang]);
+
   const connect = async () => {
     setOpening(true);
     try {
@@ -142,18 +140,28 @@ export default function CalendarTool() {
     }
   };
 
-  const groups = useMemo(() => {
-    const map = new Map<string, { date: Date; items: Array<{ event: CalendarEvent; start: Date }> }>();
-    for (const event of events) {
-      const start = startOf(event);
-      if (!start) continue;
-      const key = dayKey(start);
-      const group = map.get(key);
-      if (group) group.items.push({ event, start });
-      else map.set(key, { date: start, items: [{ event, start }] });
-    }
-    return Array.from(map.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [events]);
+  const rbcEvents = useMemo(
+    () => events.map((event) => toRbcEvent(event, t('calendar.noTitle'))).filter((event): event is RbcEvent => event !== null),
+    [events, t],
+  );
+
+  const messages = useMemo<Messages<RbcEvent>>(
+    () => ({
+      today: t('calendar.today'),
+      previous: t('calendar.previous'),
+      next: t('calendar.next'),
+      month: t('calendar.month'),
+      week: t('calendar.week'),
+      day: t('calendar.day'),
+      agenda: t('calendar.agenda'),
+      date: t('calendar.date'),
+      time: t('calendar.time'),
+      event: t('calendar.event'),
+      noEventsInRange: t('calendar.emptyHint'),
+      showMore: (count) => t('calendar.showMore').replace('{n}', String(count)),
+    }),
+    [t],
+  );
 
   const subtitle =
     phase === 'loading'
@@ -211,63 +219,24 @@ export default function CalendarTool() {
               {t('calendar.retry')}
             </button>
           </div>
-        ) : events.length === 0 ? (
-          <div className="mx-auto max-w-xl rounded-xl border border-dashed border-line p-8 text-center">
-            <Icon name="calendar" size={28} className="mx-auto text-muted" />
-            <h2 className="mt-3 text-base font-semibold">{t('calendar.empty')}</h2>
-            <p className="mt-1 text-[12.5px] text-muted">{t('calendar.emptyHint')}</p>
-          </div>
         ) : (
-          <div className="mx-auto max-w-3xl space-y-6">
-            {groups.map((group) => (
-              <section key={dayKey(group.date)}>
-                <div className="mb-2 flex items-center gap-2 text-[11px] font-medium tracking-wide text-muted uppercase">
-                  <span>{dayLabel(group.date, locale, t('calendar.today'), t('calendar.tomorrow'))}</span>
-                  <span className="h-px flex-1 bg-line/70" />
-                  <span>
-                    {group.items.length} {t('calendar.count')}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {group.items.map(({ event, start }) => (
-                    <article
-                      key={event.id}
-                      className="flex items-start gap-3 rounded-lg border border-line bg-panel/40 p-3 transition-colors hover:border-accent/40"
-                    >
-                      <div className="mono w-12 shrink-0 rounded-md border border-line/70 bg-panel2/40 py-1 text-center">
-                        <div className="text-[15px] leading-tight font-semibold">{start.getDate()}</div>
-                        <div className="text-[10px] tracking-wide text-muted uppercase">
-                          {start.toLocaleDateString(locale, { month: 'short' })}
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-2">
-                          <h3 className="min-w-0 flex-1 text-[13px] leading-snug font-medium">{event.summary}</h3>
-                          {event.htmlLink ? (
-                            <a
-                              className="btn btn-ghost shrink-0 px-1 py-0.5"
-                              href={event.htmlLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={t('calendar.open')}
-                              aria-label={t('calendar.open')}
-                            >
-                              <Icon name="external" size={12} />
-                            </a>
-                          ) : null}
-                        </div>
-                        <p className="mt-0.5 text-[11.5px] text-muted">
-                          {timeRange(event, locale, t('calendar.allDay'))}
-                        </p>
-                        {event.location ? (
-                          <p className="mt-0.5 truncate text-[11.5px] text-muted">{event.location}</p>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
+          <div className="calendar-shell flex h-full min-h-[520px] flex-col rounded-xl border border-line bg-panel/40 p-2">
+            <BigCalendar<RbcEvent>
+              localizer={localizer}
+              culture={lang}
+              events={rbcEvents}
+              views={VIEWS}
+              defaultView="month"
+              popup
+              selectable={false}
+              messages={messages}
+              startAccessor="start"
+              endAccessor="end"
+              titleAccessor="title"
+              allDayAccessor="allDay"
+              tooltipAccessor={(event) => event.resource.location || event.title}
+              style={{ height: '100%' }}
+            />
           </div>
         )}
       </div>
