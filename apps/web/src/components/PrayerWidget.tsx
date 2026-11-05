@@ -10,21 +10,16 @@ import {
   duePrayer,
   formatClock,
   loadPrayerSettings,
-  markGeolocationAsked,
   nextPrayer,
   playChime,
-  requestBrowserLocation,
-  savePrayerSettings,
   subscribePrayerSettings,
-  wasGeolocationAsked,
 } from '../lib/prayer';
 
 const ALERT_VISIBLE_MS = 20_000;
 
 /**
- * Widget jam + jadwal sholat di header. Meminta lokasi sekali saat aplikasi
- * dimuat (kalau belum ada lokasi tersimpan), lalu menghitung dengan adhan.
- * Pengingat dicek tiap menit; dedupe per sholat per hari.
+ * Widget jam + jadwal sholat di header. Lokasi hanya dari input manual di
+ * Setelan (tanpa izin geolocation browser); pengingat dicek tiap menit.
  */
 export function PrayerWidget() {
   const { t, lang } = useI18n();
@@ -43,16 +38,6 @@ export function PrayerWidget() {
   }, []);
 
   useEffect(() => subscribePrayerSettings(() => setSettings(loadPrayerSettings())), []);
-
-  // Izin lokasi diminta sekali saat aplikasi dimuat; kalau ditolak, Settings
-  // menyediakan form kota/koordinat dan tombol coba lagi.
-  useEffect(() => {
-    if (settings.lat !== null || wasGeolocationAsked()) return;
-    markGeolocationAsked();
-    requestBrowserLocation()
-      .then(({ lat, lon }) => savePrayerSettings({ lat, lon, label: t('prayer.device') }))
-      .catch(() => undefined);
-  }, [settings.lat, t]);
 
   const day = now.toDateString();
   useEffect(() => {
@@ -120,6 +105,10 @@ export function PrayerWidget() {
     ? settings.lat.toFixed(4) + ', ' + settings.lon.toFixed(4)
     : '';
   const prayerLabel = (key: PrayerKey) => t(PRAYER_LABEL_KEYS[key] as 'prayer.subuh');
+  const openSettings = () => {
+    setOpen(false);
+    location.hash = '/settings';
+  };
 
   const alertLabel = alert ? prayerLabel(alert.key) : '';
 
@@ -174,17 +163,22 @@ export function PrayerWidget() {
               })}
             </div>
           ) : (
-            <div className="px-1.5 py-2 text-[11.5px] text-muted">{t('prayer.locationUnknown')}</div>
+            <div className="px-1.5 py-2">
+              <button
+                type="button"
+                className="btn btn-primary mt-2 w-full cursor-pointer justify-center"
+                onClick={openSettings}
+              >
+                <Icon name="pin" size={13} /> {t('prayer.setLocation')}
+              </button>
+            </div>
           )}
 
           <div className="mt-2 border-t border-line pt-1.5">
             <button
               type="button"
               className="nav-item w-full text-[11.5px]"
-              onClick={() => {
-                setOpen(false);
-                location.hash = '/settings';
-              }}
+              onClick={openSettings}
             >
               <Icon name="pin" size={13} /> {t('prayer.settingsLink')}
             </button>

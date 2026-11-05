@@ -1,25 +1,23 @@
 import { useState } from 'react';
-import { Icon, Spinner, cn } from './ui';
+import { Icon, cn } from './ui';
 import { useToast } from './toast';
 import { useI18n } from '../lib/i18n';
 import {
   type PrayerSettings as PrayerSettingsValue,
   PRAYER_CITIES,
   loadPrayerSettings,
-  markGeolocationAsked,
-  requestBrowserLocation,
   savePrayerSettings,
 } from '../lib/prayer';
 
-/** Bagian Settings: lokasi manual (kota/koordinat), izin lokasi, toggle pengingat. */
+/** Bagian Settings: lokasi manual (nama kota + koordinat), toggle pengingat. */
 export function PrayerSettings() {
   const { t } = useI18n();
   const toast = useToast();
   const [settings, setSettings] = useState<PrayerSettingsValue>(() => loadPrayerSettings());
+  const [labelText, setLabelText] = useState(settings.label);
   const [latText, setLatText] = useState(settings.lat !== null ? String(settings.lat) : '');
   const [lonText, setLonText] = useState(settings.lon !== null ? String(settings.lon) : '');
   const [error, setError] = useState('');
-  const [geoBusy, setGeoBusy] = useState(false);
 
   const apply = (patch: Partial<PrayerSettingsValue>) => {
     setSettings(savePrayerSettings(patch));
@@ -28,40 +26,25 @@ export function PrayerSettings() {
   const pickCity = (name: string) => {
     const city = PRAYER_CITIES.find((item) => item.name === name);
     if (!city) return;
-    apply({ lat: city.lat, lon: city.lon, label: city.name });
+    setLabelText(city.name);
     setLatText(String(city.lat));
     setLonText(String(city.lon));
     setError('');
-    toast(t('prayer.settings.saved'), 'ok');
   };
 
-  const saveCoords = () => {
-    const lat = Number(latText.replace(',', '.'));
-    const lon = Number(lonText.replace(',', '.'));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+  const saveLocation = () => {
+    const latRaw = latText.trim().replace(',', '.');
+    const lonRaw = lonText.trim().replace(',', '.');
+    const lat = Number(latRaw);
+    const lon = Number(lonRaw);
+    if (!latRaw || !lonRaw || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       setError(t('prayer.settings.invalidCoords'));
       return;
     }
-    apply({ lat, lon, label: lat.toFixed(4) + ', ' + lon.toFixed(4) });
+    const label = labelText.trim().slice(0, 80);
+    apply({ lat, lon, label });
     setError('');
     toast(t('prayer.settings.saved'), 'ok');
-  };
-
-  const useDevice = async () => {
-    setGeoBusy(true);
-    setError('');
-    try {
-      const { lat, lon } = await requestBrowserLocation();
-      markGeolocationAsked();
-      apply({ lat, lon, label: t('prayer.settings.device') });
-      setLatText(String(lat));
-      setLonText(String(lon));
-      toast(t('prayer.settings.saved'), 'ok');
-    } catch {
-      toast(t('prayer.settings.geoDenied'), 'error');
-    } finally {
-      setGeoBusy(false);
-    }
   };
 
   const coords = settings.lat !== null && settings.lon !== null
@@ -85,9 +68,9 @@ export function PrayerSettings() {
           <div className="label">{t('prayer.settings.current')}</div>
           <div className="flex items-center gap-1 truncate text-ink/85" title={coords}>
             <Icon name="pin" size={12} className="shrink-0 text-accent/80" />
-            <span className="truncate">{settings.label || t('prayer.settings.noLocation')}</span>
+            <span className="truncate">{settings.label || coords || t('prayer.settings.noLocation')}</span>
           </div>
-          {coords ? <div className="mono mt-0.5 truncate text-[10.5px] text-muted/70">{coords}</div> : null}
+          {coords && settings.label ? <div className="mono mt-0.5 truncate text-[10.5px] text-muted/70">{coords}</div> : null}
         </div>
         <div className="min-w-0">
           <div className="label">{t('prayer.settings.method')}</div>
@@ -95,7 +78,18 @@ export function PrayerSettings() {
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="label">{t('prayer.settings.cityName')}</span>
+          <input
+            className="input py-1.5 text-[12px]"
+            type="text"
+            maxLength={80}
+            placeholder="Jakarta"
+            value={labelText}
+            onChange={(event) => setLabelText(event.target.value)}
+          />
+        </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.city')}</span>
           <select className="input py-1.5 text-[12px]" value="" onChange={(event) => pickCity(event.target.value)}>
@@ -107,11 +101,6 @@ export function PrayerSettings() {
             ))}
           </select>
         </label>
-        <div className="flex items-end">
-          <button type="button" className="btn cursor-pointer" onClick={() => void useDevice()} disabled={geoBusy}>
-            {geoBusy ? <Spinner /> : <Icon name="pin" size={13} />} {t('prayer.settings.geo')}
-          </button>
-        </div>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
@@ -140,8 +129,8 @@ export function PrayerSettings() {
           />
         </label>
         <div className="flex items-end">
-          <button type="button" className="btn cursor-pointer" onClick={saveCoords}>
-            <Icon name="check" size={13} /> {t('prayer.settings.saveCoords')}
+          <button type="button" className="btn cursor-pointer" onClick={saveLocation}>
+            <Icon name="check" size={13} /> {t('prayer.settings.saveLocation')}
           </button>
         </div>
       </div>

@@ -94,9 +94,9 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
 | `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda) dari 20 event terdekat; cek `/calendar/events`, connect OAuth, Sync, mapping all-day |
 | `tools/calendar.css` | Override tema `react-big-calendar` dengan token warna/font Super Tool; hanya dimuat di halaman Calendar |
-| `lib/prayer.ts` | Setelan sholat di `localStorage`, daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio |
-| `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; minta geolocation sekali saat load; cek pengingat tiap menit |
-| `components/PrayerSettings.tsx` | Form Settings: pilih kota/koordinat, tombol lokasi perangkat, toggle suara & pop-up |
+| `lib/prayer.ts` | Setelan sholat manual di `localStorage` (`st:prayer`), daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio; tanpa geolocation |
+| `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; tampilkan **Atur Lokasi** jika koordinat kosong; cek pengingat tiap menit |
+| `components/PrayerSettings.tsx` | Form Settings: nama kota (label), latitude/longitude manual, dropdown kota cepat, toggle suara & pop-up |
 | `tools/SettingsTool.tsx` | Unduh backup (`/api/backup`), restore zip (modal konfirmasi + `POST /api/restore`), info database |
 | `tools/*.tsx` | Satu tool = satu file, di-`lazy` load |
 | `tools/devspace/*.tsx` | Satu tab Dev Space = satu file, di-`lazy` load saat tab pertama dibuka |

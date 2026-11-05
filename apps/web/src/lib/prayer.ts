@@ -21,7 +21,6 @@ export const PRAYER_LABEL_KEYS: Record<PrayerKey, string> = {
 };
 
 const STORAGE_KEY = 'st:prayer';
-const GEO_KEY = 'st:prayer:geo';
 const CHANGE_EVENT = 'st:prayer-changed';
 const ALERT_LEAD_MS = 5 * 60_000;
 const ALERT_GRACE_MS = 60_000;
@@ -112,36 +111,6 @@ export function subscribePrayerSettings(listener: () => void): () => void {
     window.removeEventListener(CHANGE_EVENT, listener);
     window.removeEventListener('storage', onStorage);
   };
-}
-
-export function wasGeolocationAsked(): boolean {
-  try {
-    return localStorage.getItem(GEO_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-export function markGeolocationAsked(): void {
-  try {
-    localStorage.setItem(GEO_KEY, '1');
-  } catch {
-    // localStorage penuh/diblokir: abaikan, jangan sampai widget rusak.
-  }
-}
-
-export function requestBrowserLocation(): Promise<{ lat: number; lon: number }> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation API tidak tersedia'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ lat: position.coords.latitude, lon: position.coords.longitude }),
-      (error) => reject(error),
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 10 * 60_000 },
-    );
-  });
 }
 
 let adhan: Promise<typeof import('adhan')> | null = null;

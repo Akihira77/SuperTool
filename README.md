@@ -283,8 +283,8 @@ Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk 
 Widget di header (kanan atas, sebelah pemilih proyek) menampilkan hari, tanggal, bulan, tahun, dan jam 24 jam sesuai waktu perangkat. Klik jam untuk membuka popover berisi jadwal sholat hari ini.
 
 - Perhitungan memakai `adhan` di browser (tanpa API): **CalculationMethod.Singapore** (Fajr 20°, Isya 18°, madhab Shafi), metode yang umum untuk Indonesia.
-- Saat aplikasi dimuat, browser diminta izin lokasi sekali. Kalau diizinkan, koordinat disimpan di `localStorage` (`st:prayer`) dan **tidak pernah dikirim ke server**.
-- Kalau izin ditolak, buka **Settings → Waktu & Jadwal Sholat**: pilih kota dari daftar (27 kota), isi latitude/longitude manual, atau klik **Gunakan lokasi perangkat** untuk meminta izin lagi. Perubahan langsung dipakai widget tanpa reload.
+- **Tidak memakai geolocation browser/GPS** — tidak ada permintaan izin lokasi sama sekali. Lokasi diisi manual di **Settings → Waktu & Jadwal Sholat**: nama kota (label), latitude, longitude, atau pilih salah satu dari 27 kota untuk mengisi koordinat otomatis.
+- Data disimpan di `localStorage` (`st:prayer`) dan **tidak pernah dikirim ke server**. Kalau lokasi belum diisi, popover widget menampilkan tombol **Atur Lokasi** yang membuka Settings. Perubahan langsung dipakai widget tanpa reload.
 - Pengingat dicek tiap menit: jendela 5 menit sebelum sampai 1 menit sesudah waktu sholat. Saat masuk jendela, muncul kartu **“Waktunya Sholat [Nama]”** di pojok kiri bawah (bukan alert browser) dan/atau bunyi beep Web Audio. Satu sholat hanya memicu sekali per hari; pop-up menutup sendiri setelah 20 detik atau bisa ditutup manual.
 - Toggle **Suara pengingat** dan **Pop-up pengingat** ada di Settings. Kalau pop-up dimatikan, pengingat suara tetap jalan (dan sebaliknya).
 - Batasan: bunyi bisa diblokir browser sampai ada interaksi user (kebijakan autoplay); perhitungan memakai zona waktu perangkat, jadi untuk kota di zona lain jam ditampilkan menurut waktu lokal perangkat.
