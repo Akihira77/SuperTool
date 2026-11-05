@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inRoots } from './dist/common/fs-jail.js';
-import { signToken, verifyToken } from './dist/common/token.js';
-import { isAllowedHost } from './dist/modules/downloader/downloader.service.js';
-import { authPrompt } from './dist/modules/calendar/oauth.js';
-import { WebhookService } from './dist/modules/webhook/webhook.service.js';
+// SWC menulis ekspor CJS lewat getter, sehingga Node ESM tidak bisa
+// mendeteksi named export. Ambil default lalu destructure.
+import fsJail from './dist/common/fs-jail.js';
+import token from './dist/common/token.js';
+import downloader from './dist/modules/downloader/downloader.service.js';
+import calendarOauth from './dist/modules/calendar/oauth.js';
+import webhook from './dist/modules/webhook/webhook.service.js';
+
+const { inRoots } = fsJail;
+const { signToken, verifyToken } = token;
+const { isAllowedHost } = downloader;
+const { authPrompt } = calendarOauth;
+const { WebhookService } = webhook;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
