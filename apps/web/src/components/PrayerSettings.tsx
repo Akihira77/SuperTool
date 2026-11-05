@@ -6,6 +6,7 @@ import {
   type PrayerSettings as PrayerSettingsValue,
   PRAYER_CITIES,
   loadPrayerSettings,
+  playChime,
   savePrayerSettings,
 } from '../lib/prayer';
 
@@ -148,7 +149,11 @@ export function PrayerSettings() {
             type="checkbox"
             className="size-4 shrink-0 accent-accent"
             checked={settings.sound}
-            onChange={(event) => apply({ sound: event.target.checked })}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              apply({ sound: enabled });
+              if (enabled) playChime();
+            }}
           />
         </label>
         <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.popup ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
