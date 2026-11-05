@@ -4,6 +4,7 @@ import { inRoots } from './dist/common/fs-jail.js';
 import { signToken, verifyToken } from './dist/common/token.js';
 import { isAllowedHost } from './dist/modules/downloader/downloader.service.js';
 import { authPrompt } from './dist/modules/calendar/oauth.js';
+import { WebhookService } from './dist/modules/webhook/webhook.service.js';
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -27,6 +28,16 @@ test('jail: path di dalam root boleh, di luar ditolak', () => {
 test('calendar: mode switch meminta pemilih akun', () => {
   assert.equal(authPrompt('connect'), 'consent');
   assert.match(authPrompt('switch'), /select_account/);
+});
+
+test('webhook: token endpoint bisa diganti dan divalidasi', () => {
+  const hooks = new WebhookService();
+  const first = hooks.create('uji');
+  assert.equal(hooks.updateToken(first.id, 'custom-hook_1').token, 'custom-hook_1');
+  assert.throws(() => hooks.updateToken(first.id, 'bad/token'), /Token hanya/);
+  assert.throws(() => hooks.updateToken(first.id, ''), /Token hanya/);
+  const second = hooks.create('lain');
+  assert.throws(() => hooks.updateToken(second.id, 'custom-hook_1'), /sudah dipakai/);
 });
 
 test('downloader: allowlist host tidak bisa ditipu suffix', () => {

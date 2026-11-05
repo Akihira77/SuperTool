@@ -46,6 +46,8 @@ export default function WebhookTool() {
   const [live, setLive] = useState(true);
   const [adding, setAdding] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [tokenDraft, setTokenDraft] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
   const [error, setError] = useState('');
   const source = useRef<EventSource | null>(null);
 
@@ -85,7 +87,30 @@ export default function WebhookTool() {
   const active = useMemo(() => info?.endpoints.find((endpoint) => endpoint.id === activeId) ?? null, [activeId, info]);
   const items = useMemo(() => (info?.items ?? []).filter((item) => !activeId || item.endpointId === activeId), [activeId, info]);
   const current = items.find((item) => item.id === selected) ?? null;
+  const urlPrefix = window.location.origin + '/api/hook/';
   const url = active ? urlOf(active) : '';
+  const tokenDirty = Boolean(active && tokenDraft !== active.token);
+
+  useEffect(() => {
+    setTokenDraft(active?.token ?? '');
+  }, [active?.id, active?.token]);
+
+  const saveToken = async () => {
+    if (!active || !tokenDirty) return;
+    setSavingToken(true);
+    setError('');
+    try {
+      const endpoint = await api.put<Endpoint>('/webhook/e/' + active.id, { token: tokenDraft });
+      setInfo((prev) =>
+        prev ? { ...prev, endpoints: prev.endpoints.map((item) => (item.id === endpoint.id ? endpoint : item)) } : prev,
+      );
+      toast(t('webhook.endpointSaved'), 'ok');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('err.save'));
+    } finally {
+      setSavingToken(false);
+    }
+  };
 
   const clear = useCallback(async () => {
     if (!activeId) return;
@@ -195,14 +220,27 @@ export default function WebhookTool() {
             <span className="label">{t('webhook.endpoint')}</span>
             <div className="flex flex-wrap items-center gap-2">
               <span className="mono shrink-0 rounded-md border border-line bg-panel2 px-2 py-1.5 text-[10.5px] font-semibold text-accent">POST</span>
-              <input
-                readOnly
-                value={url || '…'}
-                onFocus={(event) => event.target.select()}
-                spellCheck={false}
-                aria-label={t('webhook.endpoint')}
-                className="input mono min-w-0 flex-1 py-1.5 text-[12px]"
-              />
+              <div className="flex min-w-0 flex-1 items-center rounded-[9px] border border-line bg-panel2/60 px-2 py-1.5 focus-within:border-accent/50">
+                <span className="mono shrink-0 text-[11px] text-muted/70">{urlPrefix}</span>
+                <input
+                  value={tokenDraft}
+                  onChange={(event) => setTokenDraft(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void saveToken();
+                    if (event.key === 'Escape') setTokenDraft(active?.token ?? '');
+                  }}
+                  disabled={!active || savingToken}
+                  spellCheck={false}
+                  aria-label={t('webhook.endpoint')}
+                  className="mono min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none disabled:opacity-60"
+                />
+              </div>
+              {tokenDirty ? (
+                <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void saveToken()} disabled={savingToken}>
+                  <Icon name="check" size={13} /> {t('common.save')}
+                </button>
+              ) : null}
               {url ? <CopyButton text={url} label={t('webhook.copy')} /> : null}
               {url ? (
                 <a className="btn cursor-pointer" href={url} target="_blank" rel="noreferrer" title={t('webhook.open')}>

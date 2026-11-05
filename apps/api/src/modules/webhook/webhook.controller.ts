@@ -1,4 +1,4 @@
-import { All, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { All, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../../common/public.decorator';
 import { WebhookService } from './webhook.service';
@@ -29,6 +29,11 @@ export class WebhookController {
   @Post()
   create(@Body() body: { name?: string }) {
     return this.hooks.create(body?.name);
+  }
+
+  @Put('e/:id')
+  update(@Param('id') id: string, @Body() body: { token?: string }) {
+    return this.hooks.updateToken(id, body?.token ?? '');
   }
 
   @Delete('e/:id')

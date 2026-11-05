@@ -68,6 +68,21 @@ export class WebhookService {
     return this.info();
   }
 
+  updateToken(id: string, token: string) {
+    const endpoint = this.endpoints.find((item) => item.id === id);
+    if (!endpoint) throw new NotFoundException('Endpoint tidak ditemukan');
+    const next = String(token ?? '').trim();
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(next)) {
+      throw new BadRequestException('Token hanya boleh huruf, angka, - dan _ (maks 64)');
+    }
+    if (this.endpoints.some((item) => item.id !== id && item.token === next)) {
+      throw new BadRequestException('Token sudah dipakai endpoint lain');
+    }
+    endpoint.token = next;
+    this.push();
+    return endpoint;
+  }
+
   find(token: string) {
     return this.endpoints.find((endpoint) => endpoint.token === token) ?? null;
   }

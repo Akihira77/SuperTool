@@ -264,6 +264,7 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | ANY | `/hook/<token>` | publik (token) | `{ ok, received }` — request disimpan ke ring buffer endpoint tersebut |
 | GET | `/webhook` | login | `{ endpoints: [{ id, name, token, createdAt }], items[] }` |
 | POST | `/webhook` | login + CSRF | body `{ name? }` → endpoint baru (maks 10) |
+| PUT | `/webhook/e/:id` | login + CSRF | body `{ token }` → endpoint dengan URL baru; token `[A-Za-z0-9_-]{1,64}` dan unik |
 | DELETE | `/webhook/e/:id` | login + CSRF | `{ endpoints, items }` — hapus endpoint + riwayatnya |
 | DELETE | `/webhook/items?endpoint=<id>` | login + CSRF | `{ ok }` — kosongkan riwayat satu endpoint |
 | DELETE | `/webhook` | login + CSRF | `{ ok }` — kosongkan semua riwayat |
