@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
+import { useSidebar } from '../lib/useSidebar';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number };
 type Note = NoteMeta & { body: string };
@@ -9,6 +10,7 @@ type Note = NoteMeta & { body: string };
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function NotesTool() {
+  const [panelOpen, togglePanel] = useSidebar('notes', true);
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -79,12 +81,16 @@ export default function NotesTool() {
           status === 'saving' ? 'Menyimpan...' : status === 'error' ? 'Gagal menyimpan' : status === 'saved' ? 'Tersimpan' : notes.length + ' catatan'
         }
       >
+        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
+          <Icon name="panel" />
+        </button>
         <button type="button" className="btn btn-primary" onClick={create}>
           <Icon name="plus" /> Baru
         </button>
       </PageHeader>
 
       <div className="flex min-h-0 flex-1">
+        {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col border-r border-line">
           <div className="p-2">
             <div className="relative">
@@ -117,6 +123,7 @@ export default function NotesTool() {
             )}
           </div>
         </div>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {active ? (

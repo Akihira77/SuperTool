@@ -27,4 +27,10 @@ export const cfg = {
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
   devOrigin: env.ST_DEV_ORIGIN ?? 'http://localhost:5173',
   webDist: resolve(env.ST_WEB_DIST ?? join(process.cwd(), '..', 'web', 'dist')),
+  // LLM kompatibel OpenAI (9router, ollama, dsb). Default: 9router lokal.
+  llm: {
+    baseUrl: env.ST_LLM_BASE_URL ?? 'http://127.0.0.1:20128/v1',
+    model: env.ST_LLM_MODEL ?? '',
+    apiKey: env.ST_LLM_API_KEY ?? '',
+  },
 };

@@ -10,9 +10,10 @@ type Props = {
   className?: string;
   wrap?: boolean;
   areaRef?: RefObject<HTMLTextAreaElement | null>;
+  onContextMenu?: (event: React.MouseEvent<HTMLTextAreaElement>) => void;
 };
 
-export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, className, wrap, areaRef }: Props) {
+export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, className, wrap, areaRef, onContextMenu }: Props) {
   const inner = useRef<HTMLTextAreaElement>(null);
   const areaRef_ = areaRef ?? inner;
   const setArea = (el: HTMLTextAreaElement | null) => {
@@ -71,6 +72,7 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
         onScroll={(e) => {
           if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
         }}
+        onContextMenu={onContextMenu}
         className={cn(
           'mono min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-[12.5px] leading-[1.55rem] text-ink/90 outline-none placeholder:text-muted/50',
           wrap ? 'whitespace-pre-wrap' : 'whitespace-pre',

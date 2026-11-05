@@ -5,3 +5,5 @@ storeDir: .pnpm-store
 verifyDepsBeforeRun: false
 onlyBuiltDependencies:
   - esbuild
+allowBuilds:
+  esbuild: false

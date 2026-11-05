@@ -66,7 +66,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | files | `files.service.ts`, `mime.ts` | list, read, write, mkdir, rename, delete, upload, search, du |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
-| proxy | `proxy.controller.ts` | fetch target, lepas `X-Frame-Options`/CSP, suntik `<base>` |
+| proxy | `proxy.controller.ts` | fetch target, lepas `X-Frame-Options`/CSP, suntik `<base>`, probe koneksi |
+| llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 
 ## Peta frontend
 

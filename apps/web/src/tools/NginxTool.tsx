@@ -3,10 +3,31 @@ import { CodeEditor } from '../components/CodeEditor';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
+import { renderMarkdown } from '../lib/markdown';
+import { useSidebar } from '../lib/useSidebar';
 
-type ConfFile = { name: string; path: string; size: number; mtime: number };
+type ConfFile = { name: string; path: string; size: number; mtime: number; hasBackup: boolean };
+type Menu = { x: number; y: number; text: string };
+type Explain = { loading: boolean; text: string; error: string; model: string };
+
+const WORD = /[A-Za-z0-9_\-./:$]/;
+
+function pickText(source: string, start: number, end: number): string {
+  const selected = source.slice(start, end).trim();
+  if (selected) return selected;
+  let from = start;
+  let to = end;
+  while (from > 0 && WORD.test(source[from - 1])) from -= 1;
+  while (to < source.length && WORD.test(source[to])) to += 1;
+  const word = source.slice(from, to).trim();
+  if (word) return word;
+  const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = source.indexOf('\n', end);
+  return source.slice(lineStart, lineEnd < 0 ? source.length : lineEnd).trim();
+}
 
 export default function NginxTool() {
+  const [panelOpen, togglePanel] = useSidebar('nginx', true);
   const [dir, setDir] = useState('');
   const [files, setFiles] = useState<ConfFile[]>([]);
   const [activePath, setActivePath] = useState('');
@@ -15,8 +36,28 @@ export default function NginxTool() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [menu, setMenu] = useState<Menu | null>(null);
+  const [explain, setExplain] = useState<Explain | null>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [model, setModel] = useState(() => localStorage.getItem('st:llm:model') ?? '');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('st:llm:key') ?? '');
+
+  const loadModels = async (key = apiKey) => {
+    try {
+      const result = await api.get<{ models: string[] }>('/llm/models' + qs({ key }));
+      setModels(result.models);
+      setModel((current) => {
+        if (current || !result.models.length) return current;
+        localStorage.setItem('st:llm:model', result.models[0]);
+        return result.models[0];
+      });
+    } catch {
+      // daftar model opsional; input manual tetap bisa dipakai
+    }
+  };
 
   const dirty = activePath !== '' && text !== saved;
+  const activeFile = files.find((file) => file.path === activePath);
 
   const loadList = async () => {
     try {
@@ -45,8 +86,20 @@ export default function NginxTool() {
 
   useEffect(() => {
     void loadList();
+    void loadModels(localStorage.getItem('st:llm:key') ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [menu]);
 
   const save = async () => {
     if (!activePath) return;
@@ -54,7 +107,8 @@ export default function NginxTool() {
     try {
       await api.put('/nginx/file', { path: activePath, content: text });
       setSaved(text);
-      setNotice({ ok: true, message: 'File tersimpan' });
+      setNotice({ ok: true, message: 'File tersimpan (cadangan .bak dibuat)' });
+      await loadList();
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal menyimpan' });
     } finally {
@@ -74,65 +128,238 @@ export default function NginxTool() {
     }
   };
 
+  const create = async () => {
+    const name = window.prompt('Nama file baru (mis. app.conf)');
+    if (!name) return;
+    try {
+      const result = await api.post<{ path: string }>('/nginx/file', { name });
+      await loadList();
+      await open(result.path);
+      setNotice({ ok: true, message: 'File dibuat: ' + name });
+    } catch (err) {
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal membuat file' });
+    }
+  };
+
+  const remove = async () => {
+    if (!activePath) return;
+    if (!window.confirm('Hapus ' + activePath + '? File dan cadangannya ikut terhapus.')) return;
+    try {
+      await api.del('/nginx/file' + qs({ path: activePath }));
+      setActivePath('');
+      setText('');
+      setSaved('');
+      await loadList();
+      setNotice({ ok: true, message: 'File dihapus' });
+    } catch (err) {
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal menghapus' });
+    }
+  };
+
+  const revert = async () => {
+    if (!activePath) return;
+    if (!window.confirm('Kembalikan isi file ke cadangan sebelum diedit?')) return;
+    try {
+      const result = await api.post<{ text: string }>('/nginx/revert', { path: activePath });
+      setText(result.text);
+      setSaved(result.text);
+      await loadList();
+      setNotice({ ok: true, message: 'Isi asli dikembalikan' });
+    } catch (err) {
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal mengembalikan' });
+    }
+  };
+
+  const explainText = async (code: string) => {
+    if (!code) return;
+    if (!model) {
+      setExplain({ loading: false, text: '', error: 'Model LLM belum dipilih', model: '' });
+      return;
+    }
+    setExplain({ loading: true, text: '', error: '', model });
+    try {
+      const result = await api.post<{ text: string; model: string }>('/llm/explain', { code, model, apiKey });
+      setExplain({ loading: false, text: result.text, error: '', model: result.model });
+    } catch (err) {
+      setExplain({ loading: false, text: '', error: err instanceof ApiError ? err.message : 'LLM gagal dihubungi', model });
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Nginx" subtitle={dir ? dir + ' · ' + files.length + ' file' : 'Konfigurasi nginx'}>
+        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
+          <Icon name="panel" />
+        </button>
         <button type="button" className="btn" onClick={test} disabled={busy} title="nginx -t">
-          <Icon name="play" /> Test konfig
+          <Icon name="play" /> Test
         </button>
         <button type="button" className="btn btn-primary" onClick={save} disabled={!dirty || busy} title="Ctrl+S">
           {busy ? <Spinner /> : <Icon name="save" />} Simpan
         </button>
       </PageHeader>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-64 shrink-0 flex-col border-r border-line">
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {loading ? (
-              <div className="flex justify-center p-6">
-                <Spinner />
-              </div>
-            ) : files.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted">Tidak ada file .conf terbaca</p>
-            ) : (
-              files.map((file) => (
-                <button
-                  key={file.path}
-                  type="button"
-                  onClick={() => open(file.path)}
-                  className={cn(
-                    'mb-0.5 block w-full rounded-lg px-2.5 py-2 text-left transition-colors',
-                    activePath === file.path ? 'bg-accent/12' : 'hover:bg-panel2',
-                  )}
-                >
-                  <div className="truncate text-[12.5px] font-medium">{file.name}</div>
-                  <div className="text-[11px] text-muted">
-                    {bytes(file.size)} · {timeAgo(file.mtime)}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-          {notice ? (
-            <div
-              className={cn(
-                'mono max-h-40 shrink-0 overflow-auto border-t border-line p-2 text-[11px] whitespace-pre-wrap',
-                notice.ok ? 'text-ok' : 'text-bad',
-              )}
-            >
-              {notice.message}
-            </div>
-          ) : null}
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
+        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={create}>
+          <Icon name="plus" /> Baru
+        </button>
+        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={remove} disabled={!activePath}>
+          <Icon name="trash" /> Hapus
+        </button>
+        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={revert} disabled={!activeFile?.hasBackup} title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}>
+          <Icon name="refresh" /> Kembalikan asli
+        </button>
+        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => activePath && open(activePath)} disabled={!dirty}>
+          Batal
+        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              localStorage.setItem('st:llm:key', e.target.value);
+            }}
+            onBlur={() => void loadModels()}
+            placeholder="API key (opsional)"
+            className="input w-36 py-1 text-[12px]"
+            aria-label="API key LLM"
+          />
+          <input
+            list="st-llm-models"
+            value={model}
+            onChange={(e) => {
+              setModel(e.target.value);
+              localStorage.setItem('st:llm:model', e.target.value);
+            }}
+            placeholder="model LLM"
+            className="input w-44 py-1 text-[12px]"
+            aria-label="Model LLM"
+          />
+          <datalist id="st-llm-models">
+            {models.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <span className="hidden text-[11px] text-muted md:inline">klik kanan di editor → jelaskan</span>
         </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        {panelOpen ? (
+          <div className="flex w-64 shrink-0 flex-col border-r border-line">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {loading ? (
+                <div className="flex justify-center p-6">
+                  <Spinner />
+                </div>
+              ) : files.length === 0 ? (
+                <p className="p-4 text-center text-xs text-muted">Tidak ada file .conf terbaca</p>
+              ) : (
+                files.map((file) => (
+                  <button
+                    key={file.path}
+                    type="button"
+                    onClick={() => open(file.path)}
+                    className={cn(
+                      'mb-0.5 block w-full rounded-lg px-2.5 py-2 text-left transition-colors',
+                      activePath === file.path ? 'bg-accent/12' : 'hover:bg-panel2',
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[12.5px] font-medium">{file.name}</span>
+                      {file.hasBackup ? <span className="chip">bak</span> : null}
+                    </div>
+                    <div className="text-[11px] text-muted">
+                      {bytes(file.size)} · {timeAgo(file.mtime)}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            {notice ? (
+              <div className={cn('mono max-h-40 shrink-0 overflow-auto border-t border-line p-2 text-[11px] whitespace-pre-wrap', notice.ok ? 'text-ok' : 'text-bad')}>
+                {notice.message}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
           {activePath ? (
-            <CodeEditor value={text} onChange={setText} onSave={save} wrap />
+            <CodeEditor
+              value={text}
+              onChange={setText}
+              onSave={save}
+              wrap
+              onContextMenu={(event) => {
+                event.preventDefault();
+                const area = event.currentTarget;
+                const picked = pickText(text, area.selectionStart, area.selectionEnd);
+                if (!picked) return;
+                setMenu({
+                  x: Math.min(event.clientX, window.innerWidth - 240),
+                  y: Math.min(event.clientY, window.innerHeight - 140),
+                  text: picked,
+                });
+              }}
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-muted">Pilih file konfigurasi</div>
           )}
         </div>
       </div>
+
+      {explain ? (
+        <div className="max-h-72 shrink-0 overflow-y-auto border-t border-line bg-panel/70 p-3">
+          <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted">
+            <Icon name="eye" size={13} />
+            <span>Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
+            <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          {explain.loading ? (
+            <div className="flex items-center gap-2 p-2 text-sm text-muted">
+              <Spinner /> Meminta penjelasan...
+            </div>
+          ) : explain.error ? (
+            <p className="p-2 text-sm text-bad">{explain.error}</p>
+          ) : (
+            <div className="md text-[13.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
+          )}
+        </div>
+      ) : null}
+
+      {menu ? (
+        <div
+          style={{ top: menu.y, left: menu.x }}
+          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-line bg-panel shadow-2xl"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mono max-h-16 overflow-hidden border-b border-line px-2.5 py-1.5 text-[11px] text-muted">{menu.text.slice(0, 120)}</div>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12.5px] hover:bg-panel2"
+            onClick={() => {
+              setMenu(null);
+              void explainText(menu.text);
+            }}
+          >
+            <Icon name="eye" size={14} /> Jelaskan ke LLM
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12.5px] hover:bg-panel2"
+            onClick={() => {
+              void navigator.clipboard.writeText(menu.text);
+              setMenu(null);
+            }}
+          >
+            <Icon name="copy" size={14} /> Salin teks
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { CopyButton, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { renderMarkdown } from '../lib/markdown';
+import { useSidebar } from '../lib/useSidebar';
 
 type Entry = { name: string; path: string; dir: boolean; size: number; mtime: number; ext: string; hidden: boolean };
 type Listing = { path: string; parent: string | null; entries: Entry[]; truncated: boolean };
@@ -59,6 +60,7 @@ function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: num
 }
 
 export default function FilesTool() {
+  const [panelOpen, togglePanel] = useSidebar('files', true);
   const [roots, setRoots] = useState<Root[]>([]);
   const [rootPath, setRootPath] = useState('');
   const [listing, setListing] = useState<Listing | null>(null);
@@ -222,6 +224,9 @@ export default function FilesTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="File Explorer" subtitle={listing ? listing.path + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'}>
+        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan tree' : 'Tampilkan tree'}>
+          <Icon name="panel" />
+        </button>
         <select value={rootPath} onChange={(e) => { setRootPath(e.target.value); void loadListing(e.target.value); }} className="input w-40 py-1.5 text-[12px]">
           {roots.map((root) => (
             <option key={root.path} value={root.path}>
@@ -252,6 +257,7 @@ export default function FilesTool() {
       </PageHeader>
 
       <div className="flex min-h-0 flex-1">
+        {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2">
           {roots.map((root) => (
             <TreeNode
@@ -263,6 +269,7 @@ export default function FilesTool() {
             />
           ))}
         </div>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-3 py-1.5 text-[12px]">
@@ -291,6 +298,9 @@ export default function FilesTool() {
           {file ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+                <button type="button" className="btn px-1.5 py-1" onClick={() => setFile(null)} title="Kembali ke daftar">
+                  <Icon name="back" />
+                </button>
                 <Icon name="markdown" size={14} className="text-accent" />
                 <span className="mono truncate text-[12.5px] font-medium">{file.path.split('/').pop()}</span>
                 <span className="text-[11px] text-muted">

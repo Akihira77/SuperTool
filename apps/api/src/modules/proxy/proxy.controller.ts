@@ -24,6 +24,32 @@ function assertAllowed(url: URL): void {
 
 @Controller('proxy')
 export class ProxyController {
+  /** Cek cepat apakah URL target hidup (dipakai badge status di URL Viewer). */
+  @Get('probe')
+  async probe(@Query('u') raw: string) {
+    if (!raw) throw new BadRequestException('Parameter u wajib diisi');
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return { ok: false, error: 'URL tidak valid' };
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return { ok: false, error: 'Hanya http/https' };
+    }
+    assertAllowed(url);
+    try {
+      const response = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
+      return { ok: response.status < 500, status: response.status };
+    } catch (err) {
+      const message = (err as Error).message;
+      return {
+        ok: false,
+        error: message.includes('fetch failed') ? 'Tidak ada yang mendengarkan di alamat itu' : message,
+      };
+    }
+  }
+
   /**
    * Proxy sederhana untuk membuka tool yang mengirim X-Frame-Options / CSP.
    * ponytail: hanya menghapus header + menyuntik <base>. SPA yang memanggil API

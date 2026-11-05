@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Put, Query } from '@nestjs/common';
 import { NginxService } from './nginx.service';
 
 @Controller('nginx')
@@ -18,6 +18,21 @@ export class NginxController {
   @Put('file')
   save(@Body() body: { path: string; content: string }) {
     return this.nginx.write(body?.path, body?.content ?? '');
+  }
+
+  @Post('file')
+  create(@Body() body: { name: string }) {
+    return this.nginx.create(body?.name);
+  }
+
+  @Delete('file')
+  remove(@Query('path') path: string) {
+    return this.nginx.remove(path);
+  }
+
+  @Post('revert')
+  revert(@Body() body: { path: string }) {
+    return this.nginx.revert(body?.path);
   }
 
   @Post('test')

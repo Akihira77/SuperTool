@@ -12,10 +12,10 @@ Semua berjalan di mesin sendiri. Tanpa database, tanpa layanan eksternal.
 | 2 | JSON | Formatter, minify, urutkan kunci, highlight, unduh |
 | 3 | JSON ke TypeScript | Generate `interface` otomatis, array objek digabung |
 | 4 | Catatan | Notepad tersimpan di server, autosave, pencarian |
-| 5 | URL Viewer | Iframe untuk 9router/termix/docmost dll, mode proxy |
-| 6 | Nginx | Daftar file konfigurasi, editor, `nginx -t` |
-| 7 | Port | Daftar port listening + proses, PID, uptime, auto refresh |
-| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, upload, rename, hapus |
+| 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
+| 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
+| 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
+| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, upload, rename, hapus, tombol kembali |
 
 ## Tech stack
 
@@ -65,6 +65,9 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_FS_ROOTS` | home user | Folder yang boleh diakses File Explorer, dipisah `:` |
 | `ST_NGINX_DIR` | `/etc/nginx` | Folder konfigurasi nginx |
 | `ST_PROXY_ALLOW_PUBLIC` | `0` | `1` = proxy boleh ke host publik (default hanya localhost/jaringan privat) |
+| `ST_LLM_BASE_URL` | `http://127.0.0.1:20128/v1` | Endpoint kompatibel OpenAI (9router, ollama, dll) |
+| `ST_LLM_MODEL` | kosong | Model default; bisa juga dipilih dari UI |
+| `ST_LLM_API_KEY` | kosong | API key bila provider mewajibkan |
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
 | `ST_DEV_ORIGIN` | `http://localhost:5173` | Origin yang diizinkan CORS saat dev |
 
@@ -75,6 +78,17 @@ ST_FS_ROOTS=/home/akihira17:/srv/data pnpm start
 ~~~
 
 Membaca `/etc/nginx` butuh izin baca. Kalau server jalan sebagai user biasa dan file tidak terbaca, arahkan `ST_NGINX_DIR` ke salinan konfigurasi, atau jalankan lewat `systemd` dengan user yang sesuai.
+
+## Fitur "jelaskan ke LLM"
+
+Di menu Nginx, **klik kanan** di editor → *Jelaskan ke LLM*. Kalau ada teks terseleksi, teks itu yang dikirim; kalau tidak, kata di posisi kursor (atau barisnya) yang dipakai.
+
+Butuh endpoint kompatibel OpenAI:
+
+1. Isi **model** dan **API key** di toolbar Nginx (disimpan di browser), atau
+2. Set lewat env: `ST_LLM_BASE_URL`, `ST_LLM_MODEL`, `ST_LLM_API_KEY`.
+
+Daftar model diambil otomatis dari `/models` (contoh 9router di port 20128, ollama di `http://127.0.0.1:11434/v1`).
 
 ## Keamanan
 
@@ -128,7 +142,9 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 
 - **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` melepas header tersebut dan menyuntik `<base>`, cukup untuk halaman statis; aplikasi SPA yang memanggil API ke origin aslinya tetap butuh reverse proxy sungguhan (nginx/caddy). Untuk pemakaian penuh, arahkan subdomain ke tool tersebut.
 - **Catatan**: disimpan sebagai satu file JSON. Cukup untuk satu pengguna; pindahkan ke SQLite kalau butuh penulis bersamaan atau ribuan catatan.
-- **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas.
+- **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas. Aksi *kill* mengirim SIGTERM (bukan SIGKILL) dan menolak PID 1 serta proses server ini sendiri.
+- **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". Tombol **Cek** memanggil server untuk memastikan port benar-benar terbuka.
+- **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
 - **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif.
 
 ## Lisensi

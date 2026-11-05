@@ -70,22 +70,30 @@ curl -b cookies.txt -X PUT http://127.0.0.1:3001/api/fs/write \
 
 ## Port
 
-| Metode | Path | Hasil |
-|--------|------|-------|
-| GET | `/ports` | `{ ports[], generatedAt }` |
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/ports` | – | `{ ports[], generatedAt }` |
+| GET | `/ports/processes` | `limit` (default 60, maks 200) | `{ rows[], system, generatedAt }` |
+| POST | `/ports/kill` | `{ pid }` | kirim SIGTERM |
 
-Setiap baris: `{ proto, address, port, pid, process, cmd, uptimeSec, established }`.
+Baris port: `{ proto, address, port, pid, process, cmd, uptimeSec, established }`.
+Baris proses: `{ pid, ppid, user, cpu, mem, rssKb, elapsed, command, args }`, plus ringkasan `system` (load, cpus, memTotal, memFree, uptime).
+
+`kill` menolak PID 1, PID server itu sendiri, dan PID yang tidak ada. Sinyal yang dikirim SIGTERM (bukan SIGKILL).
 
 ## Nginx
 
 | Metode | Path | Query/Body | Hasil |
 |--------|------|------------|-------|
-| GET | `/nginx/files` | – | `{ dir, files[] }` |
+| GET | `/nginx/files` | – | `{ dir, files[] }` (tiap file punya `hasBackup`) |
 | GET | `/nginx/file` | `path` | `{ path, text, mtime }` |
-| PUT | `/nginx/file` | `{ path, content }` | `{ ok, path }` |
-| POST | `/nginx/test` | – | `{ ok, output }` |
+| POST | `/nginx/file` | `{ name }` | buat file `.conf` baru dari template |
+| PUT | `/nginx/file` | `{ path, content }` | simpan; isi asli disalin ke `<file>.bak` saat pertama kali |
+| DELETE | `/nginx/file` | `path` | hapus file + cadangannya |
+| POST | `/nginx/revert` | `{ path }` | pulihkan dari `<file>.bak`, lalu hapus cadangan |
+| POST | `/nginx/test` | – | `{ ok, output }` (jalankan `nginx -t`) |
 
-Hanya file `*.conf`, `*.bak`, `*.disabled` di dalam `ST_NGINX_DIR`.
+Hanya file `*.conf`, `*.bak`, `*.disabled` di dalam `ST_NGINX_DIR`. Nama saat membuat file wajib berakhiran `.conf` tanpa folder.
 
 ## Proxy
 
@@ -98,6 +106,27 @@ Meneruskan status dan header target, melepas `X-Frame-Options`, `CSP`, dan `Set-
 ~~~bash
 curl -b cookies.txt "http://127.0.0.1:3001/api/proxy?u=http%3A%2F%2Flocalhost%3A8080%2F"
 ~~~
+
+Cek cepat tanpa memuat konten:
+
+| Metode | Path | Query | Hasil |
+|--------|------|-------|-------|
+| GET | `/proxy/probe` | `u` | `{ ok, status }` atau `{ ok: false, error }` |
+
+## LLM
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/llm/models` | `key` (opsional) | `{ ok, baseUrl, models[] }` |
+| POST | `/llm/explain` | `{ code, model, apiKey?, question? }` | `{ text, model }` |
+
+Endpoint memakai API kompatibel OpenAI dari `ST_LLM_BASE_URL`. Kunci API diambil dari `apiKey` di body, kalau kosong dari `ST_LLM_API_KEY`.
+
+```bash
+curl -b cookies.txt -X POST http://127.0.0.1:3001/api/llm/explain \
+  -H 'content-type: application/json' -H 'x-st-csrf: 1' \
+  -d '{"code":"proxy_set_header Host $host;","model":"ocg/deepseek-flash"}'
+```
 
 ## Kode error
 
