@@ -19,6 +19,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
+| 12 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 
 ## Tech stack
 
@@ -54,6 +55,7 @@ sudo apt install -y ghostscript poppler-utils cron iproute2 docker.io
 | `cron` | tab Cron Job | daftar kosong, penambahan gagal dengan pesan jelas |
 | `grep` | pencarian isi berkas | pencarian isi tidak berfungsi (pencarian nama tetap jalan) |
 | `ss` (iproute2) | daftar port | tab Port kosong |
+| `unzip` | restore backup `.zip` di Settings | tombol Pulihkan gagal dengan pesan jelas |
 
 **Ghostscript di WSL:** instal lewat apt (perintah di atas). Cek dengan `gs --version`. Kalau server dijalankan lewat systemd/PM2 di dalam WSL, PATH biasanya sudah memuat `/usr/bin`. Setelah terpasang, `GET /api/compress/info` berubah menjadi `"pdf": "ghostscript"` dan kompresor otomatis memakai jalur streaming (berkas tidak dimuat penuh ke RAM).
 
@@ -129,6 +131,15 @@ Yang **tidak** masuk database: isi file itu sendiri. Konfigurasi nginx dan isi f
 Isi database bisa dilihat langsung di **Dev Space → Database**: daftar tabel + jumlah baris, pratinjau data dengan paging, dan kotak query bebas (SELECT/WITH/PRAGMA/EXPLAIN, maksimal 500 baris). Viewer memakai koneksi **read-only**; database berjalan di `journal_mode = WAL` dengan `busy_timeout`, jadi membuka viewer tidak mengunci aplikasi.
 
 `git clean`, `rm -rf node_modules`, atau hapus folder project tidak menyentuh data. Pindahkan dengan env `ST_DATA_DIR` bila perlu.
+
+### Backup & restore (halaman Settings)
+
+Menu **Settings** punya dua bagian:
+
+- **Backup data** — tombol **Unduh backup (.zip)** memanggil `GET /api/backup`. Isi arsip: `super-tool.db` (snapshot konsisten via `VACUUM INTO`, bukan salinan file WAL), `uploads/` bila folder itu ada, dan `backup.json` (metadata). Ukuran/tabel database ditampilkan di halaman ini.
+- **Restore data** — pilih file `.zip` hasil backup, klik **Pulihkan sekarang** → modal konfirmasi → `POST /api/restore`. Server memeriksa arsip (tolak path `..`/absolut, wajib ada `super-tool.db` yang valid, maks 100 MB terkompresi / 1 GB isi), membuka arsip dengan `unzip`, mengganti database (koneksi SQLite lama ditutup lalu dibuka ulang) dan folder `uploads`. **Sesi login lama berakhir** karena secret sesi ikut berganti — setelah restore, login ulang. Aksi ini tidak bisa dibatalkan.
+
+Batasan: backup tidak memuat isi file di disk (nginx/explorer) — hanya database + folder `uploads`; kedua endpoint memakai login + CSRF seperti endpoint lain. Backup manual tetap disarankan sebelum restore dari sumber yang tidak dikenal.
 
 ## Fitur "jelaskan ke LLM"
 

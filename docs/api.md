@@ -61,6 +61,15 @@ Catatan:
 - **Database**: akun, catatan, URL, dan path terakhir ada di SQLite (`~/.local/share/super-tool/super-tool.db`).
 - Isi file nginx/explorer tidak disimpan di database — hanya path yang pernah dibuka.
 
+## Backup & restore
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/backup` | – | file `.zip` (attachment) berisi `super-tool.db`, `uploads/` bila ada, `backup.json` |
+| POST | `/restore` | multipart `file` (bukan query), wajib header `x-st-csrf: 1` | `{ ok, size, uploads, revoked, at }` |
+
+`GET /backup` membuat snapshot konsisten dengan `VACUUM INTO` lalu mengompresnya (archiver). `POST /restore` memvalidasi arsip (nama entri tanpa `..`/path absolut, maks 3000 entri, maks 100 MB terkompresi dan 1 GB isi), memeriksa header `SQLite format 3`, mengekstrak dengan perintah sistem `unzip`, mengganti database aktif (koneksi ditutup lalu dibuka ulang) dan folder `uploads`. Sesi login lama tidak valid setelah restore karena secret HMAC tersimpan di database.
+
 ## File sistem
 
 Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.

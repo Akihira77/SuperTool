@@ -13,6 +13,7 @@ import { CompressModule } from './modules/tools/compress.module';
 import { DevModule } from './modules/dev/dev.module';
 import { SqliteModule } from './modules/sqlite/sqlite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     DevModule,
     SqliteModule,
     WebhookModule,
+    BackupModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })

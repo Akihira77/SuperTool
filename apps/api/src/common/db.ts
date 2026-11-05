@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { cfg } from '../config';
 
@@ -12,7 +12,7 @@ import { cfg } from '../config';
 const file = join(cfg.dataDir, 'super-tool.db');
 mkdirSync(cfg.dataDir, { recursive: true });
 
-export const db = new DatabaseSync(file);
+export let db = new DatabaseSync(file);
 
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
@@ -93,6 +93,22 @@ export function touchPath(kind: string, path: string): void {
     kind,
     kind,
   );
+}
+
+/**
+ * Ganti database yang sedang dipakai dengan file hasil restore, lalu buka ulang.
+ * Koneksi lama ditutup supaya tidak ada dua penulis; berkas -wal/-shm dibuang.
+ */
+export function replaceDatabase(source: string): { ok: true; path: string } {
+  db.close();
+  for (const suffix of ['', '-wal', '-shm']) rmSync(file + suffix, { force: true });
+  copyFileSync(source, file);
+  db = new DatabaseSync(file);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA busy_timeout = 5000');
+  db.exec('PRAGMA synchronous = NORMAL');
+  return { ok: true, path: file };
 }
 
 export function recentPaths(kind: string, limit = 8): Array<{ path: string; openedAt: number }> {

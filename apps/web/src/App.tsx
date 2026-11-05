@@ -33,6 +33,7 @@ const TOOLS: Array<Tool & { key: string }> = [
   { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', component: lazy(() => import('./tools/CompressTool')) },
   { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', component: lazy(() => import('./tools/DevSpaceTool')) },
   { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', component: lazy(() => import('./tools/WebhookTool')) },
+  { key: 'nav.settings', id: 'settings', label: 'Settings', desc: 'Backup & restore data', icon: 'save', component: lazy(() => import('./tools/SettingsTool')) },
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
@@ -91,6 +92,7 @@ function Shell() {
       act('devspace', tab, 'chevronRight'),
     ),
     webhook: [act('webhook', 'pause', 'play'), act('webhook', 'clear', 'trash')],
+    settings: [act('settings', 'backup', 'download'), act('settings', 'restore', 'upload')],
   };
 
   const loadUrls = async (): Promise<PaletteNode[]> => {
