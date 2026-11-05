@@ -6,6 +6,7 @@ import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
 import { projectName, useProject } from '../lib/project';
+import { usePlayer } from '../lib/player';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { renderMarkdown } from '../lib/markdown';
@@ -104,95 +105,12 @@ function Thumb({ entry }: { entry: Entry }) {
   );
 }
 
-function MediaView({ file }: { file: FileData }) {
-  const ext = file.ext.toLowerCase();
-  const video = VIDEO.has(ext);
-  const src = RAW + encodeURIComponent(file.path);
-  const name = file.path.split('/').pop() ?? file.path;
-  const [failed, setFailed] = useState(false);
-  const ref = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
-
-  // Volume/mute tersimpan supaya tidak diset ulang tiap berkas dibuka.
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const saved = Number(localStorage.getItem('st:media:volume') ?? '1');
-    element.volume = Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
-    element.muted = localStorage.getItem('st:media:muted') === '1';
-    const save = () => {
-      localStorage.setItem('st:media:volume', String(element.volume));
-      localStorage.setItem('st:media:muted', element.muted ? '1' : '0');
-    };
-    element.addEventListener('volumechange', save);
-    save();
-    return () => element.removeEventListener('volumechange', save);
-  }, [file.path]);
-
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-line bg-[#0b1118] p-4">
-      {failed ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-          <Icon name="files" size={28} className="text-muted/70" />
-          <div className="max-w-md text-[12.5px] leading-relaxed text-muted">
-            Browser tidak bisa memutar berkas ini. Codec-nya mungkin tidak didukung (mis. MKV/H.265). Unduh lalu buka di pemutar lain.
-          </div>
-          <a className="btn btn-primary" href={src + '&download=1'} download>
-            <Icon name="download" /> Unduh
-          </a>
-        </div>
-      ) : video ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <video
-            key={file.path}
-            ref={(element) => { ref.current = element; }}
-            controls
-            playsInline
-            preload="metadata"
-            src={src}
-            onError={() => setFailed(true)}
-            className="max-h-full max-w-full rounded-lg border border-line bg-black shadow-lg"
-          />
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="w-full max-w-md rounded-xl border border-line bg-panel p-5 shadow-xl">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/12 text-accent">
-                <Icon name="music" size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-ink">{name}</div>
-                <div className="mono text-[11px] text-muted">{ext.toUpperCase()} · {bytes(file.size)}</div>
-              </div>
-            </div>
-            <audio
-              key={file.path}
-              ref={(element) => { ref.current = element; }}
-              controls
-              preload="metadata"
-              src={src}
-              onError={() => setFailed(true)}
-              className="w-full"
-            />
-          </div>
-        </div>
-      )}
-      <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-muted">
-        <span className="mono max-w-full truncate">{name}</span>
-        <span>·</span>
-        <span>{ext.toUpperCase()} · {bytes(file.size)}</span>
-        <span>·</span>
-        <a className="text-accent hover:underline" href={src + '&download=1'} download>unduh</a>
-      </div>
-    </div>
-  );
-}
-
 export default function FilesTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
   const toast = useToast();
   const { projectPath } = useProject();
+  const { play: playMedia } = usePlayer();
   const [panelOpen, togglePanel] = useSidebar('files', true);
   const [roots, setRoots] = useState<Root[]>([]);
   const [rootPath, setRootPath] = useState('');
@@ -340,11 +258,22 @@ export default function FilesTool() {
   };
 
   const openFile = async (entry: Entry) => {
+    const ext = (entry.ext || entry.path.split('.').pop() || '').toLowerCase();
+    // Audio/video tidak membuka halaman: diputar di pemutar global pojok kanan bawah.
+    if (AUDIO.has(ext) || VIDEO.has(ext)) {
+      playMedia({
+        path: entry.path,
+        name: entry.path.split('/').pop() ?? entry.path,
+        ext,
+        kind: VIDEO.has(ext) ? 'video' : 'audio',
+      });
+      void loadRecents();
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       setOffice(null);
-      const ext = entry.ext || (entry.path.split('.').pop() ?? '').toLowerCase();
       if (OFFICE.has(ext)) {
         await loadOffice(entry.path);
         setEditing(false);
@@ -921,9 +850,7 @@ export default function FilesTool() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {AUDIO.has(fileExt) || VIDEO.has(fileExt) ? (
-                  <MediaView file={file} />
-                ) : file.binary ? (
+                {file.binary ? (
                   IMAGE.has(fileExt) ? (
                     <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-line bg-[#0b1118] p-4">
                       <img src={RAW + encodeURIComponent(file.path)} alt={file.path} className="max-h-full max-w-full object-contain" />

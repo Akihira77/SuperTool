@@ -4,6 +4,7 @@ import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
 import { ConfirmProvider } from './components/confirm';
 import { ProjectProvider } from './lib/project';
+import { PlayerProvider } from './lib/player';
 import { ProjectPicker } from './components/ProjectPicker';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
@@ -44,7 +45,9 @@ export default function App() {
       <ToastProvider>
         <ConfirmProvider>
           <ProjectProvider>
-            <Shell />
+            <PlayerProvider>
+              <Shell />
+            </PlayerProvider>
           </ProjectProvider>
         </ConfirmProvider>
       </ToastProvider>

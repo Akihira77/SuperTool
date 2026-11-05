@@ -15,7 +15,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
-| 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
+| 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
@@ -170,10 +170,12 @@ Saat menyimpan, isi lama disalin dulu ke `<nama>_backup_<YYYYMMDD-HHMMSS>.<ext>`
 
 ## Audio & video
 
-File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov lewat `GET /api/fs/raw` yang mendukung HTTP Range, jadi video bisa di-seek tanpa mengunduh seluruh berkas.
+Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas diputar di pemutar global yang menempel di pojok kanan bawah dan tetap berjalan saat pindah menu (Markdown, Dev Space, dst). Sumbernya `GET /api/fs/raw` yang mendukung HTTP Range, jadi video bisa di-seek tanpa mengunduh seluruh berkas.
 
-- Volume dan mute disimpan di `localStorage` (`st:media:volume`, `st:media:muted`), jadi tidak perlu diset ulang tiap membuka berkas.
-- Kalau browser tidak mendukung codec-nya (mis. MKV/H.265), pemutar diganti pesan + tombol unduh, bukan layar hitam.
+- State pemutaran (path, posisi playhead, play/pause, durasi) ada di React Context `apps/web/src/lib/player.tsx`; elemen media tidak di-unmount saat ganti route, jadi suara tidak terputus.
+- Kontrol: play/pause, seek, volume, tutup. Volume disimpan di `localStorage` (`st:media:volume`).
+- Berkas yang sama diklik lagi → lanjut dari posisi terakhir. Berkas baru → mulai dari awal.
+- Codec tidak didukung (mis. MKV/H.265) → pesan error di dalam pemutar; berkas tetap bisa diunduh dari daftar.
 - Ekstensi dinormalkan ke huruf kecil di server, jadi `VIDEO.MP4` tetap terbuka sebagai video.
 - Daftar berkas menampilkan thumbnail 96×96 (`GET /api/fs/thumb`): gambar diproses dengan sharp, video diambil frame detik ke-1 lewat ffmpeg. Gagal/ffmpeg tidak ada → ikon berkas generik. Thumbnail di-cache di memori (maks. 300) per path + mtime.
 
