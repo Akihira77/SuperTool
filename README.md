@@ -19,7 +19,8 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
-| 12 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
+| 12 | Calendar | Agenda 20 event terdekat dari Google Calendar (baca-saja), hubungkan lewat OAuth, daftar per hari + tombol Sync |
+| 13 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 
 ## Tech stack
 
@@ -239,9 +240,9 @@ curl -X POST http://127.0.0.1:3001/api/hook/<token> \
 
 Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu item untuk melihat header dan body; body JSON dirapikan otomatis. Batasan: endpoint + token dibuat ulang tiap server restart, riwayat hanya di memori (100 request total, body maksimal 200 KB), dan endpoint ini sengaja tanpa login supaya aplikasi luar bisa memanggilnya — server tetap binding ke loopback.
 
-## Google Calendar (backend)
+## Google Calendar
 
-Integrasi baca-saja ke Google Calendar. Halaman Calendar di frontend belum dibuat; endpoint backend sudah siap dipakai.
+Integrasi baca-saja ke Google Calendar. Menu **Calendar** di sidebar menampilkan 20 event terdekat dari kalender utama.
 
 Setup:
 
@@ -262,6 +263,12 @@ Alur:
 - Google mengembalikan `code` ke `GET /api/calendar/callback`. Route ini publik karena consent bisa diselesaikan di profil browser lain; keamanannya dari `state` acak sekali pakai (TTL 10 menit). Token ditukar lalu disimpan ke tabel `google_tokens`, setelah itu user diarahkan ke `/#/calendar?google=connected` (atau `denied`/`error`).
 - `GET /api/calendar/events` (wajib login) → 20 event terdekat dari kalender `primary`, `timeMin` = sekarang, `singleEvents` + `orderBy=startTime`. Access token di-refresh otomatis 60 detik sebelum kedaluwarsa; refresh token lama dipertahankan.
 - Scope hanya `https://www.googleapis.com/auth/calendar.readonly`. Token tidak pernah dikirim ke browser. Backup database ikut memuat token, jadi perlakukan file backup seperti kredensial.
+
+Halaman Calendar:
+
+- Saat dibuka, halaman memanggil `/api/calendar/events`. Kalau belum terhubung, tampil tombol **Hubungkan ke Google Calendar** yang membuka URL dari `/api/calendar/auth` di tab baru (atau tab yang sama kalau popup diblokir).
+- Setelah memberi izin, Google redirect ke `/#/calendar?google=connected` (atau `denied`/`error`); halaman menampilkan toast sesuai status lalu membersihkan query. Di tab asal, klik **Sync** untuk memuat token yang baru tersimpan.
+- Event dikelompokkan per hari: judul, tanggal + jam (atau **Sepanjang hari**), lokasi kalau ada, dan tautan ke Google Calendar. Tombol **Sync** di header memuat ulang data.
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 

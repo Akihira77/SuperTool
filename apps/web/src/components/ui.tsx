@@ -17,6 +17,7 @@ const PATHS: Record<string, string> = {
   copy: 'M9 9h10v10H9z M5 15V5h10',
   save: 'M5 3h11l3 3v15H5z M8 3v6h7V3 M8 14h8v7H8z',
   refresh: 'M20 11a8 8 0 10-2.3 6M20 5v6h-6',
+  calendar: 'M5 5h14v15H5z M8 3v4 M16 3v4 M5 10h14',
   download: 'M12 4v11 M7 11l5 5 5-5 M4 20h16',
   upload: 'M12 20V9 M7 13l5-5 5 5 M4 4h16',
   search: 'M11 4a7 7 0 100 14 7 7 0 000-14z M20 20l-4-4',

@@ -83,7 +83,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | File | Peran |
 |------|-------|
 | `App.tsx` | Gate auth (loading/anonymous/wajib-ganti/siap), sidebar, routing hash |
-| `lib/router.ts` | Router hash 15 baris — tanpa react-router |
+| `lib/router.ts` | Router hash ~15 baris — tanpa react-router; query di hash (`#/calendar?google=connected`) dibuang saat mencocokkan id tool |
 | `lib/api.ts` | `fetch` wrapper: JSON, cookie, header CSRF, `ApiError` |
 | `lib/project.tsx` | Konteks folder proyek aktif (localStorage `st:project`) + riwayat `st:project:recent`; `useProject()` dipakai File Explorer dan Git |
 | `components/ProjectPicker.tsx` | Bar pemilih proyek di atas halaman: dropdown riwayat + penjelajah folder (`/fs/list`) |
@@ -92,6 +92,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/json2ts.ts` | Inferensi tipe: nama dari key, gabung bentuk array, penanda `?` untuk field yang tidak selalu ada |
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
+| `tools/CalendarTool.tsx` | Agenda 20 event terdekat: cek `/calendar/events`, tombol connect (OAuth di tab baru), Sync, dikelompokkan per hari |
 | `tools/SettingsTool.tsx` | Unduh backup (`/api/backup`), restore zip (modal konfirmasi + `POST /api/restore`), info database |
 | `tools/*.tsx` | Satu tool = satu file, di-`lazy` load |
 | `tools/devspace/*.tsx` | Satu tab Dev Space = satu file, di-`lazy` load saat tab pertama dibuka |
