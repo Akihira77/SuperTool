@@ -80,6 +80,7 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | GET | `/fs/list` | `path` | `{ path, parent, entries[], truncated }` |
 | GET | `/fs/read` | `path` | `{ text, binary, size, mtime, ext, truncated }` |
 | GET | `/fs/raw` | `path`, `download=1` | isi file mentah, mendukung HTTP Range (206) |
+| GET | `/fs/thumb` | `path` | thumbnail `image/webp` 96×96 (gambar via sharp, video via ffmpeg); 400 jika tidak didukung |
 | GET | `/fs/office` | `path` | pratinjau docx/xlsx/pptx/odt/ods/odp |
 | POST | `/fs/office` | `{ path, texts[] }` atau `{ path, cells[] }` | simpan hasil edit + cadangan otomatis |
 | GET | `/fs/grep` | `path`, `q`, `limit`, `exclude`, `include` | `{ results: [{ path, line, text }], truncated, warning? }` |

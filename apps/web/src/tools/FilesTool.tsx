@@ -33,6 +33,7 @@ function officeText(blocks: OfficeBlock[]): string {
 const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif']);
 const AUDIO = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus']);
 const VIDEO = new Set(['mp4', 'm4v', 'webm', 'mkv', 'mov', 'ogv']);
+const THUMB = new Set([...IMAGE, ...VIDEO]);
 const RAW = '/api/fs/raw?path=';
 
 function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: number; selected: string; onPick: (path: string) => void }) {
@@ -77,6 +78,29 @@ function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: num
       </button>
       {open && children ? children.map((child) => <TreeNode key={child.path} entry={child} depth={depth + 1} selected={selected} onPick={onPick} />) : null}
     </div>
+  );
+}
+
+function Thumb({ entry }: { entry: Entry }) {
+  const thumbable = !entry.dir && THUMB.has(entry.ext.toLowerCase());
+  const [failed, setFailed] = useState(!thumbable);
+  if (failed) {
+    return (
+      <Icon
+        name={entry.dir ? 'files' : 'markdown'}
+        size={14}
+        className={cn('shrink-0', entry.dir ? 'text-accent/80' : 'text-muted')}
+      />
+    );
+  }
+  return (
+    <img
+      src={'/api/fs/thumb' + qs({ path: entry.path, v: Math.round(entry.mtime) })}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-6 w-8 shrink-0 rounded-[3px] border border-line/60 bg-panel2 object-cover"
+    />
   );
 }
 
@@ -984,7 +1008,7 @@ export default function FilesTool() {
                     >
                       <td className="border-b border-line/60 px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          <Icon name={entry.dir ? 'files' : 'markdown'} size={14} className={entry.dir ? 'text-accent/80' : 'text-muted'} />
+                          <Thumb entry={entry} />
                           <span className={cn('truncate', entry.hidden && 'text-muted')}>{entry.name}</span>
                           {entry.dir ? <span className="text-[10px] text-muted/60">dir</span> : null}
                         </div>

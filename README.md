@@ -15,7 +15,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
-| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
+| 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
@@ -43,7 +43,7 @@ Beberapa fitur memakai binary sistem. Tanpa binary itu aplikasi tetap jalan, han
 ~~~bash
 # Debian/Ubuntu/WSL
 sudo apt update
-sudo apt install -y ghostscript poppler-utils cron iproute2 docker.io
+sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 ~~~
 
 | Binary | Dipakai untuk | Kalau tidak ada |
@@ -56,6 +56,7 @@ sudo apt install -y ghostscript poppler-utils cron iproute2 docker.io
 | `grep` | pencarian isi berkas | pencarian isi tidak berfungsi (pencarian nama tetap jalan) |
 | `ss` (iproute2) | daftar port | tab Port kosong |
 | `unzip` | restore backup `.zip` di Settings | tombol Pulihkan gagal dengan pesan jelas |
+| `ffmpeg` | thumbnail video di File Explorer (frame detik ke-1) | thumbnail video diganti ikon berkas generik |
 
 **Ghostscript di WSL:** instal lewat apt (perintah di atas). Cek dengan `gs --version`. Kalau server dijalankan lewat systemd/PM2 di dalam WSL, PATH biasanya sudah memuat `/usr/bin`. Setelah terpasang, `GET /api/compress/info` berubah menjadi `"pdf": "ghostscript"` dan kompresor otomatis memakai jalur streaming (berkas tidak dimuat penuh ke RAM).
 
@@ -174,6 +175,7 @@ File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov l
 - Volume dan mute disimpan di `localStorage` (`st:media:volume`, `st:media:muted`), jadi tidak perlu diset ulang tiap membuka berkas.
 - Kalau browser tidak mendukung codec-nya (mis. MKV/H.265), pemutar diganti pesan + tombol unduh, bukan layar hitam.
 - Ekstensi dinormalkan ke huruf kecil di server, jadi `VIDEO.MP4` tetap terbuka sebagai video.
+- Daftar berkas menampilkan thumbnail 96×96 (`GET /api/fs/thumb`): gambar diproses dengan sharp, video diambil frame detik ke-1 lewat ffmpeg. Gagal/ffmpeg tidak ada → ikon berkas generik. Thumbnail di-cache di memori (maks. 300) per path + mtime.
 
 ## Kompresor
 

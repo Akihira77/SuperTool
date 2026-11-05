@@ -150,6 +150,17 @@ export class FilesController {
     stream.pipe(res);
   }
 
+
+  /** Thumbnail kecil untuk daftar berkas (webp 96x96). */
+  @Get('thumb')
+  async thumb(@Query('path') path: string, @Res() res: Response) {
+    const body = await this.files.thumbnail(String(path ?? ''));
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    res.setHeader('Content-Length', String(body.length));
+    res.end(body);
+  }
+
   @Put('write')
   write(@Body() body: { path: string; content: string }) {
     return this.files.writeText(body?.path, body?.content ?? '');

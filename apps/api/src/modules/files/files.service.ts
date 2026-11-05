@@ -7,11 +7,15 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { touchPath } from '../../common/db';
 import { isOffice, previewOffice, saveOfficeEdits } from './office';
+import sharp from 'sharp';
 
 const TEXT_LIMIT = 2 * 1024 * 1024;
 const MAX_ENTRIES = 2000;
 const SEARCH_MAX = 200;
 const GREP_MAX = 300;
+const THUMB_SIZE = 96;
+const THUMB_IMAGE = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'svg']);
+const THUMB_VIDEO = new Set(['mp4', 'm4v', 'webm', 'mkv', 'mov', 'ogv']);
 
 /** Pencocokan glob sederhana: '*' -> apa saja, '?' -> satu karakter. */
 function globMatch(glob: string, name: string): boolean {
@@ -48,6 +52,87 @@ export class FilesService {
       child.on('close', (code) => resolve(code === 0));
     });
     return this.rgReady;
+  }
+
+
+  /** Thumbnail kecil untuk daftar berkas: gambar lewat sharp, video lewat ffmpeg (kalau ada). */
+  private thumbs = new Map<string, Buffer>();
+  private ffmpegReady?: Promise<boolean>;
+
+  private hasFfmpeg(): Promise<boolean> {
+    this.ffmpegReady ??= exec('ffmpeg', ['-version'], { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+    return this.ffmpegReady;
+  }
+
+  private videoFrame(abs: string, at: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(
+        'ffmpeg',
+        [
+          '-ss', String(at),
+          '-i', abs,
+          '-frames:v', '1',
+          '-vf', 'scale=' + THUMB_SIZE + ':' + THUMB_SIZE + ':force_original_aspect_ratio=increase,crop=' + THUMB_SIZE + ':' + THUMB_SIZE,
+          '-f', 'image2pipe',
+          '-vcodec', 'webp',
+          'pipe:1',
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+      );
+      const chunks: Buffer[] = [];
+      let size = 0;
+      let settled = false;
+      const timer = setTimeout(() => child.kill('SIGKILL'), 12_000);
+      const done = (err: Error | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (err || !size) reject(err ?? new Error('ffmpeg tidak menghasilkan frame'));
+        else resolve(Buffer.concat(chunks));
+      };
+      child.stdout.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > 4 * 1024 * 1024) child.kill('SIGKILL');
+        else chunks.push(chunk);
+      });
+      child.on('error', (err) => done(err));
+      child.on('close', (code) => done(code === 0 ? null : new Error('ffmpeg keluar dengan kode ' + code)));
+    });
+  }
+
+  async thumbnail(input: string): Promise<Buffer> {
+    const abs = await jailPath(input);
+    const info = await stat(abs).catch(() => null);
+    if (!info?.isFile()) throw new NotFoundException('Berkas tidak ditemukan');
+    const ext = extname(abs).slice(1).toLowerCase();
+    const key = abs + ':' + info.mtimeMs;
+    const cached = this.thumbs.get(key);
+    if (cached) return cached;
+
+    let body: Buffer;
+    try {
+      if (THUMB_IMAGE.has(ext)) {
+        body = await sharp(abs, { failOn: 'none' }).rotate().resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' }).webp({ quality: 72 }).toBuffer();
+      } else if (THUMB_VIDEO.has(ext)) {
+        if (!(await this.hasFfmpeg())) {
+          throw new BadRequestException('Thumbnail video butuh ffmpeg yang belum terpasang');
+        }
+        body = await this.videoFrame(abs, 1).catch(() => this.videoFrame(abs, 0));
+      } else {
+        throw new BadRequestException('Berkas ini tidak punya thumbnail');
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Gagal membuat thumbnail: ' + (err as Error).message.slice(0, 120));
+    }
+    this.thumbs.set(key, body);
+    if (this.thumbs.size > 300) {
+      const oldest = this.thumbs.keys().next().value;
+      if (oldest) this.thumbs.delete(oldest);
+    }
+    return body;
   }
 
   /** Ubah include ("apps/api", "src") jadi path absolut yang ada — pencarian hanya di situ. */
