@@ -23,6 +23,8 @@ function globMatch(glob: string, name: string): boolean {
 }
 const exec = promisify(execFile);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.cache', '__pycache__', 'dist', '.next']);
+/** Folder berat yang selalu dilewati pencarian isi (grep maupun rg). */
+const SKIP_DIRS_GIT = ['node_modules', '.git', 'dist', '.cache', '.pnpm-store', '__pycache__', '.next'];
 
 export type Entry = {
   name: string;
@@ -36,6 +38,34 @@ export type Entry = {
 
 @Injectable()
 export class FilesService {
+  /** Deteksi ripgrep sekali; kalau ada, pencarian isi jauh lebih cepat dari grep. */
+  private rgReady?: Promise<boolean>;
+
+  private hasRg(): Promise<boolean> {
+    this.rgReady ??= new Promise<boolean>((resolve) => {
+      const child = spawn('rg', ['--version'], { stdio: 'ignore' });
+      child.on('error', () => resolve(false));
+      child.on('close', (code) => resolve(code === 0));
+    });
+    return this.rgReady;
+  }
+
+  /** Ubah include ("apps/api", "src") jadi path absolut yang ada — pencarian hanya di situ. */
+  private async includeTargets(start: string, include: string[]): Promise<string[]> {
+    const out: string[] = [];
+    for (const raw of include) {
+      if (!raw || /[*?[\]{}]/.test(raw)) continue;
+      const abs = raw.startsWith('/') ? raw : join(start, raw);
+      try {
+        await stat(abs);
+        out.push(abs);
+      } catch {
+        // path tidak ada: biarkan filter hasil yang menangani
+      }
+    }
+    return out;
+  }
+
   roots() {
     return cfg.fsRoots.map((path) => ({ path, label: basename(path) || path }));
   }
@@ -161,24 +191,40 @@ export class FilesService {
     if (needle.trim().length < 2) throw new BadRequestException('Kata kunci minimal 2 karakter');
     const max = Math.min(GREP_MAX, Math.max(1, Number(limit) || GREP_MAX));
 
-    const args = [
-      '-rIn',
-      '--binary-files=without-match',
-      '--exclude-dir=node_modules',
-      '--exclude-dir=.git',
-      '--exclude-dir=dist',
-      '--exclude-dir=.cache',
-      '--exclude-dir=.pnpm-store',
-      // Pola exclude dari UI: berkas (*.log) dan folder (node_modules/).
-      ...exclude.filter((glob) => !glob.endsWith('/')).map((glob) => '--exclude=' + glob),
-      ...exclude.filter((glob) => glob.endsWith('/')).map((glob) => '--exclude-dir=' + glob.slice(0, -1)),
-      '-m',
-      '20',
-      '-F',
-      '-e',
-      needle,
-      start,
-    ];
+    const rg = await this.hasRg();
+    const targets = await this.includeTargets(start, include);
+    const paths = targets.length ? targets : [start];
+    const args = rg
+      ? [
+          '--line-number',
+          '--no-heading',
+          '--color',
+          'never',
+          '--max-count',
+          '20',
+          '--max-filesize',
+          '2M',
+          ...SKIP_DIRS_GIT.map((dir) => '--glob=!' + dir + '/**'),
+          ...exclude.map((glob) => '--glob=!' + (glob.endsWith('/') ? glob + '**' : glob)),
+          '-F',
+          '-e',
+          needle,
+          ...paths,
+        ]
+      : [
+          '-rIn',
+          '--binary-files=without-match',
+          ...SKIP_DIRS_GIT.map((dir) => '--exclude-dir=' + dir),
+          // Pola exclude dari UI: berkas (*.log) dan folder (node_modules/).
+          ...exclude.filter((glob) => !glob.endsWith('/')).map((glob) => '--exclude=' + glob),
+          ...exclude.filter((glob) => glob.endsWith('/')).map((glob) => '--exclude-dir=' + glob.slice(0, -1)),
+          '-m',
+          '20',
+          '-F',
+          '-e',
+          needle,
+          ...paths,
+        ];
 
     const results: Array<{ path: string; line: number; text: string }> = [];
     const warnings: string[] = [];
@@ -186,7 +232,7 @@ export class FilesService {
     const keep = (path: string) => !include.length || include.some((prefix) => path.includes(prefix));
 
     return new Promise<{ results: typeof results; truncated: boolean; warning?: string }>((resolve, reject) => {
-      const child = spawn('grep', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(rg ? 'rg' : 'grep', args, { stdio: ['ignore', 'pipe', 'pipe'] });
       let buffer = '';
       let stderr = '';
       let settled = false;
@@ -280,6 +326,9 @@ export class FilesService {
     const start = await jailPath(root);
     const needle = query.toLowerCase();
     const results: Entry[] = [];
+    const targets = await this.includeTargets(start, include);
+    // Kalau include menunjuk folder tertentu, jangan telusuri seluruh pohon.
+    const near = (path: string) => !targets.length || targets.some((target) => path === target || path.startsWith(target + '/') || target.startsWith(path + '/'));
     const stack: { dir: string; depth: number }[] = [{ dir: start, depth: 0 }];
     while (stack.length && results.length < SEARCH_MAX) {
       const { dir, depth } = stack.pop()!;
@@ -292,7 +341,7 @@ export class FilesService {
       for (const dirent of dirents) {
         const full = join(dir, dirent.name);
         if (exclude.some((glob) => globMatch(glob.replace(/\/$/, ''), dirent.name))) continue;
-        if (dirent.name.toLowerCase().includes(needle)) {
+        if (dirent.name.toLowerCase().includes(needle) && near(full)) {
           let size = 0;
           let mtime = 0;
           try {
@@ -313,7 +362,7 @@ export class FilesService {
           });
           if (results.length >= SEARCH_MAX) break;
         }
-        if (dirent.isDirectory() && depth < 12) {
+        if (dirent.isDirectory() && depth < 12 && near(full)) {
           if (!includeAll && SKIP_DIRS.has(dirent.name)) continue;
           if (dirent.name.startsWith('.') && !includeAll) continue;
           stack.push({ dir: full, depth: depth + 1 });

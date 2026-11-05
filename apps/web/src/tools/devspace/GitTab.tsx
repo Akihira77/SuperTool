@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Empty, Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
@@ -120,32 +120,62 @@ function initials(author: string) {
     .join('');
 }
 
+type DiffRow = { kind: 'ctx' | 'add' | 'del' | 'hunk' | 'meta'; old?: number; next?: number; text: string };
+
+/** Pisahkan unified diff jadi baris ber-nomor untuk tampilan dua kolom (sebelum | sesudah). */
+function parseDiff(text: string) {
+  const rows: DiffRow[] = [];
+  let oldNo = 0;
+  let nextNo = 0;
+  for (const line of text.split('\n')) {
+    if (line.startsWith('@@')) {
+      const match = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
+      oldNo = Number(match?.[1] ?? 0);
+      nextNo = Number(match?.[2] ?? 0);
+      rows.push({ kind: 'hunk', text: line });
+    } else if (line.startsWith('+++') || line.startsWith('---') || /^(diff |index |new file|deleted file|similarity|rename |old mode|new mode|Binary)/.test(line)) {
+      rows.push({ kind: 'meta', text: line });
+    } else if (line.startsWith('+')) {
+      rows.push({ kind: 'add', next: nextNo++, text: line.slice(1) });
+    } else if (line.startsWith('-')) {
+      rows.push({ kind: 'del', old: oldNo++, text: line.slice(1) });
+    } else {
+      rows.push({ kind: 'ctx', old: oldNo++, next: nextNo++, text: line.startsWith(' ') ? line.slice(1) : line });
+    }
+  }
+  return rows;
+}
+
 function DiffView({ text, loading }: { text: string; loading: boolean }) {
   const { t } = useI18n();
+  const rows = useMemo(() => parseDiff(text), [text]);
   if (loading) return <div className="flex items-center gap-2 p-4 text-[12px] text-muted"><Spinner /> {t('git.loadingDiff')}</div>;
   if (!text.trim()) return <Empty text={t('git.noDiff')} />;
+  const cell = (no: number | undefined, line: string, tone: 'old' | 'new') => (
+    <div className={cn('flex min-w-0 gap-2 px-1', tone === 'old' && no ? 'bg-bad/10 text-bad' : tone === 'new' && no ? 'bg-ok/10 text-ok' : 'text-ink/70')}>
+      <span className="w-9 shrink-0 select-none text-right text-muted/50">{no ?? ''}</span>
+      <span className="min-w-0 flex-1 break-all whitespace-pre-wrap">{line || ' '}</span>
+    </div>
+  );
   return (
-    <pre className="mono min-h-0 flex-1 overflow-auto p-2 text-[11.5px] leading-[1.45]">
-      {text.split('\n').map((line, index) => (
-        <div
-          key={index}
-          className={cn(
-            'whitespace-pre-wrap px-1',
-            line.startsWith('+++') || line.startsWith('---')
-              ? 'text-muted'
-              : line.startsWith('+')
-                ? 'bg-ok/12 text-ok'
-                : line.startsWith('-')
-                  ? 'bg-bad/12 text-bad'
-                  : line.startsWith('@@')
-                    ? 'text-accent'
-                    : 'text-ink/70',
-          )}
-        >
-          {line || ' '}
-        </div>
-      ))}
-    </pre>
+    <div className="mono flex min-h-0 flex-1 flex-col overflow-auto text-[11.5px] leading-[1.5]">
+      <div className="sticky top-0 z-10 flex shrink-0 border-b border-line bg-panel text-[10px] tracking-wide text-muted uppercase">
+        <div className="w-1/2 px-2 py-1">{t('git.previous')}</div>
+        <div className="w-1/2 border-l border-line px-2 py-1">{t('git.updated')}</div>
+      </div>
+      {rows.map((row, index) =>
+        row.kind === 'hunk' ? (
+          <div key={index} className="border-y border-line/60 bg-panel2/60 px-2 py-0.5 text-[10.5px] text-accent">{row.text}</div>
+        ) : row.kind === 'meta' ? (
+          <div key={index} className="truncate px-2 py-0.5 text-[10.5px] text-muted/70">{row.text}</div>
+        ) : (
+          <div key={index} className="flex">
+            <div className="w-1/2 border-r border-line/60">{cell(row.kind === 'add' ? undefined : row.old, row.kind === 'add' ? '' : row.text, 'old')}</div>
+            <div className="w-1/2">{cell(row.kind === 'del' ? undefined : row.next, row.kind === 'del' ? '' : row.text, 'new')}</div>
+          </div>
+        ),
+      )}
+    </div>
   );
 }
 
@@ -163,6 +193,18 @@ export default function GitTab() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [diff, setDiff] = useState('');
   const [diffLoading, setDiffLoading] = useState(false);
+  const [split, setSplit] = useState(() => {
+    const saved = Number(localStorage.getItem('st:git:split'));
+    return saved >= 24 && saved <= 72 ? saved : 40;
+  });
+  const dragging = useRef(false);
+  const splitRef = useRef<HTMLDivElement>(null);
+
+  const stopDrag = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    localStorage.setItem('st:git:split', String(Math.round(split)));
+  };
 
   const loadDirs = useCallback(async (path: string) => {
     if (!path) return;
@@ -324,8 +366,20 @@ export default function GitTab() {
             <span className="mono ml-auto truncate text-[11px] text-muted" title={state.path}>{state.path}</span>
           </div>
 
-          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2">
-            <div className="flex min-h-0 flex-col gap-2">
+          <div
+            ref={splitRef}
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row"
+            style={{ ['--split' as string]: split + '%' }}
+            onPointerMove={(event) => {
+              if (!dragging.current || !splitRef.current) return;
+              const rect = splitRef.current.getBoundingClientRect();
+              const percent = ((event.clientX - rect.left) / rect.width) * 100;
+              setSplit(Math.min(72, Math.max(24, percent)));
+            }}
+            onPointerUp={stopDrag}
+            onPointerLeave={stopDrag}
+          >
+            <div className="flex min-h-0 w-full flex-col gap-2 lg:w-[var(--split)] lg:shrink-0">
               <div className="card flex max-h-[60vh] flex-col gap-0 overflow-hidden p-0">
                 <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[10.5px] tracking-wide text-muted uppercase">
                   {t('git.history')}
@@ -373,7 +427,18 @@ export default function GitTab() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col gap-2">
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              title={t('git.resizeHint')}
+              onPointerDown={(event) => {
+                dragging.current = true;
+                (event.target as HTMLElement).setPointerCapture(event.pointerId);
+              }}
+              className="hidden w-1.5 shrink-0 cursor-col-resize rounded bg-line transition-colors hover:bg-accent/60 lg:block"
+            />
+
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
               <div className="card flex flex-col gap-2 p-2">
                 <div className="flex items-center gap-2 text-[10.5px] tracking-wide text-muted uppercase">
                   {t('git.workingTree')}

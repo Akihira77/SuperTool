@@ -71,7 +71,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
 | proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`) dan subdomain (`<hex>.localhost`): aset, cookie, POST body, WebSocket, tulis-ulang origin absolut di HTML/JS/JSON |
 | sqlite | `sqlite.controller.ts` | viewer read-only database aplikasi (info tabel, isi tabel, query SELECT) |
-| webhook | `webhook.controller.ts` | receiver request masuk: route publik `/hook/<token>` + SSE `/webhook/stream` untuk UI |
+| webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |
 | dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker read-only, git ringkas, crontab, DNS + geo |

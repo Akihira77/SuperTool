@@ -208,14 +208,14 @@ Yang perlu diketahui:
 
 ## Webhook Receiver
 
-Menu **Webhook Receiver** memberi satu URL siap pakai, misalnya `http://127.0.0.1:3001/api/hook/67ac6f2fcf00`, untuk menerima request dari aplikasi lain (GitHub, Stripe, skrip sendiri). Kirim method apa pun:
+Menu **Webhook Receiver** bisa punya **beberapa endpoint** sekaligus (maks 10), masing-masing dengan nama + token sendiri, misalnya `http://127.0.0.1:3001/api/hook/67ac6f2fcf00`. Tambah endpoint lewat tombol **Tambah endpoint**, klik chip untuk berpindah; daftar request dan tombol **Bersihkan** mengikuti endpoint yang aktif. Field endpoint berupa input read-only berisi URL lengkap (klik = pilih semua) + tombol **Salin** dan **Buka**. Kirim method apa pun:
 
 ```bash
 curl -X POST http://127.0.0.1:3001/api/hook/<token> \
   -H 'content-type: application/json' -d '{"hello":"world"}'
 ```
 
-Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu item untuk melihat header dan body; body JSON dirapikan otomatis. **Bersihkan** menghapus riwayat. Batasan: token dibuat ulang tiap server restart, riwayat hanya di memori (100 request terakhir, body maksimal 200 KB), dan endpoint ini sengaja tanpa login supaya aplikasi luar bisa memanggilnya — server tetap binding ke loopback.
+Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu item untuk melihat header dan body; body JSON dirapikan otomatis. Batasan: endpoint + token dibuat ulang tiap server restart, riwayat hanya di memori (100 request total, body maksimal 200 KB), dan endpoint ini sengaja tanpa login supaya aplikasi luar bisa memanggilnya — server tetap binding ke loopback.
 
 ## Notifikasi toast
 
@@ -320,7 +320,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **Mode Proxy**: `X-Frame-Options`/CSP dilepas, cookie di tulis ulang, WebSocket diteruskan. Mode subdomain menambahkan `SameSite=None; Secure` pada cookie target agar tetap dipakai di dalam iframe; mode path mengganti `Path` cookie ke prefix proxy. Proxy berjalan di proses yang sama, tanpa nginx/caddy.
 - **Jaringan proxy**: hostname di-resolve dulu; hanya alamat loopback/privat/CGNAT yang diizinkan (misal `theAkihira:4096`). Host publik tetap diblokir kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
 - **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
-- **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Kolom Nama/Ukuran/Diubah bisa diurutkan (folder selalu di atas), dan tiap baris punya aksi unduh, salin path, ganti nama, hapus. Pencarian isi berkas memakai `grep -rIn`, melewati berkas biner (docx/xlsx tidak ikut), dibatasi 300 hasil.
+- **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Kolom Nama/Ukuran/Diubah bisa diurutkan (folder selalu di atas), dan tiap baris punya aksi unduh, salin path, ganti nama, hapus. Pencarian isi berkas memakai `ripgrep` bila tersedia (fallback `grep -rIn`), jadi jauh lebih cepat dan otomatis menghormati `.gitignore`; data tetap disaring per folder sampah (node_modules, .git, dist, .cache). Kolom **"hanya di dalam" (include)** dipakai sebagai titik mulai pencarian — folder lain tidak ditelusuri sama sekali — dan pencarian nama juga berhenti menelusuri di luar folder itu. Berkas biner dilewati (docx/xlsx tidak ikut), isi dibatasi 300 hasil, nama 200 hasil.
 - **Edit Office**: hanya teks paragraf (docx) dan nilai sel (xlsx). Jumlah paragraf tidak boleh berubah — menambah atau menghapus paragraf belum didukung, dan aplikasinya menolak dengan pesan jelas. Format pptx/odt/ods/odp hanya bisa dibaca.
 - **Kompres PDF**: tanpa ghostscript, pdf-lib memuat seluruh berkas ke memori (batas 200 MB) dan penghematannya kecil. Dengan ghostscript proses berjalan sebagai subprocess streaming. Instalasi ghostscript ada di bagian *Alat eksternal*.
 - **Konversi PDF → gambar**: memecah 3 halaman pertama per proses, butuh `pdftoppm`. Hasilnya gambar per halaman, bukan PDF baru.

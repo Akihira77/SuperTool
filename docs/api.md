@@ -76,7 +76,7 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | GET | `/fs/grep` | `path`, `q`, `limit`, `exclude`, `include` | `{ results: [{ path, line, text }], truncated, warning? }` |
 | GET | `/fs/search` | `path`, `q`, `all=1`, `exclude`, `include` | `{ results[], truncated }` |
 
-`exclude` = pola berkas yang dilewati, dipisah koma (contoh `*.log,*.map`); entri berakhiran `/` dianggap folder (`node_modules/` → `--exclude-dir`). `include` = batasi hasil ke path yang memuat salah satu potongan, juga dipisah koma (contoh `apps/api,src`). Berlaku untuk pencarian isi (diteruskan sebagai `--exclude` ke grep) maupun pencarian nama. Pencarian isi memakai `grep` streaming: bila browser memutus request (tombol **Batal**), proses grep langsung dihentikan dan hasil parsial dikirim sebelum koneksi ditutup. Exit code 2 (misal ada folder tanpa izin) tidak lagi dianggap gagal selama ada hasil.
+`exclude` = pola berkas yang dilewati, dipisah koma (contoh `*.log,*.map`); entri berakhiran `/` dianggap folder (`node_modules/` → `--exclude-dir`). `include` = batasi hasil ke path yang memuat salah satu potongan, juga dipisah koma (contoh `apps/api,src`). Path include yang ada dipakai sebagai titik mulai, jadi folder lain tidak dipindai; pencarian isi memakai ripgrep bila tersedia (fallback grep). Berlaku untuk pencarian isi (diteruskan sebagai `--exclude` ke grep) maupun pencarian nama. Pencarian isi memakai `grep` streaming: bila browser memutus request (tombol **Batal**), proses grep langsung dihentikan dan hasil parsial dikirim sebelum koneksi ditutup. Exit code 2 (misal ada folder tanpa izin) tidak lagi dianggap gagal selama ada hasil.
 | GET | `/fs/du` | `path` | `{ bytes, files, truncated }` |
 | PUT | `/fs/write` | `{ path, content }` | `{ ok, size }` |
 | POST | `/fs/mkdir` | `{ path }` | `{ ok, path }` |
@@ -251,12 +251,15 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 | Metode | Path | Auth | Hasil |
 |--------|------|------|-------|
-| ANY | `/hook/<token>` | publik (token) | `{ ok, received }` — request disimpan ke ring buffer |
-| GET | `/webhook` | login | `{ token, path, items[] }` |
-| GET | `/webhook/stream` | login | SSE `{ items[] }` setiap ada request baru / clear |
-| DELETE | `/webhook` | login + CSRF | `{ ok }` — kosongkan riwayat |
+| ANY | `/hook/<token>` | publik (token) | `{ ok, received }` — request disimpan ke ring buffer endpoint tersebut |
+| GET | `/webhook` | login | `{ endpoints: [{ id, name, token, createdAt }], items[] }` |
+| POST | `/webhook` | login + CSRF | body `{ name? }` → endpoint baru (maks 10) |
+| DELETE | `/webhook/e/:id` | login + CSRF | `{ endpoints, items }` — hapus endpoint + riwayatnya |
+| DELETE | `/webhook/items?endpoint=<id>` | login + CSRF | `{ ok }` — kosongkan riwayat satu endpoint |
+| DELETE | `/webhook` | login + CSRF | `{ ok }` — kosongkan semua riwayat |
+| GET | `/webhook/stream` | login | SSE `{ endpoints, items }` setiap ada request/perubahan |
 
-Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pertama), jadi endpoint ini menerima JSON, form, teks, atau biner kecil. Token dibuat acak 6 byte saat server start; riwayat hanya di memori dan dibatasi 100 item.
+Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pertama), jadi endpoint ini menerima JSON, form, teks, atau biner kecil. Tiap endpoint punya token acak 6 byte yang dibuat saat server start (atau saat endpoint ditambah); riwayat hanya di memori, total 100 item terakhir dengan `endpointId` di tiap item.
 
 ## SQLite Viewer
 
