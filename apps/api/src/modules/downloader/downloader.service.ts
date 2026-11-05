@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { execFile } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve, sep } from 'node:path';
 import type { Response } from 'express';
 import ffmpegPath from 'ffmpeg-static';
@@ -42,6 +43,12 @@ export type DownloadInfo = {
   heights: number[];
   hasAudio: boolean;
   live: boolean;
+};
+
+export type CookieStatus = {
+  configured: boolean;
+  size: number;
+  mtime: number | null;
 };
 
 const ALLOWED_HOSTS = [
@@ -103,14 +110,29 @@ function stripAnsi(value: string): string {
   return value.replace(/\u001b\[[0-9;]*m/g, '');
 }
 
-function ytDlpError(error: unknown): string {
+function ytDlpStderr(error: unknown): string {
   const stderr = typeof (error as { stderr?: unknown })?.stderr === 'string' ? (error as { stderr: string }).stderr : '';
-  const lines = stripAnsi(stderr)
+  return stripAnsi(stderr);
+}
+
+function ytDlpError(error: unknown): string {
+  const lines = ytDlpStderr(error)
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
   const line = [...lines].reverse().find((item) => /^ERROR:/i.test(item)) ?? lines.at(-1) ?? '';
   return line.replace(/^ERROR:\s*/i, '').slice(0, 300);
+}
+
+/** Error yang biasanya muncul saat merge/remux ffmpeg, bukan saat ambil metadata. */
+function isMergeError(error: unknown): boolean {
+  const detail = ytDlpStderr(error) + '\n' + (error instanceof Error ? error.message : '');
+  return /postprocessing:|Error opening input files|Invalid data found when processing input|Conversion failed/i.test(detail);
+}
+
+function isBilibiliHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com');
 }
 
 function httpUrl(value: unknown): string | null {
@@ -139,8 +161,22 @@ export class DownloaderService implements OnModuleInit {
   private readonly logger = new Logger(DownloaderService.name);
   private readonly tempRoot = cfg.tempDir;
 
+  private get cookiesFile(): string {
+    return join(cfg.dataDir, 'cookies.txt');
+  }
+
   async onModuleInit(): Promise<void> {
     await mkdir(this.tempRoot, { recursive: true }).catch(() => undefined);
+    const binary = (youtubeDl as unknown as { constants?: { YOUTUBE_DL_PATH?: string } }).constants?.YOUTUBE_DL_PATH;
+    if (binary) {
+      await new Promise<void>((resolve) => {
+        execFile(binary, ['--version'], { timeout: 5000 }, (error, stdout) => {
+          if (error) this.logger.warn('Tidak bisa membaca versi yt-dlp: ' + error.message);
+          else this.logger.log('yt-dlp ' + stdout.trim());
+          resolve();
+        });
+      });
+    }
     // Bersihkan sisa proses yang mati sebelum sempat menghapus folder temp.
     const entries = await readdir(this.tempRoot, { withFileTypes: true }).catch(() => []);
     const cutoff = Date.now() - 6 * 60 * 60_000;
@@ -155,6 +191,48 @@ export class DownloaderService implements OnModuleInit {
     );
   }
 
+  async cookiesStatus(): Promise<CookieStatus> {
+    const info = await stat(this.cookiesFile).catch(() => null);
+    return info?.isFile()
+      ? { configured: true, size: info.size, mtime: info.mtimeMs }
+      : { configured: false, size: 0, mtime: null };
+  }
+
+  async saveCookies(buffer: Buffer): Promise<CookieStatus> {
+    if (!buffer.length) throw new BadRequestException('File cookies.txt kosong.');
+    if (buffer.length > 1_000_000) throw new BadRequestException('Ukuran cookies.txt maksimal 1 MB.');
+    const raw = buffer.toString('utf8').replace(/^\uFEFF/, '');
+    if (raw.includes('\u0000')) throw new BadRequestException('File cookies.txt bukan teks.');
+    const valid = /^# (Netscape )?HTTP Cookie File/m.test(raw)
+      || raw.split(/\r?\n/).some((line) => {
+        const cookie = line.startsWith('#HttpOnly_') || !line.startsWith('#');
+        return cookie && line.split('\t').length >= 7;
+      });
+    if (!valid) {
+      throw new BadRequestException('Format cookies tidak valid. Ekspor cookies.txt (format Netscape) dari browser.');
+    }
+    await mkdir(cfg.dataDir, { recursive: true });
+    await writeFile(this.cookiesFile, Buffer.from(raw), { mode: 0o600 });
+    await chmod(this.cookiesFile, 0o600).catch(() => undefined);
+    this.logger.log('cookies.txt diperbarui (' + raw.length + ' byte)');
+    return this.cookiesStatus();
+  }
+
+  async clearCookies(): Promise<CookieStatus> {
+    await rm(this.cookiesFile, { force: true });
+    return this.cookiesStatus();
+  }
+
+  private async cookiesPath(): Promise<string | undefined> {
+    const info = await stat(this.cookiesFile).catch(() => null);
+    return info?.isFile() ? this.cookiesFile : undefined;
+  }
+
+  private logYtDlpFailure(error: unknown, context: string): void {
+    const stderr = ytDlpStderr(error).trim();
+    if (stderr) this.logger.error(context + '; stderr:\n' + stderr.slice(-12000));
+  }
+
   async prepare(input: DownloadRequest, signal: AbortSignal): Promise<PreparedDownload> {
     const request = normalizeRequest(input);
     if (!ffmpegPath) {
@@ -167,10 +245,9 @@ export class DownloaderService implements OnModuleInit {
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
     };
 
+    const cookies = await this.cookiesPath();
     try {
-      const output = join(dir, '%(title).120B [%(id)s].%(ext)s');
       const common: Flags = {
-        output,
         noPlaylist: true,
         noMtime: true,
         noPart: true,
@@ -183,47 +260,80 @@ export class DownloaderService implements OnModuleInit {
         socketTimeout: 30,
         retries: 3,
         concurrentFragments: 4,
+        verbose: true,
+        ...(cookies ? { cookies } : {}),
       };
 
-      const flags: Flags = request.audioOnly
-        ? {
-            ...common,
-            format: 'bestaudio/best',
-            extractAudio: true,
-            audioFormat: 'mp3',
-            audioQuality: 0,
-          }
-        : {
-            ...common,
-            format:
-              request.quality === 'best'
-                ? 'bv*+ba/b'
-                : 'bv*[height<=' + request.quality + ']+ba/b[height<=' + request.quality + ']',
-            mergeOutputFormat: 'mp4',
-            remuxVideo: 'mp4',
-          };
+      // Best mencoba 4K dulu. Kalau ffmpeg gagal merge, ulangi dengan format
+      // gabungan <=1080 yang tidak perlu merge (Bug DASH Bilibili/HEVC).
+      const formats = request.audioOnly
+        ? ['bestaudio/best']
+        : request.quality === 'best'
+          ? ['bv*+ba/b', 'best[height<=1080]/best']
+          : [
+              'bv*[height<=' + request.quality + ']+ba/b[height<=' + request.quality + ']',
+              'best[height<=' + request.quality + ']/best',
+            ];
 
-      await youtubeDl.exec(request.url, flags, { cwd: dir, signal });
+      let chosen: { filePath: string; size: number } | undefined;
+      let lastError: unknown;
 
-      const files = (await readdir(dir))
-        .filter((name) => !name.startsWith('.') && !/\.(part|ytdl|temp)$/i.test(name))
-        .map((name) => join(dir, name));
-      const candidates = (
-        await Promise.all(
-          files.map(async (filePath) => {
-            const info = await stat(filePath).catch(() => null);
-            return info?.isFile() && info.size > 0 ? { filePath, size: info.size } : null;
-          }),
-        )
-      ).filter((item): item is { filePath: string; size: number } => item !== null);
+      for (let attempt = 0; attempt < formats.length; attempt += 1) {
+        const attemptDir = join(dir, 'attempt-' + (attempt + 1));
+        await mkdir(attemptDir, { recursive: true });
+        const flags: Flags = request.audioOnly
+          ? {
+              ...common,
+              output: join(attemptDir, '%(title).120B [%(id)s].%(ext)s'),
+              format: formats[attempt],
+              extractAudio: true,
+              audioFormat: 'mp3',
+              audioQuality: 0,
+            }
+          : {
+              ...common,
+              output: join(attemptDir, '%(title).120B [%(id)s].%(ext)s'),
+              format: formats[attempt],
+              mergeOutputFormat: 'mp4',
+              remuxVideo: 'mp4',
+            };
 
-      const preferred = request.audioOnly ? '.mp3' : '.mp4';
-      const chosen =
-        candidates.find((item) => extname(item.filePath).toLowerCase() === preferred) ??
-        candidates.find((item) => VIDEO_EXTENSIONS.has(extname(item.filePath).toLowerCase())) ??
-        candidates[0];
+        try {
+          await youtubeDl.exec(request.url, flags, { cwd: attemptDir, signal });
+          const files = (await readdir(attemptDir))
+            .filter((name) => !name.startsWith('.') && !/\.(part|ytdl|temp)$/i.test(name))
+            .map((name) => join(attemptDir, name));
+          const candidates = (
+            await Promise.all(
+              files.map(async (filePath) => {
+                const info = await stat(filePath).catch(() => null);
+                return info?.isFile() && info.size > 0 ? { filePath, size: info.size } : null;
+              }),
+            )
+          ).filter((item): item is { filePath: string; size: number } => item !== null);
 
-      if (!chosen) throw new Error('yt-dlp tidak menghasilkan file.');
+          const preferred = request.audioOnly ? '.mp3' : '.mp4';
+          chosen =
+            candidates.find((item) => extname(item.filePath).toLowerCase() === preferred) ??
+            candidates.find((item) => VIDEO_EXTENSIONS.has(extname(item.filePath).toLowerCase())) ??
+            candidates[0];
+          if (!chosen) throw new Error('yt-dlp tidak menghasilkan file.');
+          break;
+        } catch (error) {
+          lastError = error;
+          if (signal.aborted) throw error;
+          const noFile = error instanceof Error && /tidak menghasilkan file/i.test(error.message);
+          const canFallback = !request.audioOnly && attempt < formats.length - 1 && (isMergeError(error) || noFile);
+          if (!canFallback) throw error;
+          await rm(attemptDir, { recursive: true, force: true }).catch(() => undefined);
+          this.logger.warn(
+            'yt-dlp format ' + formats[attempt] + ' gagal; fallback ke ' + formats[attempt + 1] +
+              (ytDlpError(error) ? ': ' + ytDlpError(error) : ''),
+          );
+        }
+      }
+
+      if (!chosen) throw lastError ?? new Error('yt-dlp tidak menghasilkan file.');
 
       const safePath = resolve(chosen.filePath);
       if (!safePath.startsWith(resolve(dir) + sep)) throw new Error('File hasil tidak valid.');
@@ -239,10 +349,14 @@ export class DownloaderService implements OnModuleInit {
     } catch (error) {
       await cleanup();
       if (signal.aborted) throw new BadRequestException('Unduhan dibatalkan.');
+      this.logYtDlpFailure(error, 'yt-dlp gagal');
       const detail = ytDlpError(error);
-      if (detail) this.logger.warn('yt-dlp gagal: ' + detail);
+      const host = new URL(request.url).hostname;
+      const hint = isBilibiliHost(host) && !cookies
+        ? ' Bilibili resolusi tinggi sering butuh cookies; unggah cookies.txt di Settings.'
+        : '';
       throw new BadRequestException(
-        detail ? 'Gagal memproses video: ' + detail : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.',
+        detail ? 'Gagal memproses video: ' + detail + hint : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.' + hint,
       );
     }
   }
@@ -250,6 +364,7 @@ export class DownloaderService implements OnModuleInit {
   /** Metadata saja (--skip-download), untuk preview sebelum user memilih resolusi. */
   async info(input: DownloadRequest, signal?: AbortSignal): Promise<DownloadInfo> {
     const request = normalizeRequest(input);
+    const cookies = await this.cookiesPath();
     const flags: Flags = {
       dumpSingleJson: true,
       skipDownload: true,
@@ -259,6 +374,7 @@ export class DownloaderService implements OnModuleInit {
       noCacheDir: true,
       socketTimeout: 30,
       retries: 2,
+      ...(cookies ? { cookies } : {}),
     };
 
     let parsed: unknown;
@@ -266,8 +382,8 @@ export class DownloaderService implements OnModuleInit {
       parsed = await youtubeDl(request.url, flags, { signal });
     } catch (error) {
       if (signal?.aborted) throw new BadRequestException('Pengambilan info dibatalkan.');
+      this.logYtDlpFailure(error, 'yt-dlp info gagal');
       const detail = ytDlpError(error);
-      if (detail) this.logger.warn('yt-dlp info gagal: ' + detail);
       throw new BadRequestException(
         detail ? 'Gagal mengambil info video: ' + detail : 'Gagal mengambil info video. Pastikan tautan publik dan coba lagi.',
       );
@@ -281,6 +397,14 @@ export class DownloaderService implements OnModuleInit {
     }
     if (!data || data._type === 'playlist') {
       throw new BadRequestException('Tautan ini berisi playlist. Gunakan tautan satu video.');
+    }
+
+    const host = new URL(request.url).hostname.replace(/^www\./, '');
+    const extractor = text(data.extractor, 80);
+    if (isBilibiliHost(host) && /generic/i.test(extractor)) {
+      throw new BadRequestException(
+        'Tautan Bilibili tidak bisa dibuka. Buka di browser, lalu tempel URL video lengkap (bilibili.com/video/BV...).',
+      );
     }
 
     const formats = Array.isArray(data.formats)
@@ -303,7 +427,6 @@ export class DownloaderService implements OnModuleInit {
           .sort((a, b) => b.width - a.width)
       : [];
     const thumbnail = httpUrl(data.thumbnail) ?? thumbs[0]?.url ?? null;
-    const host = new URL(request.url).hostname.replace(/^www\./, '');
 
     return {
       url: request.url,

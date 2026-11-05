@@ -6,6 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
+    "update:ytdlp": "node -e \"require('youtube-dl-exec').update().then(r => console.log(String(r.stdout).trim())).catch(e => { console.error(e.stderr || e.message); process.exit(1); })\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

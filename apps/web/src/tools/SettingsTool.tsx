@@ -8,6 +8,7 @@ import { useConfirm } from '../components/confirm';
 import { PrayerSettings } from '../components/PrayerSettings';
 
 type DbInfo = { path: string; size: number; mtime: number; tables: Array<{ name: string; rows: number }> };
+type CookieInfo = { configured: boolean; size: number; mtime: number | null };
 
 /**
  * Backup & restore data aplikasi: unduh zip (database + uploads), lalu pulihkan
@@ -23,11 +24,19 @@ export default function SettingsTool() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [cookieInfo, setCookieInfo] = useState<CookieInfo | null>(null);
+  const [cookieBusy, setCookieBusy] = useState(false);
+  const [cookieError, setCookieError] = useState('');
+  const cookieRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api
       .get<DbInfo>('/sqlite/info')
       .then((data) => setInfo(data))
+      .catch(() => undefined);
+    api
+      .get<CookieInfo>('/downloader/cookies')
+      .then((data) => setCookieInfo(data))
       .catch(() => undefined);
   }, []);
 
@@ -68,6 +77,77 @@ export default function SettingsTool() {
       toast(message, 'error');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const uploadCookies = async (picked: File) => {
+    if (!picked.name.toLowerCase().endsWith('.txt')) {
+      setCookieError(t('settings.cookiesFileError'));
+      return;
+    }
+    if (picked.size > 1_000_000) {
+      setCookieError(t('settings.cookiesTooLarge'));
+      return;
+    }
+    setCookieBusy(true);
+    setCookieError('');
+    try {
+      const body = new FormData();
+      body.append('file', picked);
+      const res = await fetch('/api/downloader/cookies', {
+        method: 'POST',
+        body,
+        credentials: 'same-origin',
+        headers: { 'x-st-csrf': '1' },
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          const payload = JSON.parse(text) as { message?: string | string[] };
+          message = Array.isArray(payload.message) ? payload.message.join(', ') : payload.message ?? message;
+        } catch {
+          message = text.slice(0, 160) || message;
+        }
+        throw new ApiError(message, res.status);
+      }
+      setCookieInfo(JSON.parse(text) as CookieInfo);
+      toast(t('settings.cookiesUploaded'), 'ok');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : t('settings.cookiesError');
+      setCookieError(message);
+      toast(message, 'error');
+    } finally {
+      setCookieBusy(false);
+      if (cookieRef.current) cookieRef.current.value = '';
+    }
+  };
+
+  const removeCookies = async () => {
+    const ok = await confirm({
+      title: t('settings.cookiesRemove'),
+      message: t('settings.cookiesRemoveBody'),
+      confirmLabel: t('settings.cookiesRemove'),
+      danger: true,
+    });
+    if (!ok) return;
+    setCookieBusy(true);
+    setCookieError('');
+    try {
+      const res = await fetch('/api/downloader/cookies', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'x-st-csrf': '1' },
+      });
+      if (!res.ok) throw new ApiError(res.statusText || 'HTTP ' + res.status, res.status);
+      setCookieInfo((await res.json()) as CookieInfo);
+      toast(t('settings.cookiesRemoved'), 'ok');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : t('settings.cookiesError');
+      setCookieError(message);
+      toast(message, 'error');
+    } finally {
+      setCookieBusy(false);
     }
   };
 
@@ -141,6 +221,60 @@ export default function SettingsTool() {
             {t('settings.restoreWarning')}
           </div>
           {error ? <div className="text-[11.5px] text-bad">{error}</div> : null}
+        </div>
+
+        <div className="card flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="upload" size={14} /></span>
+            <div className="min-w-0">
+              <div className="text-[13px] font-medium">{t('settings.cookies')}</div>
+              <div className="text-[11.5px] text-muted">{t('settings.cookiesHint')}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn('badge', cookieInfo?.configured ? 'text-ok' : 'text-muted')}>
+              {cookieInfo?.configured ? t('settings.cookiesActive') : t('settings.cookiesEmpty')}
+            </span>
+            {cookieInfo?.configured ? (
+              <span className="text-[11.5px] text-muted">
+                {bytes(cookieInfo.size)}{cookieInfo.mtime ? ' · ' + timeAgo(cookieInfo.mtime) : ''}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={cookieRef}
+              type="file"
+              accept=".txt,text/plain"
+              className="hidden"
+              onChange={(event) => {
+                const picked = event.target.files?.[0];
+                if (picked) void uploadCookies(picked);
+              }}
+              aria-label={t('settings.cookiesFile')}
+            />
+            <button
+              type="button"
+              className="btn cursor-pointer"
+              onClick={() => cookieRef.current?.click()}
+              disabled={cookieBusy}
+            >
+              {cookieBusy ? <Spinner /> : <Icon name="upload" size={13} />}
+              {cookieInfo?.configured ? t('settings.cookiesReplace') : t('settings.cookiesUpload')}
+            </button>
+            {cookieInfo?.configured ? (
+              <button type="button" className="btn cursor-pointer" onClick={() => void removeCookies()} disabled={cookieBusy}>
+                {t('settings.cookiesRemove')}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-line bg-panel2/40 p-2.5 text-[11.5px] leading-relaxed text-muted">
+            {t('settings.cookiesWarning')}
+          </div>
+          {cookieError ? <div className="text-[11.5px] text-bad">{cookieError}</div> : null}
         </div>
 
         <PrayerSettings />

@@ -1,6 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { DownloaderService, type DownloadRequest } from './downloader.service';
+
+type Uploaded = { originalname: string; buffer: Buffer; size: number };
 
 @Controller('downloader')
 export class DownloaderController {
@@ -20,6 +23,25 @@ export class DownloaderController {
     } finally {
       res.removeListener('close', onClose);
     }
+  }
+
+  /** Status cookies.txt (tidak pernah mengembalikan isi cookie). */
+  @Get('cookies')
+  cookies() {
+    return this.downloader.cookiesStatus();
+  }
+
+  /** Upload cookies.txt format Netscape untuk Bilibili/YouTube yang butuh login. */
+  @Post('cookies')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1_000_000 } }))
+  uploadCookies(@UploadedFile() file: Uploaded) {
+    return this.downloader.saveCookies(file?.buffer ?? Buffer.alloc(0));
+  }
+
+  @Delete('cookies')
+  clearCookies() {
+    return this.downloader.clearCookies();
   }
 
   /** Streaming langsung ke respons (dipakai frontend via fetch + File System Access). */
