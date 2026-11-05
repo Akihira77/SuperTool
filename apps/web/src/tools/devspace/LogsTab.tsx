@@ -56,11 +56,24 @@ export default function LogsTab() {
     }
   };
 
-  const startLive = () => {
-    if (!path.trim()) return;
+  const startLive = async () => {
+    const target = path.trim();
+    if (!target) return;
     streamRef.current?.close();
-    setLines([]);
-    const source = new EventSource('/api/dev/logs/stream' + qs({ path }));
+    setBusy(true);
+    setError('');
+    // Cek dulu lewat endpoint biasa: EventSource tidak bisa membaca pesan error server.
+    try {
+      const result = await api.get<TailReply>('/dev/logs' + qs({ path: target, lines: 400 }));
+      setLines(result.lines);
+      setInfo({ size: result.size, path: result.path });
+    } catch (err) {
+      setBusy(false);
+      setError(err instanceof ApiError ? err.message : 'Gagal membaca log');
+      return;
+    }
+    setBusy(false);
+    const source = new EventSource('/api/dev/logs/stream' + qs({ path: target }));
     streamRef.current = source;
     setLive(true);
     source.onmessage = (event) => {
@@ -78,8 +91,13 @@ export default function LogsTab() {
       }
     };
     source.onerror = () => {
-      setError('Koneksi stream terputus');
-      stopLive();
+      // EventSource menyambung ulang sendiri; beri tahu sekali saja.
+      if (source.readyState === EventSource.CLOSED) {
+        setError('Live berhenti: server menutup stream');
+        stopLive();
+      } else {
+        setError('Stream terputus, mencoba menyambung ulang');
+      }
     };
   };
 
@@ -101,12 +119,29 @@ export default function LogsTab() {
         </button>
         <button
           type="button"
-          className={cn('btn', live && 'btn-primary')}
-          onClick={() => (live ? stopLive() : startLive())}
+          className={cn('btn cursor-pointer', live && 'btn-primary')}
+          onClick={() => (live ? stopLive() : void startLive())}
           disabled={!path.trim()}
         >
           <Icon name={live ? 'x' : 'play'} /> {live ? 'Stop' : 'Live'}
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        {['/var/log/nginx/error.log', '/var/log/nginx/access.log', '/var/log/syslog'].map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => {
+              setPath(preset);
+              void load(preset);
+            }}
+            className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+            title={preset}
+          >
+            {preset.replace('/var/log/', '')}
+          </button>
+        ))}
       </div>
 
       {available.length ? (
@@ -116,7 +151,7 @@ export default function LogsTab() {
               key={item.path}
               type="button"
               onClick={() => { setPath(item.path); void load(item.path); }}
-              className="max-w-full truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+              className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
               title={item.path}
             >
               {item.path.split('/').pop()}

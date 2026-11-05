@@ -26,6 +26,12 @@ export const cfg = {
   // Data pengguna di luar folder project: aman dari git clean / reinstall.
   dataDir: resolve(env.ST_DATA_DIR ?? join(xdgData, 'super-tool')),
   fsRoots: roots(env.ST_FS_ROOTS),
+  // Path log yang boleh dibaca Log Tailer di luar fsRoots (read-only).
+  logRoots: (env.ST_LOG_ROOTS ?? '/var/log')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => resolve(item)),
   nginxDir: resolve(env.ST_NGINX_DIR ?? '/etc/nginx'),
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
   devOrigin: env.ST_DEV_ORIGIN ?? 'http://localhost:5173',

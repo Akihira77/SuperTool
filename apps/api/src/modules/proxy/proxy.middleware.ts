@@ -40,6 +40,39 @@ export function proxyBase(origin: string): string {
   return PROXY_PREFIX + tokenFor(origin) + '/';
 }
 
+/** Token untuk mode subdomain: heksadesimal, karena nama host selalu di-lowercase browser. */
+export function hexToken(origin: string): string {
+  return Buffer.from(origin, 'utf8').toString('hex');
+}
+
+export function originFromHex(token: string): string | null {
+  if (!/^[0-9a-f]+$/i.test(token) || token.length > 63 || token.length % 2) return null;
+  try {
+    const origin = Buffer.from(token, 'hex').toString('utf8');
+    const url = new URL(origin);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/** `<hex>.localhost:3001` → { token, origin }; null kalau host bukan subdomain proxy. */
+export function subdomainTarget(host: string | undefined): { token: string; origin: string } | null {
+  const hostname = (host ?? '').split(':')[0].toLowerCase();
+  const match = /^([0-9a-f]+)\.localhost$/.exec(hostname);
+  if (!match) return null;
+  const origin = originFromHex(match[1]);
+  return origin ? { token: match[1], origin } : null;
+}
+
+/** URL aplikasi di subdomain proxy (mode yang membuat cookie & path absolut bekerja). */
+export function subdomainUrl(origin: string, port: string): string | null {
+  const token = hexToken(origin);
+  if (token.length > 63) return null;
+  return 'http://' + token + '.localhost' + (port && port !== '80' ? ':' + port : '') + '/';
+}
+
 /** Ubah URL target jadi URL lewat proxy. */
 export function proxyUrl(origin: string, raw: string): string {
   const base = origin.endsWith('/') ? origin : origin + '/';
@@ -63,20 +96,6 @@ function rewriteHtml(html: string, origin: string, token: string): string {
   return HTML_HEAD.test(out) ? out.replace(HTML_HEAD, '<head$1>' + inject) : inject + out;
 }
 
-function rewriteCookies(cookies: string[], token: string, targetOrigin: string): string[] {
-  const path = PROXY_PREFIX + token + '/';
-  const insecure = targetOrigin.startsWith('http:');
-  return cookies.map((cookie) => {
-    let out = cookie
-      .replace(/;\s*domain=[^;]*/gi, '')
-      .replace(/;\s*path=[^;]*/gi, '; Path=' + path);
-    if (!/;\s*path=/i.test(cookie)) out += '; Path=' + path;
-    // Target http yang menandai cookie Secure akan dibuang browser karena kita di http.
-    if (insecure) out = out.replace(/;\s*secure/gi, '');
-    return out;
-  });
-}
-
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return undefined;
   const chunks: Buffer[] = [];
@@ -89,39 +108,119 @@ async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   return Buffer.concat(chunks);
 }
 
-export async function handleProxyRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  auth: AuthService,
-): Promise<boolean> {
-  const rawUrl = req.url ?? '';
-  if (!rawUrl.startsWith(PROXY_PREFIX)) return false;
+type Target = {
+  kind: 'path' | 'sub';
+  token: string;
+  origin: string;
+  /** URL target lengkap. */
+  target: URL;
+  /** Prefix yang dipakai aplikasi ('' untuk mode subdomain). */
+  prefix: string;
+  /** Origin publik tempat iframe berjalan (dipakai untuk menulis ulang URL absolut). */
+  publicOrigin: string;
+};
 
-  const session = await auth.session(req.headers.cookie);
-  if (!session) {
-    res.writeHead(401, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ message: 'Belum login' }));
-    return true;
+function resolveTarget(req: IncomingMessage): Target | null {
+  const host = req.headers.host;
+  const sub = subdomainTarget(host);
+  if (sub) {
+    const port = (host ?? '').split(':')[1] ?? '';
+    const url = req.url && req.url.startsWith('/') ? req.url : '/' + (req.url ?? '');
+    let target: URL;
+    try {
+      target = new URL(url, sub.origin + '/');
+    } catch {
+      return null;
+    }
+    return {
+      kind: 'sub',
+      token: sub.token,
+      origin: sub.origin,
+      target,
+      prefix: '',
+      publicOrigin: 'http://' + sub.token + '.localhost' + (port && port !== '80' ? ':' + port : ''),
+    };
   }
 
+  const rawUrl = req.url ?? '';
+  if (!rawUrl.startsWith(PROXY_PREFIX)) return null;
   const rest = rawUrl.slice(PROXY_PREFIX.length);
   const slash = rest.indexOf('/');
   const token = slash < 0 ? rest : rest.slice(0, slash);
   const tail = slash < 0 ? '' : rest.slice(slash + 1);
   const origin = originFromToken(token);
-  if (!origin) {
+  if (!origin) return null;
+  let target: URL;
+  try {
+    target = new URL(tail, origin + '/');
+  } catch {
+    return null;
+  }
+  return {
+    kind: 'path',
+    token,
+    origin,
+    target,
+    prefix: PROXY_PREFIX + token + '/',
+    publicOrigin: PROXY_PREFIX + token,
+  };
+}
+
+function rewriteHtmlFor(html: string, origin: string, base: string, subMode: boolean): string {
+  let out = html;
+  if (out.includes(origin)) out = out.split(origin).join(base);
+  if (!subMode) {
+    out = out.replace(ATTR_ROOT, '$1="' + base + '/').replace(ATTR_ROOT_SINGLE, "$1='" + base + "/");
+  }
+  if (subMode) return out;
+  const inject = '<base href="' + base + '/">';
+  return HTML_HEAD.test(out) ? out.replace(HTML_HEAD, '<head$1>' + inject) : inject + out;
+}
+
+function rewriteCookiesFor(cookies: string[], target: Target): string[] {
+  const insecure = target.origin.startsWith('http:');
+  return cookies.map((raw) => {
+    let out = raw.replace(/;\s*domain=[^;]*/gi, '');
+    if (target.kind === 'path') {
+      out = out.replace(/;\s*path=[^;]*/gi, '; Path=' + target.prefix);
+      if (!/;\s*path=/i.test(raw)) out += '; Path=' + target.prefix;
+    }
+    // Target http yang menandai cookie Secure akan dibuang browser karena kita di http.
+    if (insecure) out = out.replace(/;\s*secure/gi, '');
+    if (target.kind === 'sub') {
+      // iframe lintas host: tanpa SameSite=None cookie sesi tidak dipakai di konteks pihak ketiga.
+      // localhost diperlakukan sebagai secure context, jadi Secure boleh dipasang walau http.
+      out = out.replace(/;\s*samesite=[^;]*/gi, '') + '; SameSite=None; Secure';
+    }
+    return out;
+  });
+}
+
+export async function handleProxyRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  auth: AuthService,
+): Promise<boolean> {
+  const targetInfo = resolveTarget(req);
+  if (!targetInfo) {
+    const rawUrl = req.url ?? '';
+    const isSubHost = /^[0-9a-f]+\.localhost$/i.test((req.headers.host ?? '').split(':')[0]);
+    if (!rawUrl.startsWith(PROXY_PREFIX) && !isSubHost) return false;
     res.writeHead(400, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ message: 'Target proxy tidak valid' }));
     return true;
   }
 
-  let target: URL;
-  try {
-    target = new URL(tail, origin + '/');
-  } catch {
-    res.writeHead(400, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ message: 'Path proxy tidak valid' }));
-    return true;
+  const { origin, target } = targetInfo;
+
+  // Mode subdomain punya cookie sendiri per host, jadi sesi aplikasi tidak ikut.
+  if (targetInfo.kind === 'path') {
+    const session = await auth.session(req.headers.cookie);
+    if (!session) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ message: 'Belum login' }));
+      return true;
+    }
   }
 
   try {
@@ -164,18 +263,24 @@ export async function handleProxyRequest(
     return true;
   }
 
+  const subMode = targetInfo.kind === 'sub';
   const outHeaders: Record<string, string | string[]> = {};
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (DROP_RESPONSE_HEADERS.has(lower)) return;
     if (lower === 'location') {
-      outHeaders[key] = proxyUrl(origin, value);
+      if (subMode) {
+        // Redirect absolut ke target asli dialihkan ke host proxy supaya tetap satu origin.
+        outHeaders[key] = value.startsWith(origin) ? targetInfo.publicOrigin + value.slice(origin.length) : value;
+      } else {
+        outHeaders[key] = proxyUrl(origin, value);
+      }
       return;
     }
     outHeaders[key] = value;
   });
   const cookies = upstream.headers.getSetCookie?.() ?? [];
-  if (cookies.length) outHeaders['set-cookie'] = rewriteCookies(cookies, token, origin);
+  if (cookies.length) outHeaders['set-cookie'] = rewriteCookiesFor(cookies, targetInfo);
 
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
   const buffer = Buffer.from(await upstream.arrayBuffer());
@@ -183,12 +288,12 @@ export async function handleProxyRequest(
   if (type.includes('text/html')) {
     outHeaders['content-type'] = 'text/html; charset=utf-8';
     res.writeHead(upstream.status, outHeaders);
-    res.end(rewriteHtml(buffer.toString('utf8'), origin, token));
+    res.end(rewriteHtmlFor(buffer.toString('utf8'), origin, targetInfo.publicOrigin, subMode));
     return true;
   }
-  if (type.includes('text/css')) {
+  if (type.includes('text/css') && !subMode) {
     res.writeHead(upstream.status, outHeaders);
-    res.end(buffer.toString('utf8').replace(CSS_URL_ROOT, 'url($1' + PROXY_PREFIX + token + '/'));
+    res.end(buffer.toString('utf8').replace(CSS_URL_ROOT, 'url($1' + targetInfo.prefix));
     return true;
   }
   res.writeHead(upstream.status, outHeaders);
@@ -203,22 +308,40 @@ export function handleProxyUpgrade(
   head: Buffer,
   auth: AuthService,
 ): boolean {
-  const rawUrl = req.url ?? '';
-  if (!rawUrl.startsWith(PROXY_PREFIX)) return false;
+  const targetInfo = resolveTarget(req);
+  if (!targetInfo) return false;
+  const { origin, target } = targetInfo;
 
-  const rest = rawUrl.slice(PROXY_PREFIX.length);
-  const slash = rest.indexOf('/');
-  const token = slash < 0 ? rest : rest.slice(0, slash);
-  const tail = slash < 0 ? '' : rest.slice(slash + 1);
-  const origin = originFromToken(token);
-  if (!origin) {
-    socket.destroy();
+  const connectUpstream = () => {
+    const host = target.hostname.replace(/^\[|\]$/g, '');
+    const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
+    const upstream = connect({ host, port }, () => {
+      const lines = ['GET ' + target.pathname + target.search + ' HTTP/1.1'];
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (!value) continue;
+        if (key === 'host') {
+          lines.push('host: ' + target.host);
+          continue;
+        }
+        if (key === 'origin') {
+          lines.push('origin: ' + origin);
+          continue;
+        }
+        lines.push(key + ': ' + (Array.isArray(value) ? value.join(', ') : value));
+      }
+      upstream.write(lines.join('\r\n') + '\r\n\r\n');
+      if (head?.length) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    upstream.on('error', () => socket.destroy());
+    socket.on('error', () => upstream.destroy());
+  };
+
+  if (targetInfo.kind === 'sub') {
+    connectUpstream();
     return true;
   }
-
-  const target = new URL(tail, origin + '/');
-  const host = target.hostname.replace(/^\[|\]$/g, '');
-  const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
 
   auth
     .session(req.headers.cookie)
@@ -227,27 +350,7 @@ export function handleProxyUpgrade(
         socket.destroy();
         return;
       }
-      const upstream = connect({ host, port }, () => {
-        const lines = ['GET ' + target.pathname + target.search + ' HTTP/1.1'];
-        for (const [key, value] of Object.entries(req.headers)) {
-          if (!value) continue;
-          if (key === 'host') {
-            lines.push('host: ' + target.host);
-            continue;
-          }
-          if (key === 'origin') {
-            lines.push('origin: ' + origin);
-            continue;
-          }
-          lines.push(key + ': ' + (Array.isArray(value) ? value.join(', ') : value));
-        }
-        upstream.write(lines.join('\r\n') + '\r\n\r\n');
-        if (head?.length) upstream.write(head);
-        upstream.pipe(socket);
-        socket.pipe(upstream);
-      });
-      upstream.on('error', () => socket.destroy());
-      socket.on('error', () => upstream.destroy());
+      connectUpstream();
     })
     .catch(() => socket.destroy());
   return true;

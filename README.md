@@ -92,6 +92,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_FS_ROOTS` | home user | Folder yang boleh diakses File Explorer, dipisah `:` |
 | `ST_NGINX_DIR` | `/etc/nginx` | Folder konfigurasi nginx |
 | `ST_PROXY_ALLOW_PUBLIC` | `0` | `1` = proxy boleh ke host publik (default hanya localhost/jaringan privat) |
+| `ST_LOG_ROOTS` | `/var/log` | Folder log yang boleh dibaca Log Tailer walau di luar `ST_FS_ROOTS` |
 | `ST_LLM_BASE_URL` | `http://127.0.0.1:20128/v1` | Endpoint kompatibel OpenAI (9router, ollama, dll) |
 | `ST_LLM_MODEL` | kosong | Model default; bisa juga dipilih dari UI |
 | `ST_LLM_API_KEY` | kosong | API key bila provider mewajibkan |
@@ -161,7 +162,7 @@ File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov l
 - **Kompres**: gambar (kualitas + lebar maksimum + format keluaran) dan PDF. Hasil ditulis sebagai `<nama>-min.<ext>`.
 - **Konversi**: gambar → PDF, PDF → PNG/JPG, dan antar format gambar. Hasil `<nama>-conv.<ext>` atau `<nama>-page-N.png`.
 - Proses berjalan sebagai job di latar belakang: `POST /api/compress/*` langsung mengembalikan `jobId`, UI memantau `GET /api/compress/job?id=`. Halaman tidak terkunci dan ada indikator progres.
-- Drag & drop mengunggah berkas ke `<root>/.super-tool-drop` lalu memprosesnya dari folder itu.
+- Berkas dipilih lewat kotak drop (klik untuk membuka dialog file) atau ditarik ke sana; hasil unggahan masuk ke `<root>/.super-tool-drop`.
 - Berkas rusak atau terkunci password menghasilkan pesan seperti "Berkas terkunci password, tidak bisa diproses", bukan halaman kosong.
 
 ## Dev Space
@@ -169,15 +170,37 @@ File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov l
 | Tab | Endpoint | Catatan |
 |-----|----------|---------|
 | Regex Tester | - | jalan di browser, highlight + grup + hasil replace |
-| Encode/Decode & Hash | `POST /api/dev/hash` | base64, URL, HTML entity, JWT decode di browser; MD5/SHA/HMAC di server |
+| Encode/Decode & Hash | `POST /api/dev/hash` | konversi Teks ↔ Base64 ↔ Base64 URL-safe ↔ Hex (dua arah), URL, HTML entity, JWT decode; MD5/SHA/HMAC di server |
 | HTTP Client | `POST /api/dev/http` | seperti curl ringan: method, header, body, timeout. Alamat metadata cloud (169.254.169.254) diblokir |
-| Log Tailer | `GET /api/dev/logs`, `GET /api/dev/logs/stream` | tail 300 baris, mode live pakai SSE, filter teks |
+| Log Tailer | `GET /api/dev/logs`, `GET /api/dev/logs/stream` | tail 400 baris, mode live pakai SSE, filter teks, preset `/var/log/nginx/*` |
 | Docker | `GET /api/dev/docker` | read-only: `docker ps`, `docker images`, `docker logs --tail 300` |
-| Git Status | `GET /api/dev/git` | branch, ahead/behind, staged/changed/untracked, 10 commit terakhir, diff stat |
+| Git Status | `GET /api/dev/git` | branch, ahead/behind, staged/changed/untracked, 10 commit terakhir, diff stat, saran folder saat mengetik path |
 | Cron Job | `GET/POST/DELETE /api/dev/cron` | `crontab -l`, tambah baris, hapus per indeks |
 | DNS/IP Lookup | `GET /api/dev/dns` | A, AAAA, MX, CNAME, NS, TXT + lokasi lewat ip-api.com |
 
 Tab Cron mengubah crontab milik user yang menjalankan server. Di WSL tanpa cron daemon aktif, jadwal tetap tersimpan tapi tidak dieksekusi sampai `sudo service cron start`.
+
+## URL Viewer dan mode proxy
+
+Ada dua cara membuka tool lain: langsung (iframe biasa) atau lewat server ini (`Proxy`). Mode proxy punya dua gaya:
+
+| Mode | URL iframe | Kapan dipakai |
+|------|-----------|---------------|
+| Subdomain | `http://<token>.localhost:3001/` | **Default.** Tiap tool dapat origin sendiri, jadi cookie, `localStorage`, redirect, dan panggilan `/api/...` bekerja seperti aslinya |
+| Path | `/api/proxy/b/<token>/...` | Satu origin, HTML ditulis ulang. Cukup untuk halaman statis; app yang memanggil `/api/...` absolut akan gagal login |
+
+Kenapa subdomain: aplikasi modern memanggil API dengan path absolut dan menyimpan sesi di cookie. Di mode path, cookie itu menempel ke origin Super Tool dan `/api/...` nyasar ke server ini — akibatnya login selalu gagal walau halaman tampil. Dengan subdomain, semuanya kembali normal karena origin-nya memang milik tool tersebut.
+
+Yang perlu diketahui:
+
+- `*.localhost` otomatis menunjuk ke 127.0.0.1 di Chromium, jadi tidak perlu mengubah `/etc/hosts`.
+- Cookie dari target ditulis ulang menjadi `SameSite=None; Secure` supaya tetap terkirim di dalam iframe. Chromium menganggap `localhost` sebagai secure context, jadi ini sah walau lewat http.
+- Proxy ini hanya menerima alamat loopback/privat (kecuali `ST_PROXY_ALLOW_PUBLIC=1`) dan hanya binding ke `127.0.0.1`, sama seperti mode path.
+- Kalau browser menolak cookie pihak ketiga (beberapa pengaturan privasi ketat), buka tool tersebut di tab baru lewat tombol ↗ — origin subdomain yang sama tetap dipakai.
+
+## Bahasa (ID / EN)
+
+Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `localStorage` (`st:lang`). Yang diterjemahkan: menu, judul & subjudul tool, tab Dev Space, kompresor, header tabel File Explorer, serta tombol aksi umum. Teks penjelasan panjang (batasan, pesan error rinci, dokumentasi di layar) tetap Bahasa Indonesia.
 
 ## Keamanan
 
@@ -229,14 +252,14 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 
 ## Batasan yang diketahui
 
-- **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` melepas header tersebut dan menyuntik `<base>`, cukup untuk halaman statis; aplikasi SPA yang memanggil API ke origin aslinya tetap butuh reverse proxy sungguhan (nginx/caddy). Untuk pemakaian penuh, arahkan subdomain ke tool tersebut.
+- **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` punya dua gaya: **Subdomain** (`<token>.localhost:PORT`, default, origin terpisah per tool sehingga login/cookie/`/api/...` bekerja normal) dan **Path** (satu origin, HTML ditulis ulang, hanya untuk halaman statis). Butuh `*.localhost` yang di Chromium sudah otomatis menunjuk 127.0.0.1; di browser lain tanpa dukungan subdomain lokal, pakai mode path atau buka di tab baru.
 - **Catatan**: sudah di SQLite, tapi belum ada pencarian penuh (FTS5) di dalam isi catatan.
 - **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas. Aksi *kill* mengirim SIGTERM (bukan SIGKILL) dan menolak PID 1 serta proses server ini sendiri.
 - **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". URL lama di browser otomatis dibenahi saat dibuka.
-- **Mode Proxy**: membuka target lewat `/api/proxy/b/<token>/...` — header `X-Frame-Options`/CSP dilepas, aset relatif ikut di-proxy, cookie & WebSocket diteruskan. Ini yang membuat Termix (`X-Frame-Options: DENY`) bisa tampil di iframe. Aplikasi yang memanggil API dengan path absolut `/api/...` tetap perlu reverse proxy sungguhan.
+- **Mode Proxy**: `X-Frame-Options`/CSP dilepas, cookie di tulis ulang, WebSocket diteruskan. Mode subdomain menambahkan `SameSite=None; Secure` pada cookie target agar tetap dipakai di dalam iframe; mode path mengganti `Path` cookie ke prefix proxy. Proxy berjalan di proses yang sama, tanpa nginx/caddy.
 - **Jaringan proxy**: hostname di-resolve dulu; hanya alamat loopback/privat/CGNAT yang diizinkan (misal `theAkihira:4096`). Host publik tetap diblokir kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
 - **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
-- **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Pencarian isi berkas memakai `grep -rIn`, melewati berkas biner (docx/xlsx tidak ikut), dibatasi 300 hasil.
+- **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Kolom Nama/Ukuran/Diubah bisa diurutkan (folder selalu di atas), dan tiap baris punya aksi unduh, salin path, ganti nama, hapus. Pencarian isi berkas memakai `grep -rIn`, melewati berkas biner (docx/xlsx tidak ikut), dibatasi 300 hasil.
 - **Edit Office**: hanya teks paragraf (docx) dan nilai sel (xlsx). Jumlah paragraf tidak boleh berubah — menambah atau menghapus paragraf belum didukung, dan aplikasinya menolak dengan pesan jelas. Format pptx/odt/ods/odp hanya bisa dibaca.
 - **Kompres PDF**: tanpa ghostscript, pdf-lib memuat seluruh berkas ke memori (batas 200 MB) dan penghematannya kecil. Dengan ghostscript proses berjalan sebagai subprocess streaming. Instalasi ghostscript ada di bagian *Alat eksternal*.
 - **Konversi PDF → gambar**: memecah 3 halaman pertama per proses, butuh `pdftoppm`. Hasilnya gambar per halaman, bukan PDF baru.

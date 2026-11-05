@@ -20,6 +20,35 @@ export default function GitTab() {
   const [state, setState] = useState<GitState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  // Saran folder dari path yang sedang diketik, supaya tidak perlu menghafal path.
+  useEffect(() => {
+    const value = path.trim();
+    if (!value) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const slash = value.lastIndexOf('/');
+      const dir = slash <= 0 ? '/' : value.slice(0, slash);
+      const prefix = slash < 0 ? value : value.slice(slash + 1);
+      try {
+        const data = await api.get<{ entries: Array<{ path: string; name: string; dir: boolean }> }>(
+          '/fs/list' + qs({ path: dir }),
+        );
+        setSuggestions(
+          data.entries
+            .filter((entry) => entry.dir && entry.name.toLowerCase().startsWith(prefix.toLowerCase()))
+            .slice(0, 8)
+            .map((entry) => entry.path),
+        );
+      } catch {
+        setSuggestions([]);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [path]);
 
   useEffect(() => {
     api
@@ -62,10 +91,29 @@ export default function GitTab() {
           className="input mono flex-1 py-1.5"
           spellCheck={false}
         />
-        <button type="button" className="btn" onClick={() => void load(path)} disabled={busy}>
-          {busy ? <Spinner /> : <Icon name="refresh" />} Muat
+        <button type="button" className="btn cursor-pointer" onClick={() => void load(path)} disabled={busy}>
+          {busy ? <Spinner /> : <Icon name="refresh" />} {busy ? 'Memuat' : 'Muat'}
         </button>
       </div>
+
+      {suggestions.length ? (
+        <div className="flex flex-wrap gap-1">
+          {suggestions.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => {
+                setPath(item);
+                void load(item);
+              }}
+              className="mono max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+              title={item}
+            >
+              {item.split('/').pop()}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {error ? <div className="text-[12px] text-bad">{error}</div> : null}
 

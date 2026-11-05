@@ -3,6 +3,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { CopyButton, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
+import { useI18n } from '../lib/i18n';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
 
@@ -76,6 +77,7 @@ function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: num
 }
 
 export default function FilesTool() {
+  const { t } = useI18n();
   const [panelOpen, togglePanel] = useSidebar('files', true);
   const [roots, setRoots] = useState<Root[]>([]);
   const [rootPath, setRootPath] = useState('');
@@ -321,7 +323,20 @@ export default function FilesTool() {
     return out;
   })();
 
-  const rows = results ?? (hits ? [] : (listing?.entries ?? []));
+  const [sort, setSort] = useState<{ key: 'name' | 'size' | 'mtime'; dir: 1 | -1 }>({ key: 'name', dir: 1 });
+
+  const toggleSort = (key: 'name' | 'size' | 'mtime') =>
+    setSort((prev) => ({ key, dir: prev.key === key && prev.dir === 1 ? -1 : 1 }));
+
+  const compare = (a: Entry, b: Entry) => {
+    if (sort.key === 'name') return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+    if (sort.key === 'size') return a.size - b.size;
+    return a.mtime - b.mtime;
+  };
+
+  const rows = (results ?? (hits ? [] : (listing?.entries ?? [])))
+    .slice()
+    .sort((a, b) => (a.dir === b.dir ? compare(a, b) * sort.dir : a.dir ? -1 : 1));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -342,7 +357,7 @@ export default function FilesTool() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void search()}
-            placeholder={deep ? 'Cari isi file' : 'Cari nama file'}
+            placeholder={deep ? t('files.searchContent') : t('files.searchName')}
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
@@ -352,7 +367,7 @@ export default function FilesTool() {
           className={cn('btn px-1.5', deep && 'border-accent/50 text-accent')}
           title={deep ? 'Mencari di dalam isi file' : 'Mencari nama file saja'}
         >
-          <Icon name="search" size={13} /> isi
+          <Icon name="search" size={13} /> {t('files.content')}
         </button>
         <button type="button" className="btn" onClick={makeFolder} disabled={!listing} title="Folder baru">
           <Icon name="folderPlus" />
@@ -610,7 +625,7 @@ export default function FilesTool() {
           ) : hits ? (
             <div className="min-h-0 flex-1 overflow-auto">
               <div className="border-b border-line px-3 py-1.5 text-[11.5px] text-muted">
-                {hits.length} baris cocok untuk &quot;{query}&quot; · klik untuk membuka berkas
+                {hits.length} {t('files.hits')} &quot;{query}&quot; · {t('files.clickOpen')}
               </div>
               <table className="w-full border-collapse text-[12px]">
                 <tbody>
@@ -637,10 +652,27 @@ export default function FilesTool() {
               <table className="w-full border-collapse text-[12.5px]">
                 <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
                   <tr>
-                    <th className="border-b border-line px-3 py-2 font-medium">Nama</th>
-                    <th className="border-b border-line px-3 py-2 text-right font-medium">Ukuran</th>
-                    <th className="border-b border-line px-3 py-2 font-medium">Diubah</th>
-                    <th className="border-b border-line px-3 py-2 text-right font-medium">Aksi</th>
+                    {([
+                      ['name', t('files.name'), 'text-left'],
+                      ['size', t('files.size'), 'text-right'],
+                      ['mtime', t('files.modified'), 'text-left'],
+                    ] as const).map(([key, label, align]) => (
+                      <th key={key} className={cn('border-b border-line px-3 py-2 font-medium', align)}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          className={cn(
+                            'inline-flex cursor-pointer items-center gap-1 rounded px-1 uppercase transition-colors hover:text-ink',
+                            sort.key === key ? 'text-accent' : 'text-muted',
+                          )}
+                          title={'Urutkan menurut ' + label.toLowerCase()}
+                        >
+                          {label}
+                          <span className="text-[9px]">{sort.key === key ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
+                        </button>
+                      </th>
+                    ))}
+                    <th className="border-b border-line px-3 py-2 text-right font-medium">{t('files.action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -659,7 +691,29 @@ export default function FilesTool() {
                       </td>
                       <td className="mono border-b border-line/60 px-3 py-1.5 text-right text-[11.5px] text-muted">{entry.dir ? '-' : bytes(entry.size)}</td>
                       <td className="border-b border-line/60 px-3 py-1.5 text-[11.5px] text-muted">{timeAgo(entry.mtime)}</td>
-                      <td className="border-b border-line/60 px-3 py-1.5 text-right whitespace-nowrap opacity-0 group-hover:opacity-100">
+                      <td className="border-b border-line/60 px-3 py-1.5 text-right whitespace-nowrap opacity-40 group-hover:opacity-100">
+                        {!entry.dir ? (
+                          <a
+                            className="btn btn-ghost px-1.5 py-0.5"
+                            href={RAW + encodeURIComponent(entry.path) + '&download=1'}
+                            download
+                            title="Unduh"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon name="download" size={13} />
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="btn btn-ghost px-1.5 py-0.5"
+                          title="Salin path"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void navigator.clipboard?.writeText(entry.path).then(() => setError(''));
+                          }}
+                        >
+                          <Icon name="copy" size={13} />
+                        </button>
                         <button
                           type="button"
                           className="btn btn-ghost px-1.5 py-0.5"

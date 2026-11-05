@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { execFile } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { promises as dns } from 'node:dns';
@@ -79,8 +79,9 @@ export class DevService {
   }
 
   async logs(path: string, lines = 300) {
-    const abs = await jailPath(path);
-    const info = await stat(abs);
+    const abs = await jailPath(path, [...cfg.logRoots, ...cfg.fsRoots]);
+    const info = await stat(abs).catch(() => null);
+    if (!info) throw new NotFoundException('Berkas log tidak ditemukan');
     if (!info.isFile()) throw new BadRequestException('Bukan berkas');
     const take = Math.min(4 * 1024 * 1024, info.size);
     const handle = await open(abs, 'r');
@@ -102,7 +103,7 @@ export class DevService {
 
   /** Streaming log: baris terakhir lalu ekor berkas setiap 500 ms. */
   async streamLogs(path: string, req: Request, res: Response): Promise<void> {
-    const abs = await jailPath(path);
+    const abs = await jailPath(path, [...cfg.logRoots, ...cfg.fsRoots]);
     const initial = await this.logs(abs, 200);
 
     res.writeHead(200, {

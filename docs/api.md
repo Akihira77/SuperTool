@@ -150,7 +150,23 @@ Meneruskan status dan header target, melepas `X-Frame-Options`, `CSP`, dan `Set-
 curl -b cookies.txt "http://127.0.0.1:3001/api/proxy?u=http%3A%2F%2Flocalhost%3A8080%2F"
 ~~~
 
-### Mode path (aplikasi penuh)
+### Mode subdomain (disarankan)
+
+```
+GET http://<hex>.localhost:<port>/<path...>
+```
+
+`hex` = heksadesimal dari origin target (huruf kecil, karena nama host selalu di-lowercase browser). Contoh `http://127.0.0.1:8080` → `687474703a2f2f3132372e302e302e313a38303830`.
+
+Pada mode ini seluruh host adalah milik target: path (termasuk `/api/...` absolut), query, cookie, `localStorage`, dan WebSocket ikut apa adanya. Yang diubah hanya:
+
+- `X-Frame-Options`, CSP, `content-encoding`, dan `content-length` dibuang (ukuran dihitung ulang)
+- `Set-Cookie` kehilangan `Domain`, ditambah `SameSite=None; Secure` supaya tetap terpakai di dalam iframe (`localhost` = secure context)
+- `Location` absolut ke origin target diarahkan ke host proxy
+
+Tidak butuh sesi Super Tool: cookie aplikasi ini host-only, jadi permintaan dari subdomain tidak membawanya. Pembatasannya tetap sama — server hanya listen di `127.0.0.1` dan target wajib loopback/privat.
+
+### Mode path (halaman statis)
 
 ```
 GET /api/proxy/b/<token>/<path...>
@@ -158,7 +174,7 @@ GET /api/proxy/b/<token>/<path...>
 
 `token` = base64url dari origin target, contoh `http://127.0.0.1:8080`. Middleware ini:
 
-- melepas `X-Frame-Options`, CSP, dan `Set-Cookie` milik target
+- melepas `X-Frame-Options`, CSP, dan menulis ulang `Set-Cookie` (Domain dilepas, Path jadi prefix proxy, Secure dilepas bila target http)
 - menyuntik `<base href>` dan menulis ulang URL absolut supaya aset relatif tetap termuat
 - meneruskan POST/PUT/DELETE beserta body, cookie, dan upgrade WebSocket
 - menolak host publik (kecuali `ST_PROXY_ALLOW_PUBLIC=1`)
@@ -211,7 +227,7 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 |--------|------|------------|-------|
 | POST | `/dev/hash` | `{ text, algo, hmacKey? }` | `{ algo, hex }` |
 | POST | `/dev/http` | `{ method, url, headers[], body, timeoutMs }` | `{ status, ms, size, headers, body, truncated }` |
-| GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` |
+| GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`) |
 | GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
 | GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
 | GET | `/dev/git` | `path` | `{ branch, ahead, behind, staged[], changed[], untracked[], commits[], diffstat, tags[] }` |

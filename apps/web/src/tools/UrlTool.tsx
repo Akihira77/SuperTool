@@ -27,7 +27,7 @@ function normalize(input: string): string | null {
   }
 }
 
-/** Token backend: base64url dari origin target. */
+/** Token backend: base64url dari origin target (mode path). */
 function proxySrc(url: string): string {
   try {
     const origin = new URL(url).origin;
@@ -35,6 +35,24 @@ function proxySrc(url: string): string {
     return '/api/proxy/b/' + token + '/';
   } catch {
     return url;
+  }
+}
+
+/**
+ * Mode subdomain: tiap target dapat origin sendiri (`<hex>.localhost:3001`).
+ * Cookie, localStorage, dan path absolut `/api/...` jadi milik target, bukan milik aplikasi ini.
+ */
+function subdomainSrc(url: string): string | null {
+  try {
+    const origin = new URL(url).origin;
+    const token = Array.from(new TextEncoder().encode(origin))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    if (token.length > 63) return null;
+    const port = location.port ? ':' + location.port : '';
+    return 'http://' + token + '.localhost' + port + '/';
+  } catch {
+    return null;
   }
 }
 
@@ -49,6 +67,11 @@ export default function UrlTool() {
   const [checking, setChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<'sub' | 'path'>(() => (localStorage.getItem('st:urls:mode') === 'path' ? 'path' : 'sub'));
+
+  useEffect(() => {
+    localStorage.setItem('st:urls:mode', mode);
+  }, [mode]);
 
   const refresh = useCallback(async () => {
     try {
@@ -161,8 +184,13 @@ export default function UrlTool() {
     }
   };
 
-  const src = useMemo(() => (active ? (active.proxy ? proxySrc(active.url) : fixHost(active.url)) : ''), [active?.url, active?.proxy]);
-  const openUrl = active ? (active.proxy ? proxySrc(active.url) : fixHost(active.url)) : '#';
+  const subSrc = useMemo(() => (active ? subdomainSrc(active.url) : null), [active?.url]);
+  const usbSub = mode === 'sub' && !!subSrc;
+  const src = useMemo(
+    () => (active ? (active.proxy ? (usbSub ? subSrc! : proxySrc(active.url)) : fixHost(active.url)) : ''),
+    [active?.url, active?.proxy, usbSub, subSrc],
+  );
+  const openUrl = active ? (active.proxy ? src : fixHost(active.url)) : '#';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -176,12 +204,36 @@ export default function UrlTool() {
         {active ? (
           <button
             type="button"
-            className={cn('btn', active.proxy && 'btn-primary')}
+            className={cn('btn cursor-pointer', active.proxy && 'btn-primary')}
             onClick={() => void toggleProxy(active)}
             title="Lewat server ini: melepas X-Frame-Options/CSP dan mem-proxy aset + WebSocket"
           >
             Proxy
           </button>
+        ) : null}
+        {active?.proxy ? (
+          <div className="flex overflow-hidden rounded-md border border-line">
+            {([
+              ['sub', 'Subdomain', 'Tiap target dapat origin sendiri: cookie, localStorage, dan /api/... bekerja normal'],
+              ['path', 'Path', 'Satu origin, URL ditulis ulang. Cukup untuk halaman statis'],
+            ] as const).map(([id, label, hint]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setMode(id);
+                  setNonce((n) => n + 1);
+                }}
+                title={hint}
+                className={cn(
+                  'cursor-pointer px-2 py-1 text-[11.5px] transition-colors',
+                  mode === id ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         ) : null}
         {active ? (
           <a className="btn" href={openUrl} target="_blank" rel="noreferrer" title={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'}>
@@ -191,6 +243,20 @@ export default function UrlTool() {
       </PageHeader>
 
       {error ? <div className="shrink-0 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">{error}</div> : null}
+
+      {active && !active.proxy ? (
+        <div className="shrink-0 border-b border-line bg-accent/5 px-3 py-1.5 text-[11.5px] text-muted">
+          Login gagal? Aktifkan <span className="text-ink">Proxy</span> lalu pilih{' '}
+          <span className="text-ink">Subdomain</span>: tiap tool dapat origin sendiri, jadi cookie dan panggilan{' '}
+          <span className="mono">/api/...</span> bekerja seperti aslinya.
+        </div>
+      ) : null}
+
+      {active?.proxy && mode === 'sub' && !subSrc ? (
+        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[12px] text-warn">
+          Target terlalu panjang untuk mode subdomain, memakai mode path.
+        </div>
+      ) : null}
 
       {active && status && !status.ok ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">
