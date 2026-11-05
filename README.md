@@ -273,9 +273,10 @@ Halaman Calendar:
 
 - Saat dibuka, halaman memanggil `/api/calendar/events`. Kalau belum terhubung, tampil tombol **Hubungkan ke Google Calendar** yang membuka URL dari `/api/calendar/auth` di tab baru (atau tab yang sama kalau popup diblokir).
 - Setelah memberi izin, Google redirect ke `/#/calendar?google=connected` (atau `denied`/`error`); halaman menampilkan toast sesuai status lalu membersihkan query. Di tab asal, klik **Sync** untuk memuat token yang baru tersimpan.
-- Tampilan kalender memakai `react-big-calendar` + `dayjs` (lazy-load): default **bulan**, bisa pindah ke **minggu** atau **agenda**. Event sepanjang hari dari Google (`start.date`/`end.date`) dipetakan dengan benar; jam mengikuti zona waktu perangkat.
+- Tampilan kalender memakai `react-big-calendar` + `dayjs` (lazy-load): default **bulan**, bisa pindah ke **minggu** atau **agenda**. Setiap event menampilkan **judul** di grid, bukan cuma blok warna. Event sepanjang hari dari Google (`start.date`/`end.date`) dipetakan dengan benar; jam mengikuti zona waktu perangkat.
+- Klik event membuka **modal detail**: judul, waktu mulai–selesai dengan label **WIB/WITA/WIT** sesuai zona waktu perangkat (sama dengan jam di header), lokasi, deskripsi, dan tautan ke Google Calendar. Escape/klik latar menutup modal.
 - Toolbar (Hari ini/Sebelumnya/Berikutnya + pilihan view) mengikuti bahasa ID/EN. Warna event, border, dan font memakai token tema Super Tool lewat `tools/calendar.css`.
-- Tombol **Sync** di header memuat ulang data. Kalau belum ada event, kalender tetap tampil kosong.
+- Tombol **Sync** di header memuat ulang data, dan halaman juga **auto-refresh setiap 5 menit** selama Calendar terbuka. Kalau belum ada event, kalender tetap tampil kosong.
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 

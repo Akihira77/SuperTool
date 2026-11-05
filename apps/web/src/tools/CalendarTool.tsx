@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar as BigCalendar, dayjsLocalizer, type Messages, type View } from 'react-big-calendar';
+import {
+  Calendar as BigCalendar,
+  dayjsLocalizer,
+  type Components,
+  type EventProps,
+  type Messages,
+  type View,
+} from 'react-big-calendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -27,6 +34,8 @@ type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boo
 
 const localizer = dayjsLocalizer(dayjs);
 const VIEWS: View[] = ['month', 'week', 'agenda'];
+const AUTO_REFRESH_MS = 5 * 60_000;
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 
 function parseDate(value: GoogleDate | null | undefined): Date | null {
   if (!value) return null;
@@ -46,20 +55,76 @@ function parseDate(value: GoogleDate | null | undefined): Date | null {
 function toRbcEvent(event: CalendarEvent, noTitle: string): RbcEvent | null {
   const start = parseDate(event.start);
   if (!start) return null;
-  const allDay = event.allDay || !event.start?.dateTime;
+  const allDay = Boolean(event.start?.date) || event.allDay;
   let end = parseDate(event.end);
   if (!end || end.getTime() <= start.getTime()) {
     end = new Date(start.getTime() + (allDay ? 86_400_000 : 3_600_000));
   }
   return {
     id: event.id,
-    title: event.summary || noTitle,
+    title: (typeof event.summary === 'string' ? event.summary.trim() : '') || noTitle,
     start,
     end,
     allDay,
     resource: event,
   };
 }
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+function clock(date: Date): string {
+  return pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
+
+/** Zona waktu Indonesia mengikuti offset waktu lokal (sama dengan jam header). */
+function zoneLabel(date: Date): string {
+  const offset = -date.getTimezoneOffset() / 60;
+  if (offset === 7) return 'WIB';
+  if (offset === 8) return 'WITA';
+  if (offset === 9) return 'WIT';
+  const sign = offset >= 0 ? '+' : '-';
+  const absolute = Math.abs(offset);
+  const hours = Math.floor(absolute);
+  const minutes = Math.round((absolute - hours) * 60);
+  return 'UTC' + sign + hours + (minutes ? ':' + pad(minutes) : '');
+}
+
+function dateLabel(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, DATE_FORMAT).format(date);
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function eventWhen(event: RbcEvent, locale: string, allDayLabel: string): string {
+  if (event.allDay) {
+    const last = new Date(event.end.getTime() - 86_400_000);
+    const start = dateLabel(event.start, locale);
+    return sameDay(event.start, last)
+      ? start + ' · ' + allDayLabel
+      : start + ' – ' + dateLabel(last, locale) + ' · ' + allDayLabel;
+  }
+  const zone = zoneLabel(event.start);
+  if (sameDay(event.start, event.end)) {
+    return dateLabel(event.start, locale) + ' · ' + clock(event.start) + '–' + clock(event.end) + ' ' + zone;
+  }
+  return (
+    dateLabel(event.start, locale) + ' ' + clock(event.start) +
+    ' – ' + dateLabel(event.end, locale) + ' ' + clock(event.end) + ' ' + zone
+  );
+}
+
+/** Isi kotak event di grid: judul harus selalu terlihat, bukan cuma blok warna. */
+function EventBlock({ event }: EventProps<RbcEvent>) {
+  return (
+    <span className="rbc-event-title" title={event.title}>
+      {event.title}
+    </span>
+  );
+}
+
+const CALENDAR_COMPONENTS: Components<RbcEvent> = { event: EventBlock };
 
 export default function CalendarTool() {
   const { t, lang } = useI18n();
@@ -71,10 +136,15 @@ export default function CalendarTool() {
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [hint, setHint] = useState(false);
+  const [selected, setSelected] = useState<RbcEvent | null>(null);
   const booted = useRef(false);
+  const fetching = useRef(false);
+  const locale = lang === 'id' ? 'id-ID' : 'en-US';
 
   const fetchEvents = useCallback(
     async (initial: boolean) => {
+      if (fetching.current) return;
+      fetching.current = true;
       if (initial) setPhase('loading');
       setBusy(true);
       try {
@@ -95,6 +165,7 @@ export default function CalendarTool() {
           setPhase('error');
         }
       } finally {
+        fetching.current = false;
         setBusy(false);
       }
     },
@@ -117,9 +188,25 @@ export default function CalendarTool() {
     void fetchEvents(true);
   }, [fetchEvents, t, toast]);
 
+  // Sinkron otomatis tiap 5 menit; fetchEvents punya guard agar request
+  // manual dan otomatis tidak tumpang tindih.
+  useEffect(() => {
+    const id = window.setInterval(() => void fetchEvents(false), AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [fetchEvents]);
+
   useEffect(() => {
     dayjs.locale(lang);
   }, [lang]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelected(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
 
   const connect = async () => {
     setOpening(true);
@@ -171,6 +258,8 @@ export default function CalendarTool() {
         : phase === 'error'
           ? t('calendar.error')
           : events.length + ' ' + t('calendar.count');
+
+  const whenText = selected ? eventWhen(selected, locale, t('calendar.allDay')) : '';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -230,16 +319,99 @@ export default function CalendarTool() {
               popup
               selectable={false}
               messages={messages}
+              components={CALENDAR_COMPONENTS}
               startAccessor="start"
               endAccessor="end"
               titleAccessor="title"
               allDayAccessor="allDay"
+              onSelectEvent={(event) => setSelected(event)}
               tooltipAccessor={(event) => event.resource.location || event.title}
               style={{ height: '100%' }}
             />
           </div>
         )}
       </div>
+
+      {selected ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelected(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-detail-title"
+            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
+          >
+            <div className="sticky top-0 flex items-start gap-2.5 border-b border-line bg-panel p-4">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                <Icon name="calendar" size={15} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="calendar-detail-title" className="text-[15px] leading-snug font-semibold break-words">
+                  {selected.title}
+                </h2>
+                <div className="mt-0.5 text-[11px] text-muted">
+                  {selected.allDay ? t('calendar.allDay') : zoneLabel(selected.start)}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 cursor-pointer px-1.5 py-0.5"
+                onClick={() => setSelected(null)}
+                title={t('common.close')}
+                aria-label={t('common.close')}
+                autoFocus
+              >
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 p-4 text-[12.5px]">
+              <div className="flex items-start gap-2.5">
+                <Icon name="clock" size={14} className="mt-0.5 shrink-0 text-accent/80" />
+                <div className="min-w-0">
+                  <div className="label">{t('calendar.time')}</div>
+                  <div className="text-ink/90">{whenText}</div>
+                </div>
+              </div>
+
+              {selected.resource.location ? (
+                <div className="flex items-start gap-2.5">
+                  <Icon name="pin" size={14} className="mt-0.5 shrink-0 text-accent/80" />
+                  <div className="min-w-0">
+                    <div className="label">{t('calendar.location')}</div>
+                    <div className="break-words text-ink/90">{selected.resource.location}</div>
+                  </div>
+                </div>
+              ) : null}
+
+              {selected.resource.description ? (
+                <div>
+                  <div className="label">{t('calendar.description')}</div>
+                  <div className="mt-1 whitespace-pre-wrap break-words text-ink/85">{selected.resource.description}</div>
+                </div>
+              ) : null}
+            </div>
+
+            {selected.resource.htmlLink ? (
+              <div className="border-t border-line p-3">
+                <a
+                  className="btn w-full justify-center"
+                  href={selected.resource.htmlLink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <Icon name="external" size={13} /> {t('calendar.open')}
+                </a>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

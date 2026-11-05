@@ -146,8 +146,16 @@
 }
 
 .calendar-shell .rbc-event-content {
-  white-space: normal;
   overflow: hidden;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.calendar-shell .rbc-event-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-shell .rbc-show-more {
