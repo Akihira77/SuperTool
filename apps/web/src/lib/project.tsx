@@ -7,11 +7,20 @@ const MAX_RECENT = 8;
 const readRecent = (): string[] => {
   try {
     const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT) : [];
+    return Array.isArray(raw)
+      ? raw.filter((item): item is string => typeof item === 'string').map(cleanPath).slice(0, MAX_RECENT)
+      : [];
   } catch {
     return [];
   }
 };
+
+/** Normalisasi path absolut agar `//////home/x` tidak tampil sebagai breadcrumb rusak. */
+export const cleanPath = (path: string) => (path ? '/' + path.split('/').filter(Boolean).join('/') : '');
+
+/** Cek path berada di root; root `/` butuh penanganan khusus agar tidak jadi `//`. */
+export const isInside = (path: string, root: string) =>
+  root === '/' ? path.startsWith('/') : path === root || path.startsWith(root + '/');
 
 type ProjectContext = {
   projectPath: string;
@@ -33,7 +42,7 @@ const Ctx = createContext<ProjectContext>({
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projectPath, setPath] = useState(() => {
     try {
-      return localStorage.getItem(KEY) ?? '';
+      return cleanPath(localStorage.getItem(KEY) ?? '');
     } catch {
       return '';
     }
@@ -41,15 +50,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [recent, setRecent] = useState<string[]>(readRecent);
 
   const setProject = useCallback((path: string) => {
-    setPath(path);
+    const nextPath = cleanPath(path);
+    setPath(nextPath);
     try {
-      localStorage.setItem(KEY, path);
+      localStorage.setItem(KEY, nextPath);
     } catch {
       // localStorage penuh/private mode: pilihan tetap berlaku untuk sesi ini
     }
-    if (!path) return;
+    if (!nextPath) return;
     setRecent((prev) => {
-      const next = [path, ...prev.filter((item) => item !== path)].slice(0, MAX_RECENT);
+      const next = [nextPath, ...prev.filter((item) => item !== nextPath)].slice(0, MAX_RECENT);
       try {
         localStorage.setItem(RECENT_KEY, JSON.stringify(next));
       } catch {

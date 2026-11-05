@@ -6,7 +6,7 @@ import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
-import { projectName, useProject } from '../lib/project';
+import { cleanPath, isInside, projectName, useProject } from '../lib/project';
 import { usePlayer } from '../lib/player';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
@@ -178,7 +178,7 @@ export default function FilesTool() {
     const previous = lastProject.current;
     lastProject.current = projectPath;
     if (previous === null || !projectPath || previous === projectPath || !roots.length) return;
-    if (!roots.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/'))) return;
+    if (!roots.some((root) => isInside(projectPath, root.path))) return;
     setRootPath(projectPath);
     localStorage.setItem('st:files:root', projectPath);
     localStorage.setItem('st:files:rootFor', projectPath);
@@ -191,7 +191,7 @@ export default function FilesTool() {
       .get<Root[]>('/fs/roots')
       .then((list) => {
         setRoots(list);
-        const valid = (value: string | null) => Boolean(value) && list.some((root) => value === root.path || value!.startsWith(root.path + '/'));
+        const valid = (value: string | null) => Boolean(value) && list.some((root) => isInside(value!, root.path));
         const saved = localStorage.getItem('st:files:root');
         // Root terakhir hanya dipakai untuk proyek yang sama; proyek baru tetap dibuka.
         const savedFor = localStorage.getItem('st:files:rootFor');
@@ -467,14 +467,14 @@ export default function FilesTool() {
 
   const crumbs = (() => {
     if (!listing) return [] as Array<{ name: string; path: string }>;
-    const base = rootPath && listing.path.startsWith(rootPath) ? rootPath : '';
-    const relative = base ? listing.path.slice(base.length).replace(/^\//, '') : listing.path;
-    const parts = relative.split('/').filter(Boolean);
-    const out = [{ name: base ? base.split('/').filter(Boolean).pop() ?? '/' : '/', path: base || listing.path }];
-    let acc = base;
-    for (const part of parts) {
-      acc = acc + '/' + part;
-      out.push({ name: part, path: acc });
+    const path = cleanPath(listing.path);
+    const base = roots.find((root) => isInside(path, root.path))?.path;
+    if (!base) return [{ name: '/', path: '/' }];
+    const out = [{ name: base === '/' ? '/' : base.split('/').filter(Boolean).pop() ?? '/', path: base }];
+    let acc = base === '/' ? '' : base;
+    for (const part of path.slice(base === '/' ? 0 : base.length).split('/').filter(Boolean)) {
+      acc += '/' + part;
+      out.push({ name: part, path: acc || '/' });
     }
     return out;
   })();
@@ -496,7 +496,7 @@ export default function FilesTool() {
 
   const openRoot = (path: string) => {
     setRootPath(path);
-    const base = roots.find((root) => path === root.path || path.startsWith(root.path + '/'))?.path;
+    const base = roots.find((root) => isInside(path, root.path))?.path;
     if (base) {
       localStorage.setItem('st:files:root', base);
       localStorage.setItem('st:files:rootFor', projectPath ?? '');
@@ -510,14 +510,14 @@ export default function FilesTool() {
   const largeFile = Boolean(file) && !file!.binary && (file!.truncated || lineCount > 2000);
   const inProject = Boolean(projectPath) && (rootPath === projectPath || rootPath.startsWith(projectPath + '/'));
   const treeRoots = inProject && projectPath ? [{ path: projectPath, label: projectName(projectPath) }] : roots;
-  const rootValue = roots.find((root) => rootPath === root.path || rootPath.startsWith(root.path + '/'))?.path ?? rootPath;
-  const parent = listing?.parent ?? null;
+  const rootValue = roots.find((root) => isInside(rootPath, root.path))?.path ?? rootPath;
+  const parent = listing?.parent ? cleanPath(listing.parent) : null;
   const parentPath =
-    parent && roots.some((root) => parent === root.path || parent.startsWith(root.path + '/')) ? parent : null;
+    parent && roots.some((root) => isInside(parent, root.path)) ? parent : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="File Explorer" subtitle={listing ? listing.path + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'} icon="files">
+      <PageHeader title="File Explorer" subtitle={listing ? cleanPath(listing.path) + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'} icon="files">
         <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan tree' : 'Tampilkan tree'}>
           <Icon name="panel" />
         </button>
@@ -656,17 +656,6 @@ export default function FilesTool() {
               ))}
             </div>
           ) : null}
-          {parentPath ? (
-            <button
-              type="button"
-              onClick={() => void loadListing(parentPath)}
-              title={parentPath}
-              className="mb-1 flex w-full items-center gap-1.5 rounded-md border border-line bg-panel2/60 px-1.5 py-1 text-[11.5px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
-            >
-              <Icon name="back" size={12} className="shrink-0" />
-              <span className="truncate">{t('files.up')}</span>
-            </button>
-          ) : null}
           {treeRoots.map((root) => (
             <TreeNode
               key={root.path}
@@ -676,6 +665,18 @@ export default function FilesTool() {
               onPick={(path) => void loadListing(path)}
             />
           ))}
+          {projectPath || parentPath ? (
+            <button
+              type="button"
+              onClick={() => parentPath && void loadListing(parentPath)}
+              disabled={!parentPath}
+              title={parentPath ?? undefined}
+              className="mt-1 flex w-full items-center gap-1.5 rounded-md border border-line bg-panel2/60 px-1.5 py-1 text-[11.5px] text-muted transition-colors hover:border-accent/40 hover:text-ink disabled:cursor-default disabled:opacity-40 disabled:hover:border-line"
+            >
+              <Icon name="back" size={12} className="shrink-0" />
+              <span className="truncate">{t('files.up')}</span>
+            </button>
+          ) : null}
         </div>
         ) : null}
 

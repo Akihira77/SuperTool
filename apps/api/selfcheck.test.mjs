@@ -20,6 +20,8 @@ test('jail: path di dalam root boleh, di luar ditolak', () => {
   assert.equal(inRoots('/home/akihira17/personal', roots), true);
   assert.equal(inRoots('/home/akihira17/personal-evil', roots), false);
   assert.equal(inRoots('/etc/passwd', roots), false);
+  assert.equal(inRoots('/home/akihira17/personal', ['/']), true);
+  assert.equal(inRoots('/etc/passwd', ['/']), true);
 });
 
 test('calendar: mode switch meminta pemilih akun', () => {

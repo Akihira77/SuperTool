@@ -4,7 +4,7 @@ import { dirname, resolve, sep } from 'node:path';
 import { cfg } from '../config';
 
 export function inRoots(abs: string, roots: string[]): boolean {
-  return roots.some((root) => abs === root || abs.startsWith(root + sep));
+  return roots.some((root) => (root === sep ? abs.startsWith(sep) : abs === root || abs.startsWith(root + sep)));
 }
 
 /** Batasi path ke root yang diizinkan, lalu cek symlink supaya tidak bisa kabur. */

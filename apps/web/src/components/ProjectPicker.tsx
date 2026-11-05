@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon, Spinner, cn } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
-import { projectName, useProject } from '../lib/project';
+import { cleanPath, projectName, useProject } from '../lib/project';
 
 type Listing = { path: string; parent: string | null; entries: Array<{ name: string; path: string; dir: boolean }> };
 type Root = { path: string; label: string };
@@ -161,7 +161,12 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
                 <Icon name="back" size={12} />
               </button>
             </div>
-            <div className="mono truncate rounded border border-line bg-panel2/60 px-2 py-1 text-[11px] text-muted" title={picker?.path}>{picker?.path ?? '…'}</div>
+            <div
+              className="mono truncate rounded border border-line bg-panel2/60 px-2 py-1 text-[11px] text-muted"
+              title={picker?.path ? cleanPath(picker.path) : undefined}
+            >
+              {picker?.path ? cleanPath(picker.path) : '…'}
+            </div>
             {busy ? (
               <div className="flex items-center gap-2 p-4 text-[12px] text-muted"><Spinner /> {t('project.loading')}</div>
             ) : (
