@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Calendar as BigCalendar,
   dayjsLocalizer,
@@ -28,9 +28,10 @@ type CalendarEvent = {
   status: string;
   allDay: boolean;
 };
-type CalendarResponse = { calendarId: string; timeMin: string; events: CalendarEvent[] };
+type CalendarResponse = { calendarId: string; timeMin: string; writeScope?: boolean; events: CalendarEvent[] };
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
 type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; resource: CalendarEvent };
+type EventForm = { summary: string; start: string; end: string; location: string; description: string };
 
 const localizer = dayjsLocalizer(dayjs);
 const VIEWS: View[] = ['month', 'week', 'agenda'];
@@ -97,6 +98,25 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function localInput(date: Date): string {
+  return (
+    date.getFullYear() +
+    '-' + pad(date.getMonth() + 1) +
+    '-' + pad(date.getDate()) +
+    'T' + pad(date.getHours()) +
+    ':' + pad(date.getMinutes())
+  );
+}
+
+function defaultEventForm(): EventForm {
+  const start = new Date();
+  start.setSeconds(0, 0);
+  start.setMinutes(0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start.getTime() + 60 * 60_000);
+  return { summary: '', start: localInput(start), end: localInput(end), location: '', description: '' };
+}
+
 function eventWhen(event: RbcEvent, locale: string, allDayLabel: string): string {
   if (event.allDay) {
     const last = new Date(event.end.getTime() - 86_400_000);
@@ -131,15 +151,34 @@ export default function CalendarTool() {
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>('loading');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [writeScope, setWriteScope] = useState(true);
   const [message, setMessage] = useState('');
   const [configMissing, setConfigMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<RbcEvent | null>(null);
+  const [composer, setComposer] = useState(false);
+  const [form, setForm] = useState<EventForm>(() => defaultEventForm());
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const booted = useRef(false);
   const fetching = useRef(false);
   const locale = lang === 'id' ? 'id-ID' : 'en-US';
+
+  const errorText = (message: string): string => {
+    if (lang === 'id' || !message) return message || t('calendar.error');
+    if (/Judul event wajib/i.test(message)) return t('calendar.titleRequired');
+    if (/Waktu event tidak valid|Waktu mulai/i.test(message)) return t('calendar.invalidTime');
+    if (/Waktu selesai/i.test(message)) return t('calendar.endBeforeStart');
+    if (/baca-saja|read-only|insufficient.*scope|scope/i.test(message)) return t('calendar.writeScopeError');
+    if (/belum terhubung/i.test(message)) return t('calendar.notConnectedHint');
+    if (/dikonfigurasi/i.test(message)) return t('calendar.configMissingHint');
+    if (/kedaluwarsa|ditolak|invalid_grant|reconnect/i.test(message)) return t('calendar.reconnectHint');
+    if (/Gagal menyimpan event/i.test(message)) return t('calendar.createFailed');
+    if (/Gagal mengambil event/i.test(message)) return t('calendar.error');
+    return message;
+  };
 
   const fetchEvents = useCallback(
     async (initial: boolean) => {
@@ -148,19 +187,24 @@ export default function CalendarTool() {
       if (initial) setPhase('loading');
       setBusy(true);
       try {
-        const data = await api.get<CalendarResponse>('/calendar/events');
+        const now = new Date();
+        const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+        const to = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
+        const query = new URLSearchParams({ timeMin: from, timeMax: to }).toString();
+        const data = await api.get<CalendarResponse>('/calendar/events?' + query);
         setEvents(data.events ?? []);
+        setWriteScope(data.writeScope !== false);
         setMessage('');
         setConfigMissing(false);
         setPhase('ready');
       } catch (err) {
-        const text = err instanceof ApiError ? err.message : t('calendar.error');
-        setMessage(text);
+        const raw = err instanceof ApiError ? err.message : '';
+        setMessage(errorText(raw));
         const disconnected =
-          err instanceof ApiError && err.status === 400 && /belum terhubung|belum dikonfigurasi/i.test(text);
+          err instanceof ApiError && err.status === 400 && /belum terhubung|belum dikonfigurasi/i.test(raw);
         if (disconnected) {
           setPhase('disconnected');
-          setConfigMissing(/dikonfigurasi/i.test(text));
+          setConfigMissing(/dikonfigurasi/i.test(raw));
         } else {
           setPhase('error');
         }
@@ -208,6 +252,63 @@ export default function CalendarTool() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selected]);
 
+  useEffect(() => {
+    if (!composer) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setComposer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [composer, saving]);
+
+  const openComposer = () => {
+    setForm(defaultEventForm());
+    setFormError('');
+    setComposer(true);
+  };
+
+  const setField = (key: keyof EventForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  const createEvent = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving) return;
+    const summary = form.summary.trim();
+    if (!summary) {
+      setFormError(t('calendar.titleRequired'));
+      return;
+    }
+    const start = new Date(form.start);
+    const end = new Date(form.end);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setFormError(t('calendar.invalidTime'));
+      return;
+    }
+    if (end.getTime() <= start.getTime()) {
+      setFormError(t('calendar.endBeforeStart'));
+      return;
+    }
+
+    setSaving(true);
+    setFormError('');
+    try {
+      await api.postSilent<CalendarEvent>('/calendar/events', {
+        summary,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        location: form.location.trim(),
+        description: form.description.trim(),
+      });
+      setComposer(false);
+      toast(t('calendar.created'), 'ok');
+      await fetchEvents(false);
+    } catch (err) {
+      setFormError(errorText(err instanceof ApiError ? err.message : t('calendar.createFailed')));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const connect = async () => {
     setOpening(true);
     try {
@@ -218,8 +319,9 @@ export default function CalendarTool() {
         return;
       }
       setHint(true);
+      if (phase === 'ready') toast(t('calendar.hint'), 'ok');
     } catch (err) {
-      const text = err instanceof ApiError ? err.message : t('calendar.failed');
+      const text = errorText(err instanceof ApiError ? err.message : t('calendar.failed'));
       setMessage(text);
       toast(text, 'error');
     } finally {
@@ -264,6 +366,10 @@ export default function CalendarTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('calendar.title')} subtitle={subtitle}>
+        <button type="button" className="btn btn-primary" onClick={openComposer} disabled={phase !== 'ready' || busy || !writeScope}>
+          <Icon name="plus" />
+          {t('calendar.addEvent')}
+        </button>
         <button
           type="button"
           className="btn"
@@ -289,7 +395,7 @@ export default function CalendarTool() {
               {configMissing ? t('calendar.configMissing') : t('calendar.notConnectedHint')}
             </p>
             {configMissing ? (
-              <p className="mono mx-auto mt-3 max-w-lg text-[11px] break-words text-muted/80">{message}</p>
+              <p className="mx-auto mt-3 max-w-md text-[11.5px] text-muted">{t('calendar.configMissingHint')}</p>
             ) : (
               <button type="button" className="btn btn-primary mt-4" onClick={() => void connect()} disabled={opening}>
                 <Icon name="external" />
@@ -309,8 +415,18 @@ export default function CalendarTool() {
             </button>
           </div>
         ) : (
-          <div className="calendar-shell flex h-full min-h-[520px] flex-col rounded-xl border border-line bg-panel/40 p-2">
-            <BigCalendar<RbcEvent>
+          <div className="flex h-full min-h-[520px] flex-col gap-2">
+            {!writeScope ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11.5px] text-warn">
+                <Icon name="bell" size={13} className="shrink-0" />
+                <span className="min-w-0 flex-1">{t('calendar.writeScopeHint')}</span>
+                <button type="button" className="btn px-2 py-1 text-[11px]" onClick={() => void connect()} disabled={opening}>
+                  {opening ? t('calendar.connecting') : t('calendar.reconnect')}
+                </button>
+              </div>
+            ) : null}
+            <div className="calendar-shell flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-panel/40 p-2">
+              <BigCalendar<RbcEvent>
               localizer={localizer}
               culture={lang}
               events={rbcEvents}
@@ -326,8 +442,9 @@ export default function CalendarTool() {
               allDayAccessor="allDay"
               onSelectEvent={(event) => setSelected(event)}
               tooltipAccessor={(event) => event.resource.location || event.title}
-              style={{ height: '100%' }}
-            />
+                style={{ height: '100%' }}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -410,6 +527,134 @@ export default function CalendarTool() {
               </div>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {composer ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) setComposer(false);
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-create-title"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
+            onSubmit={createEvent}
+          >
+            <div className="sticky top-0 flex items-center gap-2.5 border-b border-line bg-panel p-4">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                <Icon name="plus" size={15} />
+              </span>
+              <h2 id="calendar-create-title" className="min-w-0 flex-1 text-[15px] font-semibold">
+                {t('calendar.addEvent')}
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 cursor-pointer px-1.5 py-0.5"
+                onClick={() => setComposer(false)}
+                disabled={saving}
+                title={t('common.close')}
+                aria-label={t('common.close')}
+              >
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col">
+                <span className="label">{t('calendar.eventTitle')}</span>
+                <input
+                  className="input mt-1"
+                  value={form.summary}
+                  onChange={(event) => setField('summary', event.target.value)}
+                  autoFocus
+                  required
+                  maxLength={1024}
+                  placeholder={t('calendar.eventTitlePlaceholder')}
+                  disabled={saving}
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col">
+                  <span className="label">{t('calendar.start')}</span>
+                  <input
+                    type="datetime-local"
+                    className="input mt-1"
+                    value={form.start}
+                    onChange={(event) => setField('start', event.target.value)}
+                    required
+                    disabled={saving}
+                  />
+                </label>
+                <label className="flex flex-col">
+                  <span className="label">{t('calendar.end')}</span>
+                  <input
+                    type="datetime-local"
+                    className="input mt-1"
+                    value={form.end}
+                    onChange={(event) => setField('end', event.target.value)}
+                    required
+                    disabled={saving}
+                  />
+                </label>
+              </div>
+
+              <label className="flex flex-col">
+                <span className="label">{t('calendar.location')}</span>
+                <input
+                  className="input mt-1"
+                  value={form.location}
+                  onChange={(event) => setField('location', event.target.value)}
+                  maxLength={1024}
+                  disabled={saving}
+                />
+              </label>
+
+              <label className="flex flex-col">
+                <span className="label">{t('calendar.description')}</span>
+                <textarea
+                  className="input mt-1 min-h-24 resize-y"
+                  value={form.description}
+                  onChange={(event) => setField('description', event.target.value)}
+                  maxLength={8192}
+                  disabled={saving}
+                />
+              </label>
+
+              {formError ? (
+                <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[12px] break-words text-bad">
+                  {formError}
+                  {/izin|hubungkan ulang|scope|reconnect/i.test(formError) ? (
+                    <button
+                      type="button"
+                      className="btn mt-2 w-full justify-center"
+                      onClick={() => {
+                        setComposer(false);
+                        void connect();
+                      }}
+                    >
+                      <Icon name="external" size={13} /> {t('calendar.reconnect')}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="mt-1 flex flex-wrap justify-end gap-2 border-t border-line pt-3">
+                <button type="button" className="btn" onClick={() => setComposer(false)} disabled={saving}>
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? <Spinner /> : <Icon name="check" size={14} />}
+                  {saving ? t('calendar.saving') : t('calendar.save')}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       ) : null}
     </div>

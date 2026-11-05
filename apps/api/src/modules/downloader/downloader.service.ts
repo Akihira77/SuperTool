@@ -30,6 +30,20 @@ export type PreparedDownload = {
   cleanup: () => Promise<void>;
 };
 
+export type DownloadInfo = {
+  url: string;
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  thumbnail: string | null;
+  source: string;
+  webpageUrl: string;
+  heights: number[];
+  hasAudio: boolean;
+  live: boolean;
+};
+
 const ALLOWED_HOSTS = [
   'youtube.com',
   'youtu.be',
@@ -97,6 +111,20 @@ function ytDlpError(error: unknown): string {
     .filter(Boolean);
   const line = [...lines].reverse().find((item) => /^ERROR:/i.test(item)) ?? lines.at(-1) ?? '';
   return line.replace(/^ERROR:\s*/i, '').slice(0, 300);
+}
+
+function httpUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function text(value: unknown, limit: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, limit) : '';
 }
 
 function contentDisposition(filename: string): string {
@@ -217,6 +245,79 @@ export class DownloaderService implements OnModuleInit {
         detail ? 'Gagal memproses video: ' + detail : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.',
       );
     }
+  }
+
+  /** Metadata saja (--skip-download), untuk preview sebelum user memilih resolusi. */
+  async info(input: DownloadRequest, signal?: AbortSignal): Promise<DownloadInfo> {
+    const request = normalizeRequest(input);
+    const flags: Flags = {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noPlaylist: true,
+      noWarnings: true,
+      ignoreConfig: true,
+      noCacheDir: true,
+      socketTimeout: 30,
+      retries: 2,
+    };
+
+    let parsed: unknown;
+    try {
+      parsed = await youtubeDl(request.url, flags, { signal });
+    } catch (error) {
+      if (signal?.aborted) throw new BadRequestException('Pengambilan info dibatalkan.');
+      const detail = ytDlpError(error);
+      if (detail) this.logger.warn('yt-dlp info gagal: ' + detail);
+      throw new BadRequestException(
+        detail ? 'Gagal mengambil info video: ' + detail : 'Gagal mengambil info video. Pastikan tautan publik dan coba lagi.',
+      );
+    }
+
+    let data: Record<string, unknown>;
+    try {
+      data = (typeof parsed === 'string' ? JSON.parse(parsed) : parsed) as Record<string, unknown>;
+    } catch {
+      throw new BadRequestException('Info video dari yt-dlp tidak bisa dibaca.');
+    }
+    if (!data || data._type === 'playlist') {
+      throw new BadRequestException('Tautan ini berisi playlist. Gunakan tautan satu video.');
+    }
+
+    const formats = Array.isArray(data.formats)
+      ? (data.formats as Array<Record<string, unknown>>).filter((item) => item && typeof item === 'object')
+      : [];
+    const heights = [
+      ...new Set(
+        formats
+          .filter((item) => typeof item.vcodec === 'string' && item.vcodec !== 'none')
+          .map((item) => Number(item.height))
+          .filter((height) => Number.isInteger(height) && height >= 144 && height <= 4320),
+      ),
+    ].sort((a, b) => b - a);
+    const hasAudio = formats.length === 0 || formats.some((item) => typeof item.acodec === 'string' && item.acodec !== 'none');
+
+    const thumbs = Array.isArray(data.thumbnails)
+      ? (data.thumbnails as Array<Record<string, unknown>>)
+          .map((item) => ({ url: httpUrl(item.url), width: Number(item.width) || 0 }))
+          .filter((item): item is { url: string; width: number } => Boolean(item.url))
+          .sort((a, b) => b.width - a.width)
+      : [];
+    const thumbnail = httpUrl(data.thumbnail) ?? thumbs[0]?.url ?? null;
+    const host = new URL(request.url).hostname.replace(/^www\./, '');
+
+    return {
+      url: request.url,
+      id: text(data.id, 120),
+      title: text(data.title, 300),
+      uploader: text(data.uploader ?? data.channel ?? data.creator, 160),
+      duration: Number.isFinite(Number(data.duration)) ? Number(data.duration) : null,
+      thumbnail,
+      source: host,
+      webpageUrl: httpUrl(data.webpage_url) ?? request.url,
+      heights,
+      hasAudio,
+      live: data.is_live === true || data.live_status === 'is_live',
+    };
   }
 
   async send(prepared: PreparedDownload, res: Response): Promise<void> {

@@ -6,6 +6,22 @@ import { DownloaderService, type DownloadRequest } from './downloader.service';
 export class DownloaderController {
   constructor(private readonly downloader: DownloaderService) {}
 
+  /** Metadata dulu: judul, thumbnail, durasi, resolusi yang tersedia. */
+  @Post('info')
+  @HttpCode(200)
+  async info(@Body() body: DownloadRequest, @Res({ passthrough: true }) res: Response): Promise<unknown> {
+    const abort = new AbortController();
+    const onClose = () => {
+      if (!res.writableEnded) abort.abort();
+    };
+    res.once('close', onClose);
+    try {
+      return await this.downloader.info(body ?? {}, abort.signal);
+    } finally {
+      res.removeListener('close', onClose);
+    }
+  }
+
   /** Streaming langsung ke respons (dipakai frontend via fetch + File System Access). */
   @Post('proxy')
   @HttpCode(200)

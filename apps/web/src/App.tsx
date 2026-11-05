@@ -110,7 +110,7 @@ function Shell() {
   const paletteTree: PaletteNode[] = [
     ...TOOLS.map<PaletteNode>((tool) => {
       const id = tool.id;
-      const base: PaletteNode = { id: 'tool:' + id, label: t(tool.key as 'nav.markdown', tool.label), desc: tool.desc, icon: tool.icon };
+      const base: PaletteNode = { id: 'tool:' + id, label: t(tool.key as 'nav.markdown', tool.label), desc: t(('nav.' + id + '.desc') as 'nav.markdown.desc', tool.desc), icon: tool.icon };
       if (id === 'files') {
         return { ...base, children: [{ id: 'files:search', label: t('palette.searchFiles'), desc: t('palette.searchFilesDesc'), icon: 'search', form: 'files-search' }] };
       }

@@ -275,27 +275,29 @@ Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pe
 
 | Metode | Path | Auth | Body/Query | Hasil |
 |--------|------|------|------------|-------|
+| POST | `/downloader/info` | login + CSRF | `{ url }` | metadata: `{ title, uploader, duration, thumbnail, source, heights[], hasAudio, live }` |
 | POST | `/downloader/proxy` | login + CSRF | `{ url, quality?, audioOnly? }` | stream file (`Content-Disposition: attachment`) MP4 atau MP3 |
 | GET | `/downloader/proxy` | login | `url`, `quality`, `audio=1` | sama; untuk anchor/`window.location` |
 
-`quality` = `best` (default), `1080`, `720`, `480`, `360`; `audioOnly` = `true` menghasilkan MP3. Hanya host YouTube (`youtube.com`, `youtu.be`), Facebook (`facebook.com`, `fb.com`, `fb.watch`), dan Bilibili (`bilibili.com`, `b23.tv`) yang diterima; skema selain http(s), kredensial di URL, dan host lain ditolak 400. Playlist dimatikan, jadi satu URL = satu video.
+Alur UI: `info` memakai yt-dlp `--dump-single-json --skip-download` agar user bisa memeriksa judul/thumbnail/durasi dan memilih resolusi sebelum mengunduh; `proxy` baru dijalankan setelah tombol Download. `quality` = `best` (default), `1080`, `720`, `480`, `360`; `audioOnly` = `true` menghasilkan MP3. Hanya host YouTube (`youtube.com`, `youtu.be`), Facebook (`facebook.com`, `fb.com`, `fb.watch`), dan Bilibili (`bilibili.com`, `b23.tv`) yang diterima; skema selain http(s), kredensial di URL, dan host lain ditolak 400. Playlist dimatikan, jadi satu URL = satu video.
 
-Server menjalankan yt-dlp ke folder unik di `temp/` (`ST_TEMP_DIR`), menggabungkan video+audio dengan `ffmpeg-static`, lalu mengalirkan file. Folder dihapus setelah response selesai, klien memutus koneksi, atau proses gagal; folder sisa lebih dari 6 jam dibersihkan saat start. Error yt-dlp dikembalikan sebagai JSON 400 dengan pesan ringkas; file tidak pernah disimpan sebagai library permanen.
+`heights` berisi resolusi yang benar-benar tersedia (bisa lebih banyak dari pilihan UI; pilihan final mengikuti `best|1080|720|480|360`). Server menjalankan yt-dlp ke folder unik di `temp/` (`ST_TEMP_DIR`), menggabungkan video+audio dengan `ffmpeg-static`, lalu mengalirkan file. Folder dihapus setelah response selesai, klien memutus koneksi, atau proses gagal; folder sisa lebih dari 6 jam dibersihkan saat start. Error yt-dlp dikembalikan sebagai JSON 400 dengan pesan ringkas; file tidak pernah disimpan sebagai library permanen.
 
 ## Google Calendar
 
-Route `/calendar/auth` dan `/calendar/events` dilindungi AuthGuard global (cookie sesi; aplikasi ini tidak memakai JWT). Callback publik dengan `state` sekali pakai.
+Route `/calendar/auth` dan `/calendar/events` dilindungi AuthGuard global (cookie sesi; aplikasi ini tidak memakai JWT). Callback publik dengan `state` sekali pakai. Scope OAuth adalah `https://www.googleapis.com/auth/calendar` (baca-tulis).
 
 | Metode | Path | Auth | Hasil |
 |--------|------|------|-------|
-| GET | `/calendar/auth` | login | `{ url }` URL consent Google (`calendar.readonly`, `access_type=offline`, `state` 32 hex sekali pakai) |
+| GET | `/calendar/auth` | login | `{ url }` URL consent Google (`calendar`, `access_type=offline`, `state` 32 hex sekali pakai) |
 | GET | `/calendar/callback?code=&state=` | publik (state) | 302 ke `/#/calendar?google=connected` / `denied` / `error`; menukar code dan menyimpan token ke `google_tokens` |
 | GET | `/google/callback?code=&state=` | publik (state) | alias callback untuk `GOOGLE_REDIRECT_URI` lama (perilaku sama) |
-| GET | `/calendar/events` | login | `{ calendarId: "primary", timeMin, events: [...] }` — 20 event terdekat |
+| GET | `/calendar/events` | login | `timeMin?`, `timeMax?` → `{ calendarId, timeMin, timeMax, writeScope, events[] }`; semua kalender terlihat, default awal bulan berjalan, maks 250 |
+| POST | `/calendar/events` | login + CSRF | `{ summary, start, end, timeZone?, location?, description?, allDay? }` → event baru |
 
-`events[]` berisi `{ id, summary, description, location, start, end, htmlLink, status, allDay }`. `start`/`end` mengikuti format Google: `{ dateTime, timeZone }` atau `{ date }` untuk all-day.
+`events[]` berisi `{ id, calendarId, calendarName, summary, description, location, start, end, htmlLink, status, allDay }`. Event digabung dari semua kalender yang terlihat (kalender langganan ikut; satu kalender yang gagal dilewati). `start`/`end` mengikuti format Google: `{ dateTime, timeZone }` atau `{ date }` untuk all-day. `POST` menerima ISO datetime untuk `start`/`end`; untuk `allDay: true` gunakan `YYYY-MM-DD` dan `end` eksklusif (tanggal setelah hari terakhir).
 
-Token disimpan di satu baris tabel `google_tokens` (`access_token`, `refresh_token`, `expiry`, `scope`, `token_type`, `updated_at`). Access token di-refresh otomatis 60 detik sebelum kedaluwarsa dan refresh token lama dipertahankan. Tanpa env `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `/calendar/auth` membalas 400 berisi instruksi; `/calendar/events` tanpa token tersimpan juga 400 dengan pesan "belum terhubung". Callback tidak memakai sesi karena consent bisa selesai di profil browser lain — keamanannya dari `state` acak 16 byte, berlaku 10 menit, dan sekali pakai.
+`writeScope` bernilai `false` jika token tersimpan masih memakai scope baca-saja; UI menampilkan tombol **Hubungkan ulang**. Token disimpan di satu baris tabel `google_tokens` (`access_token`, `refresh_token`, `expiry`, `scope`, `token_type`, `updated_at`). Access token di-refresh otomatis 60 detik sebelum kedaluwarsa dan refresh token lama dipertahankan; scope lama tidak ditimpa saat refresh tanpa scope. Tanpa env `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `/calendar/auth` membalas 400 berisi instruksi; `/calendar/events` tanpa token tersimpan juga 400 dengan pesan "belum terhubung". Callback tidak memakai sesi karena consent bisa selesai di profil browser lain — keamanannya dari `state` acak 16 byte, berlaku 10 menit, dan sekali pakai.
 
 ## SQLite Viewer
 

@@ -1,7 +1,7 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../../common/public.decorator';
-import { CalendarService } from './calendar.service';
+import { CalendarService, type CreateCalendarEventInput } from './calendar.service';
 
 @Controller('calendar')
 export class CalendarController {
@@ -29,9 +29,16 @@ export class CalendarController {
     res.redirect(302, this.calendar.redirectUrl(status));
   }
 
-  /** Event terdekat dari kalender utama (dilindungi AuthGuard global). */
+  /** Event pada rentang tertentu; default bulan berjalan (AuthGuard global). */
   @Get('events')
-  events() {
-    return this.calendar.events();
+  events(@Query('timeMin') timeMin?: string, @Query('timeMax') timeMax?: string) {
+    return this.calendar.events(timeMin, timeMax);
+  }
+
+  /** Tambah event baru ke kalender utama. */
+  @Post('events')
+  @HttpCode(201)
+  create(@Body() body: CreateCalendarEventInput) {
+    return this.calendar.createEvent(body ?? {});
   }
 }

@@ -19,8 +19,8 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
-| 12 | Calendar | Kalender visual bulan/minggu/agenda dari 20 event terdekat Google Calendar (baca-saja), OAuth, tombol Sync |
-| 13 | Downloader | Unduh video/audio YouTube, Facebook, Bilibili sebagai MP4/MP3; pilihan resolusi; streaming ke perangkat, tanpa file permanen di server |
+| 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit |
+| 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 
 ## Tech stack
@@ -252,12 +252,12 @@ Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu it
 
 ## Google Calendar
 
-Integrasi baca-saja ke Google Calendar. Menu **Calendar** di sidebar menampilkan 20 event terdekat dari kalender utama dalam kalender visual (bulan/minggu/agenda).
+Integrasi baca-tulis ke Google Calendar. Menu **Calendar** menampilkan event sekitar bulan berjalan dalam kalender visual (bulan/minggu/agenda), detail event, dan form **Tambah Event**.
 
 Setup:
 
 1. Google Cloud Console → buat project → aktifkan **Google Calendar API**.
-2. OAuth consent screen (External, mode Testing) → tambahkan akun Google yang dipakai sebagai test user.
+2. OAuth consent screen (External, mode Testing) → tambahkan akun Google yang dipakai sebagai test user, lalu di **Data access** tambahkan scope `https://www.googleapis.com/auth/calendar`.
 3. Credentials → Create credentials → OAuth client ID → Web application → Authorized redirect URI: `http://127.0.0.1:3001/api/calendar/callback`. Harus sama persis dengan `GOOGLE_REDIRECT_URI`. Endpoint juga menerima alias `http://127.0.0.1:3001/api/google/callback`; kalau `.env`/Google Console sudah memakai salah satunya, cukup samakan keduanya.
 4. Isi `apps/api/.env` (lihat `apps/api/.env.example`):
 
@@ -269,19 +269,21 @@ GOOGLE_REDIRECT_URI=http://127.0.0.1:3001/api/calendar/callback
 
 Alur:
 
-- `GET /api/calendar/auth` (wajib login lewat AuthGuard cookie — aplikasi ini tidak memakai JWT) → `{ url }`; frontend membuka URL tersebut.
+- `GET /api/calendar/auth` (wajib login lewat AuthGuard cookie — aplikasi ini tidak memakai JWT) → `{ url }`; frontend membuka URL tersebut. Scope OAuth: `https://www.googleapis.com/auth/calendar` (baca-tulis), bukan lagi `calendar.readonly`.
 - Google mengembalikan `code` ke `GET /api/calendar/callback`. Route ini publik karena consent bisa diselesaikan di profil browser lain; keamanannya dari `state` acak sekali pakai (TTL 10 menit). Token ditukar lalu disimpan ke tabel `google_tokens`, setelah itu user diarahkan ke `/#/calendar?google=connected` (atau `denied`/`error`).
-- `GET /api/calendar/events` (wajib login) → 20 event terdekat dari kalender `primary`, `timeMin` = sekarang, `singleEvents` + `orderBy=startTime`. Access token di-refresh otomatis 60 detik sebelum kedaluwarsa; refresh token lama dipertahankan.
-- Scope hanya `https://www.googleapis.com/auth/calendar.readonly`. Token tidak pernah dikirim ke browser. Backup database ikut memuat token, jadi perlakukan file backup seperti kredensial.
+- `GET /api/calendar/events?timeMin=&timeMax=` (wajib login) → event dari semua kalender yang terlihat (termasuk kalender langganan/hari libur) pada rentang tersebut; tanpa parameter memakai awal bulan berjalan. `singleEvents` + `orderBy=startTime`, maksimal 250 event. Access token di-refresh otomatis 60 detik sebelum kedaluwarsa; refresh token lama dipertahankan.
+- `POST /api/calendar/events` (wajib login + `X-ST-CSRF`) menerima `{ summary, start, end, timeZone?, location?, description?, allDay? }` dan memanggil `events.insert` ke kalender `primary`. `start`/`end` berupa ISO datetime (atau `YYYY-MM-DD` untuk `allDay`); respons adalah event yang sudah dipetakan.
+- Scope `https://www.googleapis.com/auth/calendar`. Token tidak pernah dikirim ke browser. Backup database ikut memuat token, jadi perlakukan file backup seperti kredensial. Token lama yang masih `calendar.readonly` tetap bisa membaca; halaman menampilkan ajakan **Hubungkan ulang** agar bisa menambah event.
 
 Halaman Calendar:
 
-- Saat dibuka, halaman memanggil `/api/calendar/events`. Kalau belum terhubung, tampil tombol **Hubungkan ke Google Calendar** yang membuka URL dari `/api/calendar/auth` di tab baru (atau tab yang sama kalau popup diblokir).
+- Saat dibuka, halaman memanggil `/api/calendar/events` untuk rentang bulan sebelumnya sampai tiga bulan ke depan, jadi event bulan berjalan (termasuk yang sudah lewat) tetap terlihat. Kalau belum terhubung, tampil tombol **Hubungkan ke Google Calendar** yang membuka URL dari `/api/calendar/auth` di tab baru (atau tab yang sama kalau popup diblokir).
 - Setelah memberi izin, Google redirect ke `/#/calendar?google=connected` (atau `denied`/`error`); halaman menampilkan toast sesuai status lalu membersihkan query. Di tab asal, klik **Sync** untuk memuat token yang baru tersimpan.
 - Tampilan kalender memakai `react-big-calendar` + `dayjs` (lazy-load): default **bulan**, bisa pindah ke **minggu** atau **agenda**. Setiap event menampilkan **judul** di grid, bukan cuma blok warna. Event sepanjang hari dari Google (`start.date`/`end.date`) dipetakan dengan benar; jam mengikuti zona waktu perangkat.
+- Tombol **Tambah Event** membuka modal judul, mulai/selesai, lokasi, dan deskripsi; event disimpan lewat `POST /api/calendar/events` lalu kalender di-refresh. Kalau token lama masih baca-saja, muncul banner **Hubungkan ulang**.
 - Klik event membuka **modal detail**: judul, waktu mulai–selesai dengan label **WIB/WITA/WIT** sesuai zona waktu perangkat (sama dengan jam di header), lokasi, deskripsi, dan tautan ke Google Calendar. Escape/klik latar menutup modal.
 - Toolbar (Hari ini/Sebelumnya/Berikutnya + pilihan view) mengikuti bahasa ID/EN. Warna event, border, dan font memakai token tema Super Tool lewat `tools/calendar.css`.
-- Tombol **Sync** di header memuat ulang data, dan halaman juga **auto-refresh setiap 5 menit** selama Calendar terbuka. Kalau belum ada event, kalender tetap tampil kosong.
+- Tombol **Sync** di header memuat ulang data, dan halaman juga **auto-refresh setiap 5 menit** selama Calendar terbuka. Kalau rentang tidak punya event, kalender tetap tampil dengan tombol Tambah Event.
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 
@@ -289,6 +291,7 @@ Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk 
 
 Menu **Downloader** mengunduh video/audio publik dari YouTube, Facebook, dan Bilibili. Backend memakai `youtube-dl-exec` (yt-dlp) + `ffmpeg-static`; tidak ada file yang disimpan permanen.
 
+- Alurnya dua tahap: tempel URL lalu klik **Cek link**. Backend menjalankan yt-dlp `--dump-single-json --skip-download` (`POST /api/downloader/info`) dan mengembalikan judul, channel, durasi, thumbnail, sumber, dan resolusi yang tersedia. Setelah detail muncul, baru pilih resolusi/audio dan klik **Download**.
 - Hanya tautan host yang diizinkan (YouTube, Facebook, Bilibili, termasuk short link `youtu.be`, `fb.watch`, `b23.tv`); host lain ditolak sebelum yt-dlp dijalankan (anti-SSRF). Tanpa dukungan cookie, video privat/login atau yang butuh verifikasi akun akan gagal dengan pesan dari yt-dlp.
 - `POST /api/downloader/proxy` menerima `{ url, quality, audioOnly }`, menjalankan yt-dlp, lalu mengalirkan file sebagai `Content-Disposition: attachment` dengan nama judul video. `quality` = `best|1080|720|480|360`; `audioOnly` menghasilkan MP3. Ada juga `GET /api/downloader/proxy?url=...&quality=...&audio=1` untuk browser/anchor.
 - Di Chrome/Edge halaman memakai **File System Access API**: dialog Save As muncul lebih dulu, respons di-stream langsung ke file yang dipilih (bukan blob di memori). Browser lain memakai fallback blob/unduhan biasa. Tombol berubah menjadi **Memproses video…** dan bisa dibatalkan; permintaan yang dibatalkan ikut menghentikan yt-dlp.
@@ -374,6 +377,7 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Endpoint webhook (`/api/hook/<token>`) sengaja tanpa login dan tanpa CSRF; token acak 6 byte dibuat tiap restart dan endpoint hanya bisa dijangkau lewat loopback. Jangan diekspos ke publik.
 - Audit ketahanan & keamanan (commit `a6c3413`, temuan P0–P2 beserta bukti) ada di [docs/audit-resilience-security.md](docs/audit-resilience-security.md).
 - Audit performa backend & frontend (commit `27ffbd8`, pengukuran + temuan P0–P2) ada di [docs/audit-performance.md](docs/audit-performance.md).
+- Calendar meminta scope tulis penuh (`calendar`) agar bisa membuat event; token lama baca-saja tetap aman untuk membaca sampai user menekan **Hubungkan ulang**.
 
 Aplikasi ini alat pribadi. Jangan bind ke `0.0.0.0` lalu membukanya ke internet tanpa reverse proxy + HTTPS.
 

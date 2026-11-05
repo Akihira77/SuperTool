@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { useToast } from '../components/toast';
 import { useI18n } from '../lib/i18n';
 
 type Quality = 'best' | '1080' | '720' | '480' | '360';
-type Stage = 'idle' | 'processing' | 'saving';
+type Stage = 'idle' | 'info' | 'processing' | 'saving';
 type SaveHandle = {
   createWritable: () => Promise<WritableStream<Uint8Array> & { abort?: () => Promise<void> }>;
 };
@@ -12,12 +12,37 @@ type SavePicker = (
   this: Window,
   options: { suggestedName?: string; types?: Array<{ description: string; accept: Record<string, string[]> }> },
 ) => Promise<SaveHandle>;
+type VideoInfo = {
+  url: string;
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  thumbnail: string | null;
+  source: string;
+  webpageUrl: string;
+  heights: number[];
+  hasAudio: boolean;
+  live: boolean;
+};
 
 const ALLOWED_HOSTS = ['youtube.com', 'youtu.be', 'facebook.com', 'fb.com', 'fb.watch', 'bilibili.com', 'b23.tv'];
 
 function isSupportedHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return ALLOWED_HOSTS.some((domain) => host === domain || host.endsWith('.' + domain));
+}
+
+function validateUrl(raw: string): string | null {
+  if (!raw) return 'invalidUrl';
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'invalidUrl';
+    if (!isSupportedHost(parsed.hostname)) return 'unsupported';
+    return null;
+  } catch {
+    return 'invalidUrl';
+  }
 }
 
 const QUALITIES: Array<{ value: Quality; key: 'downloader.qualityBest' | 'downloader.quality1080' | 'downloader.quality720' | 'downloader.quality480' | 'downloader.quality360' }> = [
@@ -70,10 +95,39 @@ async function responseError(response: Response): Promise<string> {
   return text.slice(0, 300) || 'HTTP ' + response.status;
 }
 
+function durationLabel(seconds: number | null, unknown: string): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return unknown;
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0
+    ? h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
+    : m + ':' + String(s).padStart(2, '0');
+}
+
+function sourceLabel(source: string): string {
+  if (source.endsWith('youtube.com') || source === 'youtu.be') return 'YouTube';
+  if (source.endsWith('facebook.com') || source === 'fb.com' || source === 'fb.watch') return 'Facebook';
+  if (source.endsWith('bilibili.com') || source === 'b23.tv') return 'Bilibili';
+  return source;
+}
+
+function suggestedName(info: VideoInfo, audioOnly: boolean): string {
+  const base =
+    info.title
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80) || info.id || 'video';
+  return base + (audioOnly ? '.mp3' : '.mp4');
+}
+
 export default function DownloaderTool() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const toast = useToast();
   const [url, setUrl] = useState('');
+  const [info, setInfo] = useState<VideoInfo | null>(null);
   const [quality, setQuality] = useState<Quality>('best');
   const [audioOnly, setAudioOnly] = useState(false);
   const [stage, setStage] = useState<Stage>('idle');
@@ -94,22 +148,76 @@ export default function DownloaderTool() {
 
   const cancel = () => controllerRef.current?.abort();
 
-  const run = async (event: FormEvent<HTMLFormElement>) => {
+  const qualityOptions = useMemo(
+    () => QUALITIES.filter((item) => item.value === 'best' || Boolean(info?.heights.includes(Number(item.value)))),
+    [info],
+  );
+
+  const errorText = (message: string): string => {
+    if (lang === 'id' || !message) return message || t('downloader.error');
+    if (/Hanya tautan|Only YouTube/i.test(message)) return t('downloader.unsupported');
+    if (/URL video wajib|URL tidak valid|URL harus|kredensial/i.test(message)) return t('downloader.invalidUrl');
+    if (/playlist/i.test(message)) return t('downloader.playlistError');
+    if (/dibatalkan|cancelled/i.test(message)) return t('downloader.cancelled');
+    if (/Info video dari yt-dlp/i.test(message)) return t('downloader.invalidInfo');
+    if (/Gagal mengambil info|Gagal mengambil info video/i.test(message)) {
+      const detail = message.replace(/^Gagal mengambil info video:\s*/i, '').trim();
+      return detail && detail !== message ? t('downloader.infoError') + ': ' + detail : t('downloader.infoError');
+    }
+    if (/Gagal memproses video|Gagal memproses/i.test(message)) {
+      const detail = message.replace(/^Gagal memproses video:\s*/i, '').trim();
+      return detail && detail !== message ? t('downloader.error') + ': ' + detail : t('downloader.error');
+    }
+    return message;
+  };
+
+  const inspect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
 
     const raw = url.trim();
-    try {
-      const parsed = new URL(raw);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('protocol');
-      if (!isSupportedHost(parsed.hostname)) {
-        setError(t('downloader.unsupported'));
-        return;
-      }
-    } catch {
-      setError(t('downloader.invalidUrl'));
+    const invalid = validateUrl(raw);
+    if (invalid) {
+      setError(t(invalid === 'unsupported' ? 'downloader.unsupported' : 'downloader.invalidUrl'));
+      setInfo(null);
       return;
     }
+
+    setError('');
+    setInfo(null);
+    setStage('info');
+    setElapsed(0);
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    try {
+      const response = await fetch('/api/downloader/info', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-st-csrf': '1' },
+        credentials: 'include',
+        body: JSON.stringify({ url: raw }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const data = (await response.json()) as VideoInfo;
+      if (!data || typeof data.title !== 'string' || !data.url) throw new Error(t('downloader.invalidInfo'));
+      setInfo(data);
+      setQuality('best');
+      if (!data.hasAudio) setAudioOnly(false);
+    } catch (err) {
+      if (controller.signal.aborted || (err as Error)?.name === 'AbortError') {
+        toast(t('downloader.cancelled'), 'ok');
+      } else {
+        setError(errorText((err as Error)?.message || t('downloader.infoError')));
+      }
+    } finally {
+      if (controllerRef.current === controller) controllerRef.current = null;
+      setStage('idle');
+    }
+  };
+
+  const download = async () => {
+    if (!info || busy || info.live) return;
 
     setError('');
     setStage('processing');
@@ -123,11 +231,11 @@ export default function DownloaderTool() {
       if (picker) {
         try {
           handle = await picker.call(window, {
-            suggestedName: audioOnly ? 'audio.mp3' : 'video.mp4',
+            suggestedName: suggestedName(info, audioOnly),
             types: [
               audioOnly
-                ? { description: 'MP3 audio', accept: { 'audio/mpeg': ['.mp3'] } }
-                : { description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } },
+                ? { description: t('downloader.audioFile'), accept: { 'audio/mpeg': ['.mp3'] } }
+                : { description: t('downloader.videoFile'), accept: { 'video/mp4': ['.mp4'] } },
             ],
           });
         } catch (err) {
@@ -142,7 +250,7 @@ export default function DownloaderTool() {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-st-csrf': '1' },
         credentials: 'include',
-        body: JSON.stringify({ url: raw, quality, audioOnly }),
+        body: JSON.stringify({ url: info.url, quality, audioOnly }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(await responseError(response));
@@ -167,13 +275,15 @@ export default function DownloaderTool() {
       if (controller.signal.aborted || (err as Error)?.name === 'AbortError') {
         toast(t('downloader.cancelled'), 'ok');
       } else {
-        setError((err as Error)?.message || t('downloader.error'));
+        setError(errorText((err as Error)?.message || t('downloader.error')));
       }
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null;
       setStage('idle');
     }
   };
+
+  const ready = Boolean(info && !info.live);
 
   return (
     <div className="flex h-full flex-col">
@@ -183,7 +293,7 @@ export default function DownloaderTool() {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-          <form onSubmit={run} noValidate className="card flex flex-col gap-4 p-4 md:p-5">
+          <form onSubmit={inspect} noValidate className="card flex flex-col gap-4 p-4 md:p-5">
             <div>
               <label htmlFor="downloader-url" className="label">
                 {t('downloader.url')}
@@ -198,56 +308,113 @@ export default function DownloaderTool() {
                   autoComplete="off"
                   spellCheck={false}
                   value={url}
-                  onChange={(event) => setUrl(event.target.value)}
+                  onChange={(event) => {
+                    setUrl(event.target.value);
+                    if (info) setInfo(null);
+                    if (error) setError('');
+                  }}
                   placeholder={t('downloader.placeholder')}
                   disabled={busy}
                 />
                 <button type="submit" className="btn btn-primary shrink-0 justify-center" disabled={busy}>
-                  {busy ? <Spinner /> : <Icon name="download" size={14} />}
-                  {t('downloader.download')}
+                  {stage === 'info' ? <Spinner /> : <Icon name="search" size={14} />}
+                  {stage === 'info' ? t('downloader.inspecting') : info ? t('downloader.recheck') : t('downloader.inspect')}
                 </button>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex min-w-0 flex-col">
-                <span className="label">{t('downloader.quality')}</span>
-                <select
-                  className="input mt-1"
-                  value={quality}
-                  onChange={(event) => setQuality(event.target.value as Quality)}
-                  disabled={busy || audioOnly}
-                >
-                  {QUALITIES.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {t(item.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {!info ? (
+              <p className="flex items-start gap-2 rounded-lg border border-line bg-panel2/40 px-3 py-2 text-[11.5px] text-muted">
+                <Icon name="eye" size={13} className="mt-0.5 shrink-0 text-accent/70" />
+                <span>{t('downloader.infoHint')}</span>
+              </p>
+            ) : null}
 
-              <label
-                className={cn(
-                  'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-colors',
-                  audioOnly ? 'border-accent/50 bg-accent/5' : 'border-line bg-panel2/40 hover:border-line/80',
-                  busy && 'cursor-not-allowed opacity-70',
+            {info ? (
+              <div className="overflow-hidden rounded-xl border border-line bg-panel2/40">
+                <div className="flex flex-col gap-3 p-3 sm:flex-row">
+                  <div className="flex aspect-video w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-black/20 sm:w-44">
+                    {info.thumbnail ? (
+                      <img
+                        src={info.thumbnail}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <Icon name="play" size={22} className="text-muted/50" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded border border-line bg-panel px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                        {sourceLabel(info.source)}
+                      </span>
+                      {info.live ? <span className="rounded bg-bad/10 px-1.5 py-0.5 text-[10px] text-bad">LIVE</span> : null}
+                    </div>
+                    <h2 className="mt-1.5 text-[14px] leading-snug font-semibold break-words">
+                      {info.title || t('downloader.noTitle')}
+                    </h2>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                      {info.uploader ? <span className="truncate">{info.uploader}</span> : null}
+                      <span>
+                        {t('downloader.duration')}: {durationLabel(info.duration, '—')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {info.live ? (
+                  <div className="border-t border-bad/30 bg-bad/5 px-3 py-2 text-[11.5px] text-bad">{t('downloader.live')}</div>
+                ) : (
+                  <div className="grid gap-3 border-t border-line p-3 sm:grid-cols-2">
+                    <label className="flex min-w-0 flex-col">
+                      <span className="label">{t('downloader.quality')}</span>
+                      <select
+                        className="input mt-1"
+                        value={quality}
+                        onChange={(event) => setQuality(event.target.value as Quality)}
+                        disabled={busy || audioOnly}
+                      >
+                        {qualityOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {t(item.key)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label
+                      className={cn(
+                        'flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 transition-colors',
+                        audioOnly ? 'border-accent/50 bg-accent/5' : 'border-line bg-panel/40 hover:border-line/80',
+                        (busy || !info.hasAudio) && 'cursor-not-allowed opacity-70',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={audioOnly}
+                        onChange={(event) => setAudioOnly(event.target.checked)}
+                        disabled={busy || !info.hasAudio}
+                        className="mt-0.5 size-4"
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1 text-[12.5px] font-medium">
+                          <Icon name="music" size={13} className="text-accent/80" /> {t('downloader.audioOnly')}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-muted">
+                          {info.hasAudio ? t('downloader.audioOnlyHint') : t('downloader.noAudio')}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                 )}
-              >
-                <input
-                  type="checkbox"
-                  checked={audioOnly}
-                  onChange={(event) => setAudioOnly(event.target.checked)}
-                  disabled={busy}
-                  className="mt-0.5 size-4"
-                />
-                <span className="min-w-0">
-                  <span className="flex items-center gap-1 text-[12.5px] font-medium">
-                    <Icon name="music" size={13} className="text-accent/80" /> {t('downloader.audioOnly')}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] text-muted">{t('downloader.audioOnlyHint')}</span>
-                </span>
-              </label>
-            </div>
+              </div>
+            ) : null}
 
             {error ? (
               <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[12px] break-words text-bad">
@@ -262,7 +429,15 @@ export default function DownloaderTool() {
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-[12px] text-ink"
               >
                 <Spinner />
-                <span>{stage === 'saving' ? t('downloader.saving') : audioOnly ? t('downloader.processingAudio') : t('downloader.processing')}</span>
+                <span>
+                  {stage === 'info'
+                    ? t('downloader.inspecting')
+                    : stage === 'saving'
+                      ? t('downloader.saving')
+                      : audioOnly
+                        ? t('downloader.processingAudio')
+                        : t('downloader.processing')}
+                </span>
                 <span className="mono text-muted">{t('downloader.elapsed').replace('{s}', String(elapsed))}</span>
                 <button
                   type="button"
@@ -273,6 +448,12 @@ export default function DownloaderTool() {
                   {t('common.cancel')}
                 </button>
               </div>
+            ) : null}
+
+            {info && !info.live ? (
+              <button type="button" className="btn btn-primary w-full justify-center" onClick={() => void download()} disabled={busy || !ready}>
+                <Icon name="download" size={14} /> {t('downloader.download')}
+              </button>
             ) : null}
 
             <p className="flex items-start gap-2 text-[11px] text-muted">
