@@ -36,6 +36,8 @@ export const cfg = {
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
   devOrigin: env.ST_DEV_ORIGIN ?? 'http://localhost:5173',
   webDist: resolve(env.ST_WEB_DIST ?? join(process.cwd(), '..', 'web', 'dist')),
+  // File sementara yt-dlp. Default: temp/ di root repo, stabil dari src maupun dist.
+  tempDir: resolve(env.ST_TEMP_DIR || join(__dirname, '..', '..', 'temp')),
   // Google Calendar (OAuth2). Kosong = endpoint calendar menolak dengan pesan jelas.
   calendar: {
     clientId: env.GOOGLE_CLIENT_ID ?? '',

@@ -5,5 +5,9 @@ storeDir: .pnpm-store
 verifyDepsBeforeRun: false
 onlyBuiltDependencies:
   - esbuild
+  - ffmpeg-static
+  - youtube-dl-exec
 allowBuilds:
   esbuild: false
+  ffmpeg-static: true
+  youtube-dl-exec: true

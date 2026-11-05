@@ -271,6 +271,17 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pertama), jadi endpoint ini menerima JSON, form, teks, atau biner kecil. Tiap endpoint punya token acak 6 byte yang dibuat saat server start (atau saat endpoint ditambah); riwayat hanya di memori, total 100 item terakhir dengan `endpointId` di tiap item.
 
+## Downloader
+
+| Metode | Path | Auth | Body/Query | Hasil |
+|--------|------|------|------------|-------|
+| POST | `/downloader/proxy` | login + CSRF | `{ url, quality?, audioOnly? }` | stream file (`Content-Disposition: attachment`) MP4 atau MP3 |
+| GET | `/downloader/proxy` | login | `url`, `quality`, `audio=1` | sama; untuk anchor/`window.location` |
+
+`quality` = `best` (default), `1080`, `720`, `480`, `360`; `audioOnly` = `true` menghasilkan MP3. Hanya host YouTube (`youtube.com`, `youtu.be`), Facebook (`facebook.com`, `fb.com`, `fb.watch`), dan Bilibili (`bilibili.com`, `b23.tv`) yang diterima; skema selain http(s), kredensial di URL, dan host lain ditolak 400. Playlist dimatikan, jadi satu URL = satu video.
+
+Server menjalankan yt-dlp ke folder unik di `temp/` (`ST_TEMP_DIR`), menggabungkan video+audio dengan `ffmpeg-static`, lalu mengalirkan file. Folder dihapus setelah response selesai, klien memutus koneksi, atau proses gagal; folder sisa lebih dari 6 jam dibersihkan saat start. Error yt-dlp dikembalikan sebagai JSON 400 dengan pesan ringkas; file tidak pernah disimpan sebagai library permanen.
+
 ## Google Calendar
 
 Route `/calendar/auth` dan `/calendar/events` dilindungi AuthGuard global (cookie sesi; aplikasi ini tidak memakai JWT). Callback publik dengan `state` sekali pakai.

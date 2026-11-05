@@ -74,6 +74,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip` lalu ganti DB aktif |
 | webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |
 | calendar | `calendar.service.ts`, `calendar.controller.ts` | OAuth2 Google Calendar: URL consent + state sekali pakai, tukar code → token di tabel `google_tokens`, refresh otomatis, event `primary` (20 terdekat) |
+| downloader | `downloader.service.ts`, `downloader.controller.ts` | yt-dlp + ffmpeg-static; allowlist host, temp per request, stream `Content-Disposition` MP4/MP3, cleanup saat selesai/abort |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |
 | dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker read-only, git ringkas, crontab, DNS + geo |
@@ -93,6 +94,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
 | `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda) dari 20 event terdekat; judul event di grid, modal detail (WIB/WITA/WIT), cek `/calendar/events`, connect OAuth, Sync + auto-refresh 5 menit, mapping all-day |
+| `tools/DownloaderTool.tsx` | Input URL + resolusi/audio-only; POST `/downloader/proxy`; Chrome/Edge stream ke File System Access, fallback blob; status proses & cancel |
 | `tools/calendar.css` | Override tema `react-big-calendar` dengan token warna/font Super Tool; hanya dimuat di halaman Calendar |
 | `lib/prayer.ts` | Setelan sholat manual di `localStorage` (`st:prayer`), daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio; tanpa geolocation |
 | `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; tampilkan **Atur Lokasi** jika koordinat kosong; cek pengingat tiap menit |

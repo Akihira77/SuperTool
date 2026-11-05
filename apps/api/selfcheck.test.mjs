@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inRoots } from './dist/common/fs-jail.js';
 import { signToken, verifyToken } from './dist/common/token.js';
+import { isAllowedHost } from './dist/modules/downloader/downloader.service.js';
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -18,4 +19,14 @@ test('jail: path di dalam root boleh, di luar ditolak', () => {
   assert.equal(inRoots('/home/akihira17/personal', roots), true);
   assert.equal(inRoots('/home/akihira17/personal-evil', roots), false);
   assert.equal(inRoots('/etc/passwd', roots), false);
+});
+
+test('downloader: allowlist host tidak bisa ditipu suffix', () => {
+  assert.equal(isAllowedHost('www.youtube.com'), true);
+  assert.equal(isAllowedHost('youtu.be'), true);
+  assert.equal(isAllowedHost('fb.watch'), true);
+  assert.equal(isAllowedHost('b23.tv'), true);
+  assert.equal(isAllowedHost('youtube.com.evil.test'), false);
+  assert.equal(isAllowedHost('evil-youtube.com'), false);
+  assert.equal(isAllowedHost('127.0.0.1'), false);
 });

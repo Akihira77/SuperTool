@@ -36,6 +36,7 @@ const TOOLS: Array<Tool & { key: string }> = [
   { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', component: lazy(() => import('./tools/DevSpaceTool')) },
   { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', component: lazy(() => import('./tools/WebhookTool')) },
   { key: 'nav.calendar', id: 'calendar', label: 'Calendar', desc: 'Agenda Google Calendar', icon: 'calendar', component: lazy(() => import('./tools/CalendarTool')) },
+  { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', component: lazy(() => import('./tools/DownloaderTool')) },
   { key: 'nav.settings', id: 'settings', label: 'Settings', desc: 'Backup & restore data', icon: 'save', component: lazy(() => import('./tools/SettingsTool')) },
 ];
 

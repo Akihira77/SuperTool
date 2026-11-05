@@ -2,6 +2,7 @@
 node_modules/
 dist/
 data/
+temp/
 .data-*/
 *.db
 *.db-wal

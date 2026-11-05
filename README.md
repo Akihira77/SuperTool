@@ -1,6 +1,6 @@
 # Super Tool
 
-Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
+Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
 
 Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite lokal; isi berkas tetap di disk.
 
@@ -20,7 +20,8 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
 | 12 | Calendar | Kalender visual bulan/minggu/agenda dari 20 event terdekat Google Calendar (baca-saja), OAuth, tombol Sync |
-| 13 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
+| 13 | Downloader | Unduh video/audio YouTube, Facebook, Bilibili sebagai MP4/MP3; pilihan resolusi; streaming ke perangkat, tanpa file permanen di server |
+| 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 
 ## Tech stack
 
@@ -36,8 +37,9 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | Office | ZIP + regex sendiri (`zip.ts`, `office.ts`) | docx/xlsx/pptx/odt/ods/odp tanpa library berat |
 | Jadwal sholat | `adhan` (frontend) | Perhitungan astronomi lokal; tanpa API jadwal sholat |
 | Kalender visual | `react-big-calendar` + `dayjs` | Bulan/minggu/agenda, lazy-load hanya di halaman Calendar |
+| Downloader | `youtube-dl-exec` + `ffmpeg-static` | yt-dlp + ffmpeg dibundel di backend; streaming, tanpa simpan permanen |
 
-Dependency runtime sengaja minim: backend hanya paket inti Nest, `sharp`, `pdf-lib`; frontend hanya React, `marked`, dan `DOMPurify`.
+Dependency runtime sengaja minim: backend hanya paket inti Nest, `sharp`, `pdf-lib`, plus binary downloader; frontend hanya React, `marked`, dan `DOMPurify`.
 
 ## Alat eksternal (opsional, menaikkan kemampuan)
 
@@ -60,6 +62,8 @@ sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 | `ss` (iproute2) | daftar port | tab Port kosong |
 | `unzip` | restore backup `.zip` di Settings | tombol Pulihkan gagal dengan pesan jelas |
 | `ffmpeg` | thumbnail video di File Explorer (frame detik ke-1) | thumbnail video diganti ikon berkas generik |
+
+Downloader memakai `ffmpeg-static` bawaannya sendiri; tidak perlu `ffmpeg` sistem.
 
 **Ghostscript di WSL:** instal lewat apt (perintah di atas). Cek dengan `gs --version`. Kalau server dijalankan lewat systemd/PM2 di dalam WSL, PATH biasanya sudah memuat `/usr/bin`. Setelah terpasang, `GET /api/compress/info` berubah menjadi `"pdf": "ghostscript"` dan kompresor otomatis memakai jalur streaming (berkas tidak dimuat penuh ke RAM).
 
@@ -104,6 +108,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_LLM_MODEL` | kosong | Model default; bisa juga dipilih dari UI |
 | `ST_LLM_API_KEY` | kosong | API key bila provider mewajibkan |
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
+| `ST_TEMP_DIR` | `temp/` di root repo | Folder kerja sementara yt-dlp; dibersihkan otomatis setelah streaming |
 | `ST_DEV_ORIGIN` | `http://localhost:5173` | Origin yang diizinkan CORS saat dev |
 | `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
 | `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
@@ -280,6 +285,15 @@ Halaman Calendar:
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 
+## Downloader Video
+
+Menu **Downloader** mengunduh video/audio publik dari YouTube, Facebook, dan Bilibili. Backend memakai `youtube-dl-exec` (yt-dlp) + `ffmpeg-static`; tidak ada file yang disimpan permanen.
+
+- Hanya tautan host yang diizinkan (YouTube, Facebook, Bilibili, termasuk short link `youtu.be`, `fb.watch`, `b23.tv`); host lain ditolak sebelum yt-dlp dijalankan (anti-SSRF). Tanpa dukungan cookie, video privat/login atau yang butuh verifikasi akun akan gagal dengan pesan dari yt-dlp.
+- `POST /api/downloader/proxy` menerima `{ url, quality, audioOnly }`, menjalankan yt-dlp, lalu mengalirkan file sebagai `Content-Disposition: attachment` dengan nama judul video. `quality` = `best|1080|720|480|360`; `audioOnly` menghasilkan MP3. Ada juga `GET /api/downloader/proxy?url=...&quality=...&audio=1` untuk browser/anchor.
+- Di Chrome/Edge halaman memakai **File System Access API**: dialog Save As muncul lebih dulu, respons di-stream langsung ke file yang dipilih (bukan blob di memori). Browser lain memakai fallback blob/unduhan biasa. Tombol berubah menjadi **Memproses video…** dan bisa dibatalkan; permintaan yang dibatalkan ikut menghentikan yt-dlp.
+- Setiap unduhan memakai folder unik di `temp/` (`ST_TEMP_DIR`), berisi file hasil merge. Folder dihapus setelah respons selesai, saat klien memutus koneksi, atau saat proses gagal; sisa folder lebih dari 6 jam dibersihkan saat server start. Batas playlist dimatikan (`--no-playlist`), jadi satu URL = satu video.
+
 ## Widget Waktu & Jadwal Sholat
 
 Widget di header (kanan atas, sebelah pemilih proyek) menampilkan hari, tanggal, bulan, tahun, dan jam 24 jam sesuai waktu perangkat. Klik jam untuk membuka popover berisi jadwal sholat hari ini.
@@ -355,6 +369,7 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Login dibatasi 6 percobaan per 10 menit per IP.
 - Semua path File Explorer dipaksa berada di dalam `ST_FS_ROOTS`, termasuk pemeriksaan symlink (tidak bisa kabur lewat `..` atau link).
 - Proxy URL hanya boleh ke `localhost`/IP privat; `169.254.x.x` (metadata cloud) dan host publik ditolak kecuali diaktifkan.
+- Downloader hanya menerima host YouTube/Facebook/Bilibili (allowlist domain, bukan suffix palsu), memakai argumen yt-dlp tetap (tanpa shell), dan menghapus file temp setelah stream. Endpoint tetap butuh sesi; POST butuh `X-ST-CSRF`.
 - Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini.
 - Endpoint webhook (`/api/hook/<token>`) sengaja tanpa login dan tanpa CSRF; token acak 6 byte dibuat tiap restart dan endpoint hanya bisa dijangkau lewat loopback. Jangan diekspos ke publik.
 - Audit ketahanan & keamanan (commit `a6c3413`, temuan P0–P2 beserta bukti) ada di [docs/audit-resilience-security.md](docs/audit-resilience-security.md).
@@ -373,7 +388,7 @@ super-tool/
 │   │       ├── config.ts    # semua env di satu tempat
 │   │       ├── app.module.ts
 │   │       ├── common/      # db (sqlite), token, fs-jail, net-guard
-│   │       └── modules/     # auth, notes, files, ports, nginx, proxy
+│   │       └── modules/     # auth, notes, files, ports, nginx, proxy, downloader
 │   └── web/                 # React + Vite + Tailwind
 │       └── src/
 │           ├── App.tsx      # shell + sidebar + auth gate
@@ -395,7 +410,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 | `pnpm build` | Build frontend lalu backend |
 | `pnpm start` | Jalankan hasil build |
 | `pnpm typecheck` | `tsc --noEmit` di semua paket |
-| `pnpm check` | Build + uji mandiri (token HMAC & pembatas path) |
+| `pnpm check` | Build + uji mandiri (token HMAC, pembatas path, allowlist downloader) |
 
 ## Batasan yang diketahui
 
@@ -406,6 +421,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". URL lama di browser otomatis dibenahi saat dibuka.
 - **Mode Proxy**: `X-Frame-Options`/CSP dilepas, cookie di tulis ulang, WebSocket diteruskan. Mode subdomain menambahkan `SameSite=None; Secure` pada cookie target agar tetap dipakai di dalam iframe; mode path mengganti `Path` cookie ke prefix proxy. Proxy berjalan di proses yang sama, tanpa nginx/caddy.
 - **Jaringan proxy**: hostname di-resolve dulu; hanya alamat loopback/privat/CGNAT yang diizinkan (misal `theAkihira:4096`). Host publik tetap diblokir kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
+- **Downloader**: hanya video publik tanpa login/cookie; kualitas tertinggi bergantung format yang disediakan situs. Chrome/Edge memakai Save As streaming; Firefox/Safari memakai fallback blob sehingga video sangat besar dibatasi memori browser.
 - **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
 - **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Kolom Nama/Ukuran/Diubah bisa diurutkan (folder selalu di atas), dan tiap baris punya aksi unduh, salin path, ganti nama, hapus. Pencarian isi berkas memakai `ripgrep` bila tersedia (fallback `grep -rIn`), jadi jauh lebih cepat dan otomatis menghormati `.gitignore`; data tetap disaring per folder sampah (node_modules, .git, dist, .cache). Kolom **"hanya di dalam" (include)** dipakai sebagai titik mulai pencarian — folder lain tidak ditelusuri sama sekali — dan pencarian nama juga berhenti menelusuri di luar folder itu. Berkas biner dilewati (docx/xlsx tidak ikut), isi dibatasi 300 hasil, nama 200 hasil.
 - **Edit Office**: hanya teks paragraf (docx) dan nilai sel (xlsx). Jumlah paragraf tidak boleh berubah — menambah atau menghapus paragraf belum didukung, dan aplikasinya menolak dengan pesan jelas. Format pptx/odt/ods/odp hanya bisa dibaca.
