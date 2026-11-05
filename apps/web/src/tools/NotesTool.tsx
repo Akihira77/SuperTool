@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
@@ -7,9 +7,38 @@ import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
 
-type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number };
+type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string };
 type Note = NoteMeta & { body: string };
 type SearchScope = 'all' | 'title' | 'body';
+
+const SCOPE_OPTIONS = [
+  { value: 'all', label: 'notes.searchAll' },
+  { value: 'title', label: 'notes.searchTitle' },
+  { value: 'body', label: 'notes.searchBody' },
+] as const;
+
+/** Sorot semua kemunculan kata pencarian di potongan isi catatan. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const needle = query.trim();
+  if (!needle) return <>{text}</>;
+  const haystack = text.toLowerCase();
+  const target = needle.toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let index = haystack.indexOf(target);
+  while (index >= 0) {
+    if (index > cursor) parts.push(text.slice(cursor, index));
+    parts.push(
+      <mark key={index} className="rounded bg-accent/30 px-0.5 text-ink">
+        {text.slice(index, index + needle.length)}
+      </mark>,
+    );
+    cursor = index + needle.length;
+    index = haystack.indexOf(target, cursor);
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -23,9 +52,11 @@ export default function NotesTool() {
   const [status, setStatus] = useState<Status>('idle');
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<SearchScope>('all');
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
   const searchStarted = useRef(false);
+  const scopeRef = useRef<HTMLDivElement>(null);
 
   const open = useCallback(async (id: string) => {
     const note = await api.get<Note>('/notes/' + id);
@@ -62,6 +93,22 @@ export default function NotesTool() {
     }, 250);
     return () => window.clearTimeout(id);
   }, [fetchNotes, query, scope]);
+
+  useEffect(() => {
+    if (!scopeOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!scopeRef.current?.contains(event.target as Node)) setScopeOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setScopeOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [scopeOpen]);
 
   const save = useCallback((note: Note) => {
     setStatus('saving');
@@ -125,11 +172,46 @@ export default function NotesTool() {
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13px]" />
             </div>
-            <select value={scope} onChange={(e) => setScope(e.target.value as SearchScope)} aria-label={t('notes.searchScope')} className="input py-1 text-[11.5px]">
-              <option value="all">{t('notes.searchAll')}</option>
-              <option value="title">{t('notes.searchTitle')}</option>
-              <option value="body">{t('notes.searchBody')}</option>
-            </select>
+            <div ref={scopeRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setScopeOpen((prev) => !prev)}
+                aria-haspopup="listbox"
+                aria-expanded={scopeOpen}
+                aria-label={t('notes.searchScope')}
+                className="input flex cursor-pointer items-center gap-1.5 py-1 text-left text-[11.5px]"
+              >
+                <Icon name="filter" size={12} className="shrink-0 text-muted" />
+                <span className="min-w-0 flex-1 truncate">{t(SCOPE_OPTIONS.find((item) => item.value === scope)?.label ?? 'notes.searchAll')}</span>
+                <Icon name="chevronDown" size={11} className={cn('shrink-0 text-muted transition-transform', scopeOpen && 'rotate-180')} />
+              </button>
+              {scopeOpen ? (
+                <div role="listbox" aria-label={t('notes.searchScope')} className="absolute top-full right-0 left-0 z-30 mt-1 rounded-lg border border-line bg-panel p-1 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)]">
+                  {SCOPE_OPTIONS.map((item) => {
+                    const selected = scope === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => {
+                          setScope(item.value);
+                          setScopeOpen(false);
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11.5px] transition-colors',
+                          selected ? 'bg-accent/12 text-ink' : 'text-muted hover:bg-panel2 hover:text-ink',
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+                        {selected ? <Icon name="check" size={12} className="shrink-0 text-accent" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
             {loading ? (
@@ -150,6 +232,11 @@ export default function NotesTool() {
                   )}
                 >
                   <div className="truncate text-[13px] font-medium">{note.title || 'Tanpa judul'}</div>
+                  {note.snippet ? (
+                    <div className="mt-0.5 line-clamp-2 text-[10.5px] leading-snug text-muted/85">
+                      <Highlight text={note.snippet} query={query} />
+                    </div>
+                  ) : null}
                   <div className="text-[11px] text-muted">{timeAgo(note.updatedAt)}</div>
                 </button>
               ))

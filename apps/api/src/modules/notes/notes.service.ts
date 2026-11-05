@@ -11,7 +11,17 @@ export type Note = {
 };
 
 export type NoteSearchScope = 'all' | 'title' | 'body';
-export type NoteListItem = Omit<Note, 'body'>;
+export type NoteListItem = Omit<Note, 'body'> & { snippet?: string };
+
+/** Potongan isi di sekitar kata yang dicari, untuk hasil pencarian. */
+function bodySnippet(body: string, query: string): string | undefined {
+  const index = body.toLowerCase().indexOf(query.toLowerCase());
+  if (index < 0) return undefined;
+  const start = Math.max(0, index - 50);
+  const end = Math.min(body.length, index + query.length + 90);
+  const text = body.slice(start, end).replace(/\s+/g, ' ').trim();
+  return (start > 0 ? '…' : '') + text + (end < body.length ? '…' : '');
+}
 
 /** Catatan disimpan di tabel notes (SQLite). */
 @Injectable()
@@ -32,9 +42,12 @@ export class NotesService {
           ? "body LIKE ? ESCAPE '\\'"
           : "(title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')";
     const params = mode === 'all' ? [pattern, pattern] : [pattern];
-    return all<NoteListItem>(
-      `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt FROM notes WHERE ${where} ORDER BY updated_at DESC`,
+    const rows = all<Omit<Note, 'body'> & { body: string }>(
+      `SELECT id, title, body, created_at AS createdAt, updated_at AS updatedAt FROM notes WHERE ${where} ORDER BY updated_at DESC`,
       ...params,
+    );
+    return rows.map(({ body, ...note }) =>
+      mode === 'title' ? note : { ...note, snippet: bodySnippet(body, q) },
     );
   }
 
