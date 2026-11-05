@@ -3,6 +3,7 @@ import test from 'node:test';
 import { inRoots } from './dist/common/fs-jail.js';
 import { signToken, verifyToken } from './dist/common/token.js';
 import { isAllowedHost } from './dist/modules/downloader/downloader.service.js';
+import { authPrompt } from './dist/modules/calendar/oauth.js';
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -19,6 +20,11 @@ test('jail: path di dalam root boleh, di luar ditolak', () => {
   assert.equal(inRoots('/home/akihira17/personal', roots), true);
   assert.equal(inRoots('/home/akihira17/personal-evil', roots), false);
   assert.equal(inRoots('/etc/passwd', roots), false);
+});
+
+test('calendar: mode switch meminta pemilih akun', () => {
+  assert.equal(authPrompt('connect'), 'consent');
+  assert.match(authPrompt('switch'), /select_account/);
 });
 
 test('downloader: allowlist host tidak bisa ditipu suffix', () => {

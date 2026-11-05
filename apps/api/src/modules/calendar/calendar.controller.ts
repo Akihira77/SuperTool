@@ -7,10 +7,10 @@ import { CalendarService, type CreateCalendarEventInput } from './calendar.servi
 export class CalendarController {
   constructor(private readonly calendar: CalendarService) {}
 
-  /** URL otorisasi Google; frontend membukanya di tab baru. */
+  /** URL otorisasi Google; `switch=1` memaksa pemilih akun. */
   @Get('auth')
-  auth() {
-    return this.calendar.authUrl();
+  auth(@Query('switch') switchAccount?: string) {
+    return this.calendar.authUrl(switchAccount === '1' ? 'switch' : 'connect');
   }
 
   /**
@@ -40,5 +40,12 @@ export class CalendarController {
   @HttpCode(201)
   create(@Body() body: CreateCalendarEventInput) {
     return this.calendar.createEvent(body ?? {});
+  }
+
+  /** Sign out: cabut grant Google dan hapus token lokal. */
+  @Post('disconnect')
+  @HttpCode(200)
+  disconnect() {
+    return this.calendar.disconnect();
   }
 }

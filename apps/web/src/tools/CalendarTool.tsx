@@ -15,6 +15,7 @@ import './calendar.css';
 import { Icon, PageHeader, Spinner } from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 
 type GoogleDate = { date?: string; dateTime?: string; timeZone?: string };
@@ -169,6 +170,7 @@ function CalendarDateHeader({ label, drilldownView, onDrillDown, isOffRange, hol
 export default function CalendarTool() {
   const { t, lang } = useI18n();
   const toast = useToast();
+  const confirm = useConfirm();
   const [phase, setPhase] = useState<Phase>('loading');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [account, setAccount] = useState('');
@@ -177,6 +179,7 @@ export default function CalendarTool() {
   const [configMissing, setConfigMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<RbcEvent | null>(null);
   const [composer, setComposer] = useState(false);
@@ -331,10 +334,10 @@ export default function CalendarTool() {
     }
   };
 
-  const connect = async () => {
+  const connect = async (switchAccount = false) => {
     setOpening(true);
     try {
-      const data = await api.get<{ url: string }>('/calendar/auth');
+      const data = await api.get<{ url: string }>('/calendar/auth' + (switchAccount ? '?switch=1' : ''));
       const popup = window.open(data.url, '_blank');
       if (!popup) {
         window.location.href = data.url;
@@ -348,6 +351,34 @@ export default function CalendarTool() {
       toast(text, 'error');
     } finally {
       setOpening(false);
+    }
+  };
+
+  const signOut = async () => {
+    const ok = await confirm({
+      title: t('calendar.signOutTitle'),
+      message: t('calendar.signOutBody'),
+      confirmLabel: t('calendar.signOut'),
+      danger: true,
+    });
+    if (!ok) return;
+    setDisconnecting(true);
+    try {
+      await api.postSilent<{ ok: boolean }>('/calendar/disconnect');
+      setEvents([]);
+      setAccount('');
+      setWriteScope(true);
+      setMessage('');
+      setConfigMissing(false);
+      setHint(false);
+      setSelected(null);
+      setComposer(false);
+      setPhase('disconnected');
+      toast(t('calendar.signedOut'), 'ok');
+    } catch (err) {
+      toast(errorText(err instanceof ApiError ? err.message : t('calendar.signOutFailed')), 'error');
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -440,6 +471,30 @@ export default function CalendarTool() {
           <Icon name="refresh" className={busy ? 'animate-spin' : ''} />
           {busy ? t('calendar.syncing') : t('calendar.sync')}
         </button>
+        {phase === 'ready' || phase === 'error' ? (
+          <>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void connect(true)}
+              disabled={opening || disconnecting}
+              title={t('calendar.switchHint')}
+            >
+              {opening ? <Spinner /> : <Icon name="refresh" />}
+              {opening ? t('calendar.connecting') : t('calendar.changeAccount')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => void signOut()}
+              disabled={opening || disconnecting}
+              title={t('calendar.signOut')}
+            >
+              {disconnecting ? <Spinner /> : <Icon name="logout" />}
+              {disconnecting ? t('calendar.signingOut') : t('calendar.signOut')}
+            </button>
+          </>
+        ) : null}
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">

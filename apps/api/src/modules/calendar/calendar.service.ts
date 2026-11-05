@@ -3,9 +3,11 @@ import { randomBytes } from 'node:crypto';
 import { google, type calendar_v3 } from 'googleapis';
 import { cfg } from '../../config';
 import { one, run } from '../../common/db';
+import { authPrompt, type OAuthMode } from './oauth';
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
 const STATE_TTL_MS = 10 * 60 * 1000;
+type OAuthState = { expiresAt: number; mode: OAuthMode };
 
 export type CreateCalendarEventInput = {
   summary?: unknown;
@@ -36,7 +38,7 @@ type TokenRow = {
  * State OAuth disimpan di memori: cukup untuk satu user, kedaluwarsa 10 menit,
  * dan sekali pakai. Tidak perlu tabel tambahan.
  */
-const states = new Map<string, number>();
+const states = new Map<string, OAuthState>();
 
 function isoTime(value: string | undefined, fallback: string, label: string): string {
   if (!value) return fallback;
@@ -87,18 +89,21 @@ export class CalendarService {
     return new google.auth.OAuth2(cfg.calendar.clientId, cfg.calendar.clientSecret, cfg.calendar.redirectUri);
   }
 
-  /** URL otorisasi Google, sekali pakai lewat parameter state. */
-  authUrl() {
+  /**
+   * URL otorisasi Google, sekali pakai lewat parameter state. Mode switch
+   * memaksa pemilih akun dan tidak memakai refresh token akun lama.
+   */
+  authUrl(mode: OAuthMode = 'connect') {
     const client = this.client();
     const now = Date.now();
-    for (const [key, expiresAt] of states) {
-      if (expiresAt <= now) states.delete(key);
+    for (const [key, entry] of states) {
+      if (entry.expiresAt <= now) states.delete(key);
     }
     const state = randomBytes(16).toString('hex');
-    states.set(state, now + STATE_TTL_MS);
+    states.set(state, { expiresAt: now + STATE_TTL_MS, mode });
     const url = client.generateAuthUrl({
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: authPrompt(mode),
       include_granted_scopes: true,
       scope: [SCOPE],
       state,
@@ -117,11 +122,11 @@ export class CalendarService {
     return origin + '/#/calendar?google=' + encodeURIComponent(status);
   }
 
-  private takeState(state: string | undefined): boolean {
-    if (!state) return false;
-    const expiresAt = states.get(state);
+  private takeState(state: string | undefined): OAuthMode | null {
+    if (!state) return null;
+    const entry = states.get(state);
     states.delete(state);
-    return Boolean(expiresAt && expiresAt > Date.now());
+    return entry && entry.expiresAt > Date.now() ? entry.mode : null;
   }
 
   private tokenRow(): TokenRow | null {
@@ -151,7 +156,8 @@ export class CalendarService {
 
   /** Tukar code OAuth dengan token, lalu simpan ke SQLite. */
   async connect(code: string, state: string | undefined): Promise<void> {
-    if (!this.takeState(state)) {
+    const mode = this.takeState(state);
+    if (!mode) {
       throw new BadRequestException('State OAuth tidak valid atau sudah kedaluwarsa');
     }
     const client = this.client();
@@ -166,14 +172,46 @@ export class CalendarService {
       throw new BadRequestException('Google tidak mengembalikan access token');
     }
     const existing = this.tokenRow();
+    if (mode === 'switch') {
+      // Jangan pernah memakai refresh token akun lama untuk akun baru.
+      run('DELETE FROM google_tokens WHERE id = 1');
+      this.saveTokens({ ...tokens, scope: tokens.scope ?? SCOPE }, null);
+      await this.revoke(existing);
+      return;
+    }
     // Google biasanya mengembalikan scope; kalau tidak, simpan scope yang diminta
     // supaya UI tidak salah mengira token masih baca-saja.
     this.saveTokens({ ...tokens, scope: tokens.scope ?? SCOPE }, existing?.refreshToken ?? null);
   }
 
+  /** Cabut grant Google bila memungkinkan; kegagalan jaringan tidak menghalangi logout lokal. */
+  private async revoke(stored: TokenRow | null): Promise<void> {
+    if (!stored || !this.configured()) return;
+    const token = stored.refreshToken || stored.accessToken;
+    if (!token) return;
+    try {
+      await this.client().revokeToken(token);
+    } catch {
+      // Token mungkin sudah dicabut/kedaluwarsa; yang penting baris lokal dihapus.
+    }
+  }
+
+  /** Sign out: hapus koneksi lokal dulu, lalu cabut grant Google best-effort. */
+  async disconnect(): Promise<{ ok: true }> {
+    const existing = this.tokenRow();
+    run('DELETE FROM google_tokens WHERE id = 1');
+    states.clear();
+    await this.revoke(existing);
+    return { ok: true };
+  }
+
   /** Hasil callback untuk redirect frontend: connected | denied | error. */
   async callbackStatus(code: string | undefined, state: string | undefined, error: string | undefined): Promise<string> {
-    if (error || !code) return error === 'access_denied' ? 'denied' : 'error';
+    if (error || !code) {
+      // State tetap sekali pakai walau user menolak consent.
+      this.takeState(state);
+      return error === 'access_denied' ? 'denied' : 'error';
+    }
     try {
       await this.connect(code, state);
       return 'connected';

@@ -290,14 +290,16 @@ Route `/calendar/auth` dan `/calendar/events` dilindungi AuthGuard global (cooki
 | Metode | Path | Auth | Hasil |
 |--------|------|------|-------|
 | GET | `/calendar/auth` | login | `{ url }` URL consent Google (`calendar`, `access_type=offline`, `state` 32 hex sekali pakai) |
+| GET | `/calendar/auth?switch=1` | login | URL consent dengan `prompt=select_account consent` untuk berganti akun; refresh token akun lama tidak dipakai ulang |
 | GET | `/calendar/callback?code=&state=` | publik (state) | 302 ke `/#/calendar?google=connected` / `denied` / `error`; menukar code dan menyimpan token ke `google_tokens` |
 | GET | `/google/callback?code=&state=` | publik (state) | alias callback untuk `GOOGLE_REDIRECT_URI` lama (perilaku sama) |
 | GET | `/calendar/events` | login | `timeMin?`, `timeMax?` → `{ calendarId, account, timeMin, timeMax, writeScope, events[] }`; semua kalender, default awal bulan berjalan, maks 250 |
 | POST | `/calendar/events` | login + CSRF | `{ summary, start, end, timeZone?, location?, description?, allDay? }` → event baru |
+| POST | `/calendar/disconnect` | login + CSRF | `{ ok: true }`; hapus baris `google_tokens` lalu cabut grant Google best-effort |
 
 `events[]` berisi `{ id, calendarId, calendarName, summary, description, location, start, end, htmlLink, status, allDay }`. Event digabung dari semua kalender (kalender langganan ikut; satu kalender yang gagal dilewati). `start`/`end` mengikuti format Google: `{ dateTime, timeZone }` atau `{ date }` untuk all-day. `POST` menerima ISO datetime untuk `start`/`end`; untuk `allDay: true` gunakan `YYYY-MM-DD` dan `end` eksklusif (tanggal setelah hari terakhir).
 
-`writeScope` bernilai `false` jika token tersimpan masih memakai scope baca-saja; UI menampilkan tombol **Hubungkan ulang**. Token disimpan di satu baris tabel `google_tokens` (`access_token`, `refresh_token`, `expiry`, `scope`, `token_type`, `updated_at`). Access token di-refresh otomatis 60 detik sebelum kedaluwarsa dan refresh token lama dipertahankan; scope lama tidak ditimpa saat refresh tanpa scope. Tanpa env `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `/calendar/auth` membalas 400 berisi instruksi; `/calendar/events` tanpa token tersimpan juga 400 dengan pesan "belum terhubung". Callback tidak memakai sesi karena consent bisa selesai di profil browser lain — keamanannya dari `state` acak 16 byte, berlaku 10 menit, dan sekali pakai.
+`writeScope` bernilai `false` jika token tersimpan masih memakai scope baca-saja; UI menampilkan tombol **Hubungkan ulang**. Token disimpan di satu baris tabel `google_tokens` (`access_token`, `refresh_token`, `expiry`, `scope`, `token_type`, `updated_at`). Access token di-refresh otomatis 60 detik sebelum kedaluwarsa dan refresh token lama dipertahankan; scope lama tidak ditimpa saat refresh tanpa scope. Saat mode `switch`, baris token lama dihapus lebih dulu agar refresh token akun sebelumnya tidak pernah dipakai untuk akun baru, lalu grant lama dicabut best-effort. Tanpa env `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `/calendar/auth` membalas 400 berisi instruksi; `/calendar/events` tanpa token tersimpan juga 400 dengan pesan "belum terhubung". Callback tidak memakai sesi karena consent bisa selesai di profil browser lain — keamanannya dari `state` acak 16 byte, berlaku 10 menit, dan sekali pakai.
 
 ## SQLite Viewer
 
