@@ -110,7 +110,7 @@ export class FilesService {
     const head = buffer.subarray(0, 8192);
     const binary = head.includes(0);
     if (binary) {
-      return { path, binary: true, size: info.size, mtime: info.mtimeMs, ext: extname(path).slice(1), text: '', truncated: false };
+      return { path, binary: true, size: info.size, mtime: info.mtimeMs, ext: extname(path).slice(1).toLowerCase(), text: '', truncated: false };
     }
     const slice = buffer.subarray(0, TEXT_LIMIT);
     return {

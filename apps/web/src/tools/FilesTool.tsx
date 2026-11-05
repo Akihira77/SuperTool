@@ -80,6 +80,90 @@ function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: num
   );
 }
 
+function MediaView({ file }: { file: FileData }) {
+  const ext = file.ext.toLowerCase();
+  const video = VIDEO.has(ext);
+  const src = RAW + encodeURIComponent(file.path);
+  const name = file.path.split('/').pop() ?? file.path;
+  const [failed, setFailed] = useState(false);
+  const ref = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+
+  // Volume/mute tersimpan supaya tidak diset ulang tiap berkas dibuka.
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const saved = Number(localStorage.getItem('st:media:volume') ?? '1');
+    element.volume = Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
+    element.muted = localStorage.getItem('st:media:muted') === '1';
+    const save = () => {
+      localStorage.setItem('st:media:volume', String(element.volume));
+      localStorage.setItem('st:media:muted', element.muted ? '1' : '0');
+    };
+    element.addEventListener('volumechange', save);
+    save();
+    return () => element.removeEventListener('volumechange', save);
+  }, [file.path]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-line bg-[#0b1118] p-4">
+      {failed ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+          <Icon name="files" size={28} className="text-muted/70" />
+          <div className="max-w-md text-[12.5px] leading-relaxed text-muted">
+            Browser tidak bisa memutar berkas ini. Codec-nya mungkin tidak didukung (mis. MKV/H.265). Unduh lalu buka di pemutar lain.
+          </div>
+          <a className="btn btn-primary" href={src + '&download=1'} download>
+            <Icon name="download" /> Unduh
+          </a>
+        </div>
+      ) : video ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <video
+            key={file.path}
+            ref={(element) => { ref.current = element; }}
+            controls
+            playsInline
+            preload="metadata"
+            src={src}
+            onError={() => setFailed(true)}
+            className="max-h-full max-w-full rounded-lg border border-line bg-black shadow-lg"
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <div className="w-full max-w-md rounded-xl border border-line bg-panel p-5 shadow-xl">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/12 text-accent">
+                <Icon name="music" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium text-ink">{name}</div>
+                <div className="mono text-[11px] text-muted">{ext.toUpperCase()} · {bytes(file.size)}</div>
+              </div>
+            </div>
+            <audio
+              key={file.path}
+              ref={(element) => { ref.current = element; }}
+              controls
+              preload="metadata"
+              src={src}
+              onError={() => setFailed(true)}
+              className="w-full"
+            />
+          </div>
+        </div>
+      )}
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-muted">
+        <span className="mono max-w-full truncate">{name}</span>
+        <span>·</span>
+        <span>{ext.toUpperCase()} · {bytes(file.size)}</span>
+        <span>·</span>
+        <a className="text-accent hover:underline" href={src + '&download=1'} download>unduh</a>
+      </div>
+    </div>
+  );
+}
+
 export default function FilesTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
@@ -120,6 +204,7 @@ export default function FilesTool() {
   const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
   const [recentOpen, setRecentOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const lastProject = useRef<string | null>(null);
 
   const loadListing = useCallback(async (path: string) => {
     setBusy(true);
@@ -144,11 +229,16 @@ export default function FilesTool() {
     void loadRecents();
   }, []);
 
-  // Folder proyek global berubah (dipilih dari header) → buka langsung.
+  // Proyek global berubah (dipilih dari header) → buka langsung. Mount pertama
+  // tidak ikut, supaya pilihan root terakhir (termasuk keluar dari proyek) tetap dipakai.
   useEffect(() => {
-    if (!projectPath || !roots.length) return;
+    const previous = lastProject.current;
+    lastProject.current = projectPath;
+    if (previous === null || !projectPath || previous === projectPath || !roots.length) return;
     if (!roots.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/'))) return;
     setRootPath(projectPath);
+    localStorage.setItem('st:files:root', projectPath);
+    localStorage.setItem('st:files:rootFor', projectPath);
     void loadListing(projectPath);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectPath, roots]);
@@ -158,7 +248,12 @@ export default function FilesTool() {
       .get<Root[]>('/fs/roots')
       .then((list) => {
         setRoots(list);
-        const start = projectPath && list.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/')) ? projectPath : list[0]?.path;
+        const valid = (value: string | null) => Boolean(value) && list.some((root) => value === root.path || value!.startsWith(root.path + '/'));
+        const saved = localStorage.getItem('st:files:root');
+        // Root terakhir hanya dipakai untuk proyek yang sama; proyek baru tetap dibuka.
+        const savedFor = localStorage.getItem('st:files:rootFor');
+        const remembered = valid(saved) && savedFor === (projectPath ?? '') ? saved : null;
+        const start = remembered ?? (valid(projectPath) ? projectPath : list[0]?.path);
         if (start) {
           setRootPath(start);
           void loadListing(start);
@@ -445,6 +540,27 @@ export default function FilesTool() {
     .slice()
     .sort((a, b) => (a.dir === b.dir ? compare(a, b) * sort.dir : a.dir ? -1 : 1));
 
+  const openRoot = (path: string) => {
+    setRootPath(path);
+    const base = roots.find((root) => path === root.path || path.startsWith(root.path + '/'))?.path;
+    if (base) {
+      localStorage.setItem('st:files:root', base);
+      localStorage.setItem('st:files:rootFor', projectPath ?? '');
+    }
+    void loadListing(path);
+  };
+
+  const fileExt = (file?.ext ?? '').toLowerCase();
+  const inProject = Boolean(projectPath) && (rootPath === projectPath || rootPath.startsWith(projectPath + '/'));
+  const treeRoots = inProject && projectPath ? [{ path: projectPath, label: projectName(projectPath) }] : roots;
+  const rootValue = roots.find((root) => rootPath === root.path || rootPath.startsWith(root.path + '/'))?.path ?? rootPath;
+  // Saat proyek aktif: keluar ke root yang memuat proyek (atau root lain).
+  const exitRoot = projectPath
+    ? roots.find((root) => projectPath.startsWith(root.path + '/') && root.path !== projectPath) ??
+      roots.find((root) => root.path !== projectPath) ??
+      roots[0]
+    : roots[0];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="File Explorer" subtitle={listing ? listing.path + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'}>
@@ -452,11 +568,21 @@ export default function FilesTool() {
           <Icon name="panel" />
         </button>
         {projectPath ? (
-          <button type="button" className="btn border-accent/40 px-2 py-1.5 text-[11.5px] text-accent" onClick={() => void loadListing(projectPath)} title={projectPath}>
+          <button
+            type="button"
+            className="btn border-accent/40 px-2 py-1.5 text-[11.5px] text-accent"
+            onClick={() => {
+              setRootPath(projectPath);
+              localStorage.setItem('st:files:root', projectPath);
+              localStorage.setItem('st:files:rootFor', projectPath);
+              void loadListing(projectPath);
+            }}
+            title={projectPath}
+          >
             <Icon name="folderPlus" size={13} /> {projectName(projectPath)}
           </button>
         ) : null}
-        <select value={rootPath} onChange={(e) => { setRootPath(e.target.value); void loadListing(e.target.value); }} className="input w-40 py-1.5 text-[12px]">
+        <select value={rootValue} onChange={(e) => openRoot(e.target.value)} className="input w-40 py-1.5 text-[12px]">
           {roots.map((root) => (
             <option key={root.path} value={root.path}>
               {root.label}
@@ -576,10 +702,19 @@ export default function FilesTool() {
               ))}
             </div>
           ) : null}
-          {(projectPath && roots.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/'))
-            ? [{ path: projectPath, label: projectName(projectPath) }]
-            : roots
-          ).map((root) => (
+          {inProject && exitRoot && exitRoot.path !== projectPath ? (
+            <button
+              type="button"
+              onClick={() => openRoot(exitRoot.path)}
+              title={'Akses folder di luar ' + projectName(projectPath ?? '')}
+              className="mb-1 flex w-full items-center gap-1.5 rounded-md border border-line bg-panel2/60 px-1.5 py-1 text-[11.5px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
+            >
+              <Icon name="back" size={12} className="shrink-0" />
+              <span className="truncate">{t('files.exitProject')}</span>
+              <span className="mono ml-auto max-w-[45%] truncate text-[10px] text-muted/70">{exitRoot.label}</span>
+            </button>
+          ) : null}
+          {treeRoots.map((root) => (
             <TreeNode
               key={root.path}
               entry={{ name: root.label, path: root.path, dir: true, size: 0, mtime: 0, ext: '', hidden: false }}
@@ -731,7 +866,7 @@ export default function FilesTool() {
                   {file.binary ? '' : ' · ' + file.text.split('\n').length + ' baris'}
                 </span>
                 <div className="ml-auto flex items-center gap-1.5">
-                  {!file.binary && file.ext === 'md' ? (
+                  {!file.binary && fileExt === 'md' ? (
                     <button type="button" className={cn('btn', preview && 'btn-primary')} onClick={() => setPreview(!preview)}>
                       <Icon name="eye" /> Preview
                     </button>
@@ -762,33 +897,14 @@ export default function FilesTool() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {AUDIO.has(file.ext) || VIDEO.has(file.ext) ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-4 rounded-lg border border-line bg-[#0b1118] p-6">
-                    {VIDEO.has(file.ext) ? (
-                      <video
-                        key={file.path}
-                        controls
-                        autoPlay={false}
-                        preload="metadata"
-                        src={RAW + encodeURIComponent(file.path)}
-                        className="max-h-full w-full max-w-3xl rounded-lg border border-line bg-black"
-                      />
-                    ) : (
-                      <audio key={file.path} controls preload="metadata" src={RAW + encodeURIComponent(file.path)} className="w-full max-w-xl" />
-                    )}
-                    <div className="text-[11.5px] text-muted">
-                      {file.ext.toUpperCase()} · {bytes(file.size)} ·{' '}
-                      <a className="text-accent underline" href={RAW + encodeURIComponent(file.path) + '&download=1'} download>
-                        unduh
-                      </a>
-                    </div>
-                  </div>
+                {AUDIO.has(fileExt) || VIDEO.has(fileExt) ? (
+                  <MediaView file={file} />
                 ) : file.binary ? (
-                  IMAGE.has(file.ext) ? (
+                  IMAGE.has(fileExt) ? (
                     <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-line bg-[#0b1118] p-4">
                       <img src={RAW + encodeURIComponent(file.path)} alt={file.path} className="max-h-full max-w-full object-contain" />
                     </div>
-                  ) : file.ext === 'pdf' ? (
+                  ) : fileExt === 'pdf' ? (
                     <iframe title={file.path} src={RAW + encodeURIComponent(file.path)} className="h-full w-full rounded-lg border border-line bg-white" />
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-line text-sm text-muted">

@@ -171,6 +171,10 @@ Saat menyimpan, isi lama disalin dulu ke `<nama>_backup_<YYYYMMDD-HHMMSS>.<ext>`
 
 File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov lewat `GET /api/fs/raw` yang mendukung HTTP Range, jadi video bisa di-seek tanpa mengunduh seluruh berkas.
 
+- Volume dan mute disimpan di `localStorage` (`st:media:volume`, `st:media:muted`), jadi tidak perlu diset ulang tiap membuka berkas.
+- Kalau browser tidak mendukung codec-nya (mis. MKV/H.265), pemutar diganti pesan + tombol unduh, bukan layar hitam.
+- Ekstensi dinormalkan ke huruf kecil di server, jadi `VIDEO.MP4` tetap terbuka sebagai video.
+
 ## Kompresor
 
 - **Kompres**: gambar (kualitas + lebar maksimum + format keluaran) dan PDF. Hasil ditulis sebagai `<nama>-min.<ext>`.
@@ -250,7 +254,7 @@ Semua konfirmasi destruktif memakai modal sendiri (`components/confirm.tsx` → 
 
 Bar tipis di atas tiap halaman punya pemilih **Proyek** di kanan atas. Pilih folder lewat penjelajah folder (`/fs/list`), dan pilihan itu dipakai semua tool yang berhubungan dengan berkas:
 
-- **File Explorer** langsung membuka folder proyek; chip proyek di toolbar untuk kembali ke situ.
+- **File Explorer** langsung membuka folder proyek; chip proyek di toolbar untuk kembali ke situ, dan tombol **Semua folder** di atas tree untuk keluar dari proyek (root pilihan terakhir diingat per proyek).
 - **Git Status** langsung membuka repo di folder proyek (tanpa klik folder lagi).
 - Tool lain (Markdown/JSON/Notes/URL/Port/Dev Space/Nginx/Settings) tidak terpengaruh. Nginx tetap fokus ke folder konfigurasi nginx sistem.
 
