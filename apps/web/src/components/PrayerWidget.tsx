@@ -16,6 +16,8 @@ import {
 } from '../lib/prayer';
 
 const ALERT_VISIBLE_MS = 20_000;
+const SOON_MS = 30 * 60_000;
+const JUST_PASSED_MS = 10 * 60_000;
 
 /**
  * Widget jam + jadwal sholat di header. Lokasi hanya dari input manual di
@@ -27,6 +29,7 @@ export function PrayerWidget() {
   const [now, setNow] = useState(() => new Date());
   const [settings, setSettings] = useState<PrayerSettings>(() => loadPrayerSettings());
   const [times, setTimes] = useState<PrayerTime[]>([]);
+  const [nextDayTimes, setNextDayTimes] = useState<PrayerTime[]>([]);
   const [open, setOpen] = useState(false);
   const [alert, setAlert] = useState<PrayerTime | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -43,15 +46,24 @@ export function PrayerWidget() {
   useEffect(() => {
     if (settings.lat === null || settings.lon === null) {
       setTimes([]);
+      setNextDayTimes([]);
       return;
     }
     let alive = true;
-    computePrayerTimes(settings.lat, settings.lon, now)
-      .then((list) => {
-        if (alive) setTimes(list);
+    const tomorrow = new Date(now.getTime() + 86_400_000);
+    Promise.all([
+      computePrayerTimes(settings.lat, settings.lon, now),
+      computePrayerTimes(settings.lat, settings.lon, tomorrow),
+    ])
+      .then(([today, nextDay]) => {
+        if (!alive) return;
+        setTimes(today);
+        setNextDayTimes(nextDay);
       })
       .catch(() => {
-        if (alive) setTimes([]);
+        if (!alive) return;
+        setTimes([]);
+        setNextDayTimes([]);
       });
     return () => {
       alive = false;
@@ -100,7 +112,11 @@ export function PrayerWidget() {
 
   const dateText = now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const clockText = formatClock(now);
-  const upcoming = nextPrayer(times, now.getTime());
+  const nowMs = now.getTime();
+  const upcoming = nextPrayer(times, nowMs);
+  const justPassed = times.find((item) => nowMs >= item.at.getTime() && nowMs < item.at.getTime() + JUST_PASSED_MS) ?? null;
+  const headerNext = justPassed ?? upcoming ?? nextDayTimes[0] ?? null;
+  const headerTone = justPassed ? 'now' : headerNext && headerNext.at.getTime() - nowMs <= SOON_MS ? 'soon' : null;
   const coords = settings.lat !== null && settings.lon !== null
     ? settings.lat.toFixed(4) + ', ' + settings.lon.toFixed(4)
     : '';
@@ -125,6 +141,18 @@ export function PrayerWidget() {
         <Icon name="clock" size={13} className="shrink-0 text-accent/80" />
         <span className="hidden text-[11.5px] text-muted lg:inline">{dateText}</span>
         <span className="mono text-[12px] font-medium tabular-nums">{clockText}</span>
+        {headerNext ? (
+          <span className="flex items-center gap-1.5 border-l border-line pl-1.5">
+            {headerTone ? (
+              <span className="relative flex size-1.5" aria-hidden="true">
+                <span className={cn('absolute inline-flex size-full animate-ping rounded-full opacity-70', headerTone === 'now' ? 'bg-ok' : 'bg-warn')} />
+                <span className={cn('relative inline-flex size-1.5 rounded-full', headerTone === 'now' ? 'bg-ok' : 'bg-warn')} />
+              </span>
+            ) : null}
+            <span className="hidden text-[11px] text-muted sm:inline">{prayerLabel(headerNext.key)}</span>
+            <span className="mono text-[11.5px] tabular-nums text-muted">{formatClock(headerNext.at)}</span>
+          </span>
+        ) : null}
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} className="shrink-0 text-muted" />
       </button>
 
