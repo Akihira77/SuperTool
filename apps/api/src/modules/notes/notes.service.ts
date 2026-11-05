@@ -10,12 +10,31 @@ export type Note = {
   updatedAt: number;
 };
 
+export type NoteSearchScope = 'all' | 'title' | 'body';
+export type NoteListItem = Omit<Note, 'body'>;
+
 /** Catatan disimpan di tabel notes (SQLite). */
 @Injectable()
 export class NotesService {
-  async list(): Promise<Omit<Note, 'body'>[]> {
-    return all<Omit<Note, 'body'>>(
-      'SELECT id, title, created_at AS createdAt, updated_at AS updatedAt FROM notes ORDER BY updated_at DESC',
+  async list(query?: string, scope?: string): Promise<NoteListItem[]> {
+    const q = (query ?? '').trim().slice(0, 200);
+    if (!q) {
+      return all<NoteListItem>(
+        'SELECT id, title, created_at AS createdAt, updated_at AS updatedAt FROM notes ORDER BY updated_at DESC',
+      );
+    }
+    const mode: NoteSearchScope = scope === 'title' || scope === 'body' ? scope : 'all';
+    const pattern = '%' + q.replace(/[\\%_]/g, '\\$&') + '%';
+    const where =
+      mode === 'title'
+        ? "title LIKE ? ESCAPE '\\'"
+        : mode === 'body'
+          ? "body LIKE ? ESCAPE '\\'"
+          : "(title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')";
+    const params = mode === 'all' ? [pattern, pattern] : [pattern];
+    return all<NoteListItem>(
+      `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt FROM notes WHERE ${where} ORDER BY updated_at DESC`,
+      ...params,
     );
   }
 

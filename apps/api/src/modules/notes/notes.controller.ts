@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { NotesService } from './notes.service';
 
 @Controller('notes')
@@ -6,8 +6,8 @@ export class NotesController {
   constructor(private readonly notes: NotesService) {}
 
   @Get()
-  list() {
-    return this.notes.list();
+  list(@Query('q') q?: string, @Query('scope') scope?: string) {
+    return this.notes.list(q, scope);
   }
 
   @Get(':id')

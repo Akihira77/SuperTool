@@ -9,6 +9,7 @@ import { useSidebar } from '../lib/useSidebar';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number };
 type Note = NoteMeta & { body: string };
+type SearchScope = 'all' | 'title' | 'body';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -21,8 +22,10 @@ export default function NotesTool() {
   const [active, setActive] = useState<Note | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<SearchScope>('all');
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
+  const searchStarted = useRef(false);
 
   const open = useCallback(async (id: string) => {
     const note = await api.get<Note>('/notes/' + id);
@@ -30,18 +33,35 @@ export default function NotesTool() {
     setStatus('idle');
   }, []);
 
-  const refresh = useCallback(async () => {
-    const list = await api.get<NoteMeta[]>('/notes');
+  const fetchNotes = useCallback(async (q: string, searchScope: SearchScope) => {
+    const params = new URLSearchParams();
+    if (q.trim()) {
+      params.set('q', q.trim());
+      params.set('scope', searchScope);
+    }
+    const suffix = params.toString();
+    const list = await api.get<NoteMeta[]>('/notes' + (suffix ? '?' + suffix : ''));
     setNotes(list);
     return list;
   }, []);
 
   useEffect(() => {
-    refresh()
+    fetchNotes('', 'all')
       .then((list) => (list.length ? open(list[0].id) : null))
       .catch(() => setStatus('error'))
       .finally(() => setLoading(false));
-  }, [open, refresh]);
+  }, [fetchNotes, open]);
+
+  useEffect(() => {
+    if (!searchStarted.current) {
+      searchStarted.current = true;
+      return;
+    }
+    const id = window.setTimeout(() => {
+      fetchNotes(query, scope).catch(() => setStatus('error'));
+    }, 250);
+    return () => window.clearTimeout(id);
+  }, [fetchNotes, query, scope]);
 
   const save = useCallback((note: Note) => {
     setStatus('saving');
@@ -63,7 +83,7 @@ export default function NotesTool() {
   const create = async () => {
     const note = await api.post<Note>('/notes', { title: t('notes.newTitle'), body: '' });
     toast(t('common.created'), 'ok');
-    await refresh();
+    await fetchNotes(query, scope);
     setActive(note);
     setStatus('idle');
   };
@@ -73,14 +93,12 @@ export default function NotesTool() {
     if (!ok) return;
     await api.del('/notes/' + id);
     toast(t('common.deleted'), 'ok');
-    const list = await refresh();
+    const list = await fetchNotes(query, scope);
     if (active?.id === id) {
       if (list.length) await open(list[0].id);
       else setActive(null);
     }
   };
-
-  const filtered = query ? notes.filter((note) => note.title.toLowerCase().includes(query.toLowerCase())) : notes;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -102,21 +120,26 @@ export default function NotesTool() {
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
-          <div className="p-2.5">
+          <div className="flex flex-col gap-1.5 p-2.5">
             <div className="relative">
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13px]" />
             </div>
+            <select value={scope} onChange={(e) => setScope(e.target.value as SearchScope)} aria-label={t('notes.searchScope')} className="input py-1 text-[11.5px]">
+              <option value="all">{t('notes.searchAll')}</option>
+              <option value="title">{t('notes.searchTitle')}</option>
+              <option value="body">{t('notes.searchBody')}</option>
+            </select>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
             {loading ? (
               <div className="flex justify-center p-6">
                 <Spinner />
               </div>
-            ) : filtered.length === 0 ? (
-              <Empty icon="notes" text={t('notes.none')} />
+            ) : notes.length === 0 ? (
+              <Empty icon="notes" text={query.trim() ? t('notes.noResults') : t('notes.none')} />
             ) : (
-              filtered.map((note) => (
+              notes.map((note) => (
                 <button
                   key={note.id}
                   type="button"
