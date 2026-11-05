@@ -26,7 +26,7 @@ export function VirtualCode({ value, ext = '', className }: { value: string; ext
 
   return (
     <div data-vcode className={cn('mono flex h-full min-h-0 overflow-hidden rounded-[11px] border border-line bg-[#070d14] text-[12.5px] shadow-[inset_0_1px_0_rgb(255_255_255/0.02)]', className)}>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-auto overflow-y-scroll">
         <div className="relative min-w-full" style={{ height: virtualizer.getTotalSize(), width }}>
           {virtualizer.getVirtualItems().map((row) => (
             <div
