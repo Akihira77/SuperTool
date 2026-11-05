@@ -305,3 +305,97 @@
 .calendar-shell .rbc-time-content > * + * > * {
   border-left-color: rgb(148 163 184 / 0.2);
 }
+
+/* Deskripsi event dari Google Calendar: HTML sudah disanitasi di lib/safe-html.ts. */
+.calendar-detail-html {
+  color: rgb(234 241 248 / 0.86);
+  font-size: 12.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.calendar-detail-html p,
+.calendar-detail-html div,
+.calendar-detail-html ul,
+.calendar-detail-html ol,
+.calendar-detail-html blockquote,
+.calendar-detail-html pre,
+.calendar-detail-html h1,
+.calendar-detail-html h2,
+.calendar-detail-html h3,
+.calendar-detail-html h4 {
+  margin: 0 0 0.6rem;
+}
+
+.calendar-detail-html > :last-child {
+  margin-bottom: 0;
+}
+
+.calendar-detail-html a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: rgb(107 150 255 / 0.45);
+  text-underline-offset: 2px;
+}
+
+.calendar-detail-html a:hover {
+  color: var(--color-ink);
+  text-decoration-color: var(--color-accent);
+}
+
+.calendar-detail-html ul,
+.calendar-detail-html ol {
+  padding-left: 1.2rem;
+}
+
+.calendar-detail-html li {
+  margin: 0.1rem 0;
+}
+
+.calendar-detail-html strong,
+.calendar-detail-html b {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.calendar-detail-html blockquote {
+  border-left: 2px solid var(--color-line);
+  padding-left: 0.75rem;
+  color: var(--color-muted);
+}
+
+.calendar-detail-html code {
+  border-radius: 4px;
+  background: var(--color-panel2);
+  padding: 0.1rem 0.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+}
+
+.calendar-detail-html pre {
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--color-panel2);
+  padding: 0.7rem;
+  white-space: pre-wrap;
+}
+
+.calendar-detail-html pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.calendar-detail-html hr {
+  margin: 0.8rem 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.calendar-detail-html h1,
+.calendar-detail-html h2,
+.calendar-detail-html h3,
+.calendar-detail-html h4 {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}

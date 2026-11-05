@@ -17,8 +17,18 @@ import { ApiError, api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
+import { safeExternalUrl, sanitizeEventHtml } from '../lib/safe-html';
 
 type GoogleDate = { date?: string; dateTime?: string; timeZone?: string };
+type CalendarPerson = {
+  email: string;
+  displayName?: string;
+  responseStatus?: string;
+  organizer?: boolean;
+  self?: boolean;
+};
+type CalendarAttachment = { fileUrl: string; title?: string; mimeType?: string };
+type CalendarConference = { url: string; label?: string };
 type CalendarEvent = {
   id: string;
   calendarId?: string;
@@ -31,6 +41,10 @@ type CalendarEvent = {
   htmlLink: string;
   status: string;
   allDay: boolean;
+  organizer?: CalendarPerson | null;
+  attendees?: CalendarPerson[];
+  conference?: CalendarConference | null;
+  attachments?: CalendarAttachment[];
 };
 type CalendarResponse = { calendarId: string; account?: string; timeMin: string; writeScope?: boolean; events: CalendarEvent[] };
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
@@ -146,6 +160,41 @@ function eventWhen(event: RbcEvent, locale: string, allDayLabel: string): string
     dateLabel(event.start, locale) + ' ' + clock(event.start) +
     ' – ' + dateLabel(event.end, locale) + ' ' + clock(event.end) + ' ' + zone
   );
+}
+
+function eventDuration(event: RbcEvent, hours: string, minutes: string): string {
+  if (event.allDay || !sameDay(event.start, event.end)) return '';
+  const total = Math.max(0, Math.round((event.end.getTime() - event.start.getTime()) / 60_000));
+  if (!total) return '';
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h && m) return h + ' ' + hours + ' ' + m + ' ' + minutes;
+  if (h) return h + ' ' + hours;
+  return m + ' ' + minutes;
+}
+
+function personInitials(person: CalendarPerson): string {
+  const source = (person.displayName || person.email || '').trim();
+  if (!source) return '?';
+  return source
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+function AttendeeStatus({ status }: { status?: string }) {
+  const { t } = useI18n();
+  if (status === 'accepted') {
+    return <span className="shrink-0 text-[10.5px] font-medium text-ok">{t('calendar.responseAccepted')}</span>;
+  }
+  if (status === 'declined') {
+    return <span className="shrink-0 text-[10.5px] font-medium text-bad">{t('calendar.responseDeclined')}</span>;
+  }
+  if (status === 'tentative') {
+    return <span className="shrink-0 text-[10.5px] font-medium text-warn">{t('calendar.responseTentative')}</span>;
+  }
+  return <span className="shrink-0 text-[10.5px] font-medium text-muted">{t('calendar.responsePending')}</span>;
 }
 
 /** Isi kotak event di grid: judul harus selalu terlihat, bukan cuma blok warna. */
@@ -453,6 +502,25 @@ export default function CalendarTool() {
           : events.length + ' ' + t('calendar.count') + (account ? ' · ' + account : '');
 
   const whenText = selected ? eventWhen(selected, locale, t('calendar.allDay')) : '';
+  const descriptionHtml = useMemo(
+    () => (selected ? sanitizeEventHtml(selected.resource.description) : ''),
+    [selected],
+  );
+  const isCancelled = selected?.resource.status === 'cancelled';
+  const calendarName = selected?.resource.calendarName || t('calendar.primaryCalendar');
+  const durationText = selected
+    ? eventDuration(selected, t('calendar.hourShort'), t('calendar.minuteShort'))
+    : '';
+  const meetUrl = selected ? safeExternalUrl(selected.resource.conference?.url) : null;
+  const eventLink = selected ? safeExternalUrl(selected.resource.htmlLink) : null;
+  const attendees = selected?.resource.attendees ?? [];
+  const attachments = (selected?.resource.attachments ?? []).flatMap((attachment) => {
+    const href = safeExternalUrl(attachment.fileUrl);
+    return href ? [{ ...attachment, href }] : [];
+  });
+  const mapsHref = selected?.resource.location
+    ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(selected.resource.location)
+    : '';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -578,18 +646,38 @@ export default function CalendarTool() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-detail-title"
-            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
+            className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
           >
-            <div className="sticky top-0 flex items-start gap-2.5 border-b border-line bg-panel p-4">
-              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-                <Icon name="calendar" size={15} />
+            <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-line bg-panel px-5 py-4">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                <Icon name="calendar" size={16} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 id="calendar-detail-title" className="text-[15px] leading-snug font-semibold break-words">
-                  {selected.title}
-                </h2>
-                <div className="mt-0.5 text-[11px] text-muted">
-                  {selected.allDay ? t('calendar.allDay') : zoneLabel(selected.start)}
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2
+                    id="calendar-detail-title"
+                    className={
+                      'text-[16px] leading-snug font-semibold break-words' +
+                      (isCancelled ? ' text-muted line-through' : '')
+                    }
+                  >
+                    {selected.title}
+                  </h2>
+                  {isCancelled ? (
+                    <span className="rounded-full bg-bad/15 px-2 py-0.5 text-[10px] font-semibold text-bad">
+                      {t('calendar.cancelled')}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                  <span
+                    className="max-w-[320px] truncate rounded-md border border-line bg-white/5 px-1.5 py-0.5 text-[10.5px]"
+                    title={calendarName}
+                  >
+                    {calendarName}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>{selected.allDay ? t('calendar.allDay') : zoneLabel(selected.start)}</span>
                 </div>
               </div>
               <button
@@ -604,45 +692,139 @@ export default function CalendarTool() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-3 p-4 text-[12.5px]">
-              <div className="flex items-start gap-2.5">
-                <Icon name="clock" size={14} className="mt-0.5 shrink-0 text-accent/80" />
+            <div className="flex flex-col gap-5 p-5 text-[12.5px]">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                  <Icon name="clock" size={14} />
+                </span>
                 <div className="min-w-0">
-                  <div className="label">{t('calendar.time')}</div>
-                  <div className="text-ink/90">{whenText}</div>
+                  <div className="text-[13px] font-medium leading-relaxed text-ink/90">{whenText}</div>
+                  {durationText ? <div className="mt-0.5 text-[11.5px] text-muted">{durationText}</div> : null}
                 </div>
               </div>
 
+              {meetUrl ? (
+                <a
+                  className="btn btn-primary w-full justify-center"
+                  href={meetUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <Icon name="video" size={14} /> {t('calendar.joinMeet')}
+                </a>
+              ) : null}
+
               {selected.resource.location ? (
-                <div className="flex items-start gap-2.5">
-                  <Icon name="pin" size={14} className="mt-0.5 shrink-0 text-accent/80" />
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                    <Icon name="pin" size={14} />
+                  </span>
                   <div className="min-w-0">
                     <div className="label">{t('calendar.location')}</div>
-                    <div className="break-words text-ink/90">{selected.resource.location}</div>
+                    <a
+                      className="mt-0.5 block break-words text-[13px] text-ink/90 underline decoration-line underline-offset-2 hover:text-accent"
+                      href={mapsHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      title={t('calendar.openMaps')}
+                    >
+                      {selected.resource.location}
+                    </a>
                   </div>
                 </div>
               ) : null}
 
-              {selected.resource.description ? (
-                <div>
-                  <div className="label">{t('calendar.description')}</div>
-                  <div className="mt-1 whitespace-pre-wrap break-words text-ink/85">{selected.resource.description}</div>
+              {descriptionHtml ? (
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                    <Icon name="notes" size={14} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="label">{t('calendar.description')}</div>
+                    <div
+                      className="calendar-detail-html mt-1.5"
+                      data-testid="calendar-event-description"
+                      dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {attendees.length ? (
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                    <Icon name="users" size={14} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="label">{t('calendar.attendees')}</span>
+                      <span className="text-[10.5px] text-muted">{attendees.length}</span>
+                    </div>
+                    <ul className="mt-2 flex max-h-56 flex-col gap-2.5 overflow-y-auto pr-1">
+                      {attendees.map((person, index) => (
+                        <li key={person.email + '-' + index} className="flex items-start gap-2.5">
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">
+                            {personInitials(person)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[12px] text-ink/90">
+                              {person.displayName || person.email}
+                            </div>
+                            {person.displayName ? (
+                              <div className="truncate text-[10.5px] text-muted">{person.email}</div>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {person.organizer ? (
+                              <span className="rounded-md border border-line px-1 py-0.5 text-[9.5px] text-muted">
+                                {t('calendar.organizer')}
+                              </span>
+                            ) : null}
+                            <AttendeeStatus status={person.responseStatus} />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+
+              {attachments.length ? (
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                    <Icon name="files" size={14} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="label">{t('calendar.attachments')}</div>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      {attachments.map((attachment, index) => (
+                        <a
+                          key={attachment.href + '-' + index}
+                          className="inline-flex max-w-full items-center gap-2 text-[12px] text-accent hover:underline"
+                          href={attachment.href}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                        >
+                          <Icon name="files" size={13} className="shrink-0" />
+                          <span className="break-all">{attachment.title || attachment.href}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
 
-            {selected.resource.htmlLink ? (
-              <div className="border-t border-line p-3">
-                <a
-                  className="btn w-full justify-center"
-                  href={selected.resource.htmlLink}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line p-4">
+              <button type="button" className="btn" onClick={() => setSelected(null)}>
+                {t('common.close')}
+              </button>
+              {eventLink ? (
+                <a className="btn btn-primary" href={eventLink} target="_blank" rel="noreferrer noopener">
                   <Icon name="external" size={13} /> {t('calendar.open')}
                 </a>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

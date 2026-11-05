@@ -59,6 +59,29 @@ function eventStart(item: calendar_v3.Schema$Event): number {
 }
 
 function mapEvent(item: calendar_v3.Schema$Event, calendarId = 'primary', calendarName = '') {
+  const videoEntry = item.conferenceData?.entryPoints?.find(
+    (entry) => entry.entryPointType === 'video' && entry.uri,
+  );
+  const conferenceUrl = videoEntry?.uri ?? item.hangoutLink ?? '';
+  const attendees = (item.attendees ?? [])
+    .filter((person) => person.email)
+    .slice(0, 50)
+    .map((person) => ({
+      email: person.email ?? '',
+      displayName: person.displayName ?? '',
+      responseStatus: person.responseStatus ?? '',
+      organizer: person.organizer === true,
+      self: person.self === true,
+    }));
+  const attachments = (item.attachments ?? [])
+    .filter((attachment) => attachment.fileUrl)
+    .slice(0, 10)
+    .map((attachment) => ({
+      fileUrl: attachment.fileUrl ?? '',
+      title: attachment.title ?? '',
+      mimeType: attachment.mimeType ?? '',
+    }));
+
   return {
     id: item.id ?? '',
     calendarId,
@@ -71,6 +94,21 @@ function mapEvent(item: calendar_v3.Schema$Event, calendarId = 'primary', calend
     htmlLink: item.htmlLink ?? '',
     status: item.status ?? '',
     allDay: Boolean(item.start?.date),
+    organizer: item.organizer?.email
+      ? {
+          email: item.organizer.email,
+          displayName: item.organizer.displayName ?? '',
+          self: item.organizer.self === true,
+        }
+      : null,
+    attendees,
+    conference: conferenceUrl
+      ? {
+          url: conferenceUrl,
+          label: videoEntry?.label ?? item.conferenceData?.conferenceSolution?.name ?? '',
+        }
+      : null,
+    attachments,
   };
 }
 
