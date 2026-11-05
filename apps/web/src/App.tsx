@@ -43,6 +43,7 @@ function Shell() {
   const [route, navigate] = useRoute();
   const [navOpen, toggleNav] = useSidebar('nav');
   const { t, lang, setLang } = useI18n();
+  const ViewerComponent = TOOLS.find((tool) => tool.id === 'viewer')!.component;
 
   useEffect(() => {
     let alive = true;
@@ -156,7 +157,17 @@ function Shell() {
               </div>
             }
           >
-            <ActiveComponent />
+            {/*
+              URL Viewer sengaja tetap ter-mount walau pindah tab: iframe di dalamnya
+              (terminal ssh, pm2 log, dsb) tidak boleh reload hanya karena menu lain dibuka.
+            */}
+            <div
+              style={{ display: route === 'viewer' ? 'flex' : 'none' }}
+              className={cn('min-h-0 flex-1 flex-col', route === 'viewer' && 'flex')}
+            >
+              <ViewerComponent />
+            </div>
+            {route !== 'viewer' ? <ActiveComponent /> : null}
           </Suspense>
         )}
       </main>

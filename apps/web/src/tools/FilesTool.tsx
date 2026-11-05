@@ -92,6 +92,7 @@ export default function FilesTool() {
   const [results, setResults] = useState<Entry[] | null>(null);
   const [deep, setDeep] = useState(false);
   const [hits, setHits] = useState<GrepHit[] | null>(null);
+  const [grepWarning, setGrepWarning] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
@@ -266,12 +267,15 @@ export default function FilesTool() {
     setBusy(true);
     setError('');
     try {
+      setGrepWarning('');
       if (deep) {
-        const result = await api.get<{ results: GrepHit[]; truncated: boolean }>(
+        const result = await api.get<{ results: GrepHit[]; truncated: boolean; warning?: string }>(
           '/fs/grep' + qs({ path: listing.path, q: query }),
         );
         setHits(result.results);
         setResults(null);
+        if (result.warning) setGrepWarning(result.warning);
+        else if (result.truncated) setGrepWarning('Hasil dipotong pada 300 baris pertama.');
       } else {
         const result = await api.get<{ results: Entry[] }>('/fs/search' + qs({ path: listing.path, q: query }));
         setResults(result.results);
@@ -351,6 +355,30 @@ export default function FilesTool() {
             </option>
           ))}
         </select>
+        <div className="flex overflow-hidden rounded-md border border-line">
+          {([
+            [false, t('files.modeName'), 'Cocokkan nama berkas'],
+            [true, t('files.modeContent'), 'Cari di dalam isi berkas (grep)'],
+          ] as const).map(([value, label, hint]) => (
+            <button
+              key={String(value)}
+              type="button"
+              onClick={() => {
+                setDeep(value);
+                setHits(null);
+                setResults(null);
+                setGrepWarning('');
+              }}
+              title={hint}
+              className={cn(
+                'cursor-pointer px-2 py-1 text-[11.5px] transition-colors',
+                deep === value ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="relative">
           <Icon name="search" className="absolute top-2 left-2 text-muted" />
           <input
@@ -361,13 +389,8 @@ export default function FilesTool() {
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setDeep(!deep)}
-          className={cn('btn px-1.5', deep && 'border-accent/50 text-accent')}
-          title={deep ? 'Mencari di dalam isi file' : 'Mencari nama file saja'}
-        >
-          <Icon name="search" size={13} /> {t('files.content')}
+        <button type="button" className="btn cursor-pointer" onClick={() => void search()} title="Cari">
+          <Icon name="search" size={13} />
         </button>
         <button type="button" className="btn" onClick={makeFolder} disabled={!listing} title="Folder baru">
           <Icon name="folderPlus" />
@@ -435,6 +458,11 @@ export default function FilesTool() {
           </div>
 
           {error ? <div className="border-b border-line px-3 py-2 text-xs text-bad">{error}</div> : null}
+          {grepWarning ? (
+            <div className="border-b border-line bg-warn/10 px-3 py-1.5 text-[11.5px] text-warn">
+              {t('files.warning')}: {grepWarning}
+            </div>
+          ) : null}
 
           {office ? (
             <div className="flex min-h-0 flex-1 flex-col">

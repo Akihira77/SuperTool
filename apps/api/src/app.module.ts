@@ -11,6 +11,7 @@ import { ProxyModule } from './modules/proxy/proxy.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { CompressModule } from './modules/tools/compress.module';
 import { DevModule } from './modules/dev/dev.module';
+import { SqliteModule } from './modules/sqlite/sqlite.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { DevModule } from './modules/dev/dev.module';
     StorageModule,
     CompressModule,
     DevModule,
+    SqliteModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })

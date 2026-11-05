@@ -55,6 +55,8 @@ Kenapa `mustChange` dicek di guard, bukan di frontend? Karena frontend bisa dile
 
 `common/db.ts`: buka `super-tool.db` (`node:sqlite`, WAL), buat skema, simpan salinan `VACUUM INTO` ke `.bak` setiap start, dan impor sekali dari `auth.json`/`notes.json` versi lama. Penulisan lewat SQLite, jadi tidak ada tulis-separuh: transaksi sqlite yang menjamin.
 
+Koneksi utama memakai `journal_mode = WAL`, `busy_timeout = 5000`, dan `synchronous = NORMAL`. Modul `sqlite` (SQLite Viewer di Dev Space) membuka koneksi kedua **read-only** dengan `PRAGMA query_only = ON` + `busy_timeout`, jadi viewer bisa membaca tabel saat aplikasi menulis tanpa `database is locked`. Route `/sqlite/*` ikut AuthGuard global (401 tanpa sesi, 403 tanpa header `x-st-csrf` untuk POST).
+
 Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar tidak ada lost update saat autosave beruntun.
 
 ## Peta modul backend
@@ -67,7 +69,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
 | proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
-| proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`): aset, cookie, POST body, WebSocket |
+| proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`) dan subdomain (`<hex>.localhost`): aset, cookie, POST body, WebSocket, tulis-ulang origin absolut di HTML/JS/JSON |
+| sqlite | `sqlite.controller.ts` | viewer read-only database aplikasi (info tabel, isi tabel, query SELECT) |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |
 | dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker read-only, git ringkas, crontab, DNS + geo |
@@ -107,4 +110,5 @@ Tanda-tanda desain ini mulai kurang, beserta jalannya:
 - **Butuh pencarian isi catatan** → tambah FTS5 di tabel `notes` (`node:sqlite` sudah mendukung).
 - **Butuh multi-user / role** → tambah tabel user + `userId` di catatan, guard membaca user dari sesi.
 - **Butuh iframe SPA penuh** → pasang reverse proxy per tool (subdomain), bukan memperbesar `proxy.controller.ts`.
+- **Iframe jangan reload saat pindah menu** → UrlTool tetap ter-mount di App (`display: none` saat tidak aktif), dan tiap view punya iframe sendiri yang tidak dilepas; hanya tab aktif yang ditampilkan.
 - **Database bersama antar mesin** → pindah ke Postgres; skema tabel sekarang sudah relasional.

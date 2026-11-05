@@ -16,6 +16,10 @@ export const db = new DatabaseSync(file);
 
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
+// WAL membolehkan pembaca (SQLite Viewer) jalan bersamaan dengan penulis.
+// busy_timeout mencegah "database is locked" saat keduanya bertabrakan sesaat.
+db.exec('PRAGMA busy_timeout = 5000');
+db.exec('PRAGMA synchronous = NORMAL');
 db.exec(`
   CREATE TABLE IF NOT EXISTS account (
     id INTEGER PRIMARY KEY CHECK (id = 1),

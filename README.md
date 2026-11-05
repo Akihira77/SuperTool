@@ -17,7 +17,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
 | 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian isi berkas (grep), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status, cron manager, DNS/IP lookup |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status, cron manager, DNS/IP lookup, SQLite viewer |
 
 ## Tech stack
 
@@ -125,6 +125,8 @@ Tabelnya:
 
 Yang **tidak** masuk database: isi file itu sendiri. Konfigurasi nginx dan isi file explorer tetap di disk — database hanya mencatat path-nya.
 
+Isi database bisa dilihat langsung di **Dev Space → Database**: daftar tabel + jumlah baris, pratinjau data dengan paging, dan kotak query bebas (SELECT/WITH/PRAGMA/EXPLAIN, maksimal 500 baris). Viewer memakai koneksi **read-only**; database berjalan di `journal_mode = WAL` dengan `busy_timeout`, jadi membuka viewer tidak mengunci aplikasi.
+
 `git clean`, `rm -rf node_modules`, atau hapus folder project tidak menyentuh data. Pindahkan dengan env `ST_DATA_DIR` bila perlu.
 
 ## Fitur "jelaskan ke LLM"
@@ -174,9 +176,10 @@ File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov l
 | HTTP Client | `POST /api/dev/http` | seperti curl ringan: method, header, body, timeout. Alamat metadata cloud (169.254.169.254) diblokir |
 | Log Tailer | `GET /api/dev/logs`, `GET /api/dev/logs/stream` | tail 400 baris, mode live pakai SSE, filter teks, preset `/var/log/nginx/*` |
 | Docker | `GET /api/dev/docker` | read-only: `docker ps`, `docker images`, `docker logs --tail 300` |
-| Git Status | `GET /api/dev/git` | branch, ahead/behind, staged/changed/untracked, 10 commit terakhir, diff stat, saran folder saat mengetik path |
+| Git Status | `GET /api/dev/git` | pilih folder lewat daftar direktori (klik nama = pakai folder, tombol `›` = masuk folder), lalu lihat branch, ahead/behind, staged/changed/untracked, 10 commit terakhir, diff stat, tag |
 | Cron Job | `GET/POST/DELETE /api/dev/cron` | `crontab -l`, tambah baris, hapus per indeks |
 | DNS/IP Lookup | `GET /api/dev/dns` | A, AAAA, MX, CNAME, NS, TXT + lokasi lewat ip-api.com |
+| Database | `GET /api/sqlite/*` | viewer read-only `super-tool.db`: daftar tabel, isi tabel dengan paging, query SELECT/PRAGMA |
 
 Tab Cron mengubah crontab milik user yang menjalankan server. Di WSL tanpa cron daemon aktif, jadwal tetap tersimpan tapi tidak dieksekusi sampai `sudo service cron start`.
 
@@ -197,6 +200,8 @@ Yang perlu diketahui:
 - Cookie dari target ditulis ulang menjadi `SameSite=None; Secure` supaya tetap terkirim di dalam iframe. Chromium menganggap `localhost` sebagai secure context, jadi ini sah walau lewat http.
 - Proxy ini hanya menerima alamat loopback/privat (kecuali `ST_PROXY_ALLOW_PUBLIC=1`) dan hanya binding ke `127.0.0.1`, sama seperti mode path.
 - Kalau browser menolak cookie pihak ketiga (beberapa pengaturan privasi ketat), buka tool tersebut di tab baru lewat tombol ↗ — origin subdomain yang sama tetap dipakai.
+- Bundel JS/JSON yang memuat alamat API absolut (misalnya Chroma UI yang menyimpan `http://localhost:8000`) ditulis ulang ke origin proxy, jadi panggilan API-nya tidak lagi diblokir sebagai lintas origin.
+- Tab yang sudah dibuka **tetap hidup** saat pindah menu: iframe tidak di-unmount, jadi sesi ssh, `pm2 log`, atau terminal panjang di dalam Termix terus berjalan. Tiap tab punya iframe sendiri dan hanya yang aktif ditampilkan.
 
 ## Bahasa (ID / EN)
 

@@ -166,15 +166,37 @@ function resolveTarget(req: IncomingMessage): Target | null {
   };
 }
 
-function rewriteHtmlFor(html: string, origin: string, base: string, subMode: boolean): string {
-  let out = html;
-  if (out.includes(origin)) out = out.split(origin).join(base);
-  if (!subMode) {
-    out = out.replace(ATTR_ROOT, '$1="' + base + '/').replace(ATTR_ROOT_SINGLE, "$1='" + base + "/");
+/** Variasi origin target yang sering ditulis di dalam JS (localhost vs 127.0.0.1). */
+function originVariants(origin: string): string[] {
+  const url = new URL(origin);
+  const hosts = new Set<string>([url.hostname]);
+  if (url.hostname === '127.0.0.1') hosts.add('localhost');
+  if (url.hostname === 'localhost') hosts.add('127.0.0.1');
+  const variants = new Set<string>([origin]);
+  for (const host of hosts) variants.add(url.protocol + '//' + host + (url.port ? ':' + url.port : ''));
+  return [...variants];
+}
+
+/**
+ * Aplikasi SPA kadang menyimpan alamat API-nya sebagai URL absolut di bundel JS
+ * (contoh Chroma UI: `http://localhost:8000/api/v2`). Dari iframe, URL seperti itu
+ * jadi lintas origin lalu diblokir browser ("Network Error"). Di mode subdomain
+ * alamat tersebut ditukar ke origin proxy supaya kembali satu origin.
+ */
+function rewriteOrigins(text: string, origin: string, base: string): string {
+  let out = text;
+  for (const variant of originVariants(origin)) {
+    if (out.includes(variant)) out = out.split(variant).join(base);
   }
+  return out;
+}
+
+function rewriteHtmlFor(html: string, origin: string, base: string, subMode: boolean): string {
+  const out = rewriteOrigins(html, origin, base);
   if (subMode) return out;
+  const injected = out.replace(ATTR_ROOT, '$1="' + base + '/').replace(ATTR_ROOT_SINGLE, "$1='" + base + "/");
   const inject = '<base href="' + base + '/">';
-  return HTML_HEAD.test(out) ? out.replace(HTML_HEAD, '<head$1>' + inject) : inject + out;
+  return HTML_HEAD.test(injected) ? injected.replace(HTML_HEAD, '<head$1>' + inject) : inject + injected;
 }
 
 function rewriteCookiesFor(cookies: string[], target: Target): string[] {
@@ -284,6 +306,17 @@ export async function handleProxyRequest(
 
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
   const buffer = Buffer.from(await upstream.arrayBuffer());
+
+  // Bundel JS / respons JSON juga bisa memuat URL absolut ke origin target.
+  if (subMode && /(javascript|ecmascript|json|text\/plain)/.test(type)) {
+    const rewritten = rewriteOrigins(buffer.toString('utf8'), origin, targetInfo.publicOrigin);
+    if (rewritten !== buffer.toString('utf8')) {
+      outHeaders['content-length'] = String(Buffer.byteLength(rewritten));
+      res.writeHead(upstream.status, outHeaders);
+      res.end(rewritten);
+      return true;
+    }
+  }
 
   if (type.includes('text/html')) {
     outHeaders['content-type'] = 'text/html; charset=utf-8';

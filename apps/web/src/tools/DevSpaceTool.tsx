@@ -13,6 +13,7 @@ const TABS: Tab[] = [
   { id: 'git', key: 'dev.git', label: 'Git Status', component: lazy(() => import('./devspace/GitTab')) },
   { id: 'cron', key: 'dev.cron', label: 'Cron Job', component: lazy(() => import('./devspace/CronTab')) },
   { id: 'dns', key: 'dev.dns', label: 'DNS/IP Lookup', component: lazy(() => import('./devspace/DnsTab')) },
+  { id: 'sqlite', key: 'dev.sqlite', label: 'Database', component: lazy(() => import('./devspace/SqliteTab')) },
 ];
 
 export default function DevSpaceTool() {

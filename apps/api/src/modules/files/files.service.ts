@@ -3,7 +3,7 @@ import { readdir, readFile, stat, mkdir, rename, rm, writeFile } from 'node:fs/p
 import { basename, dirname, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { touchPath } from '../../common/db';
 import { isOffice, previewOffice, saveOfficeEdits } from './office';
@@ -140,50 +140,118 @@ export class FilesService {
 
   /**
    * Cari kata di dalam berkas (bukan nama berkas) memakai grep rekursif.
-   * Binary file dilewati, hasil dibatasi GREP_MAX baris.
+   * Berkas biner dilewati, hasil dibatasi GREP_MAX baris.
+   *
+   * Memakai spawn supaya bisa berhenti begitu kuota terpenuhi: grep bisa memakan
+   * waktu lama di folder besar, dan exit code 2 (misal ada subfolder tanpa izin)
+   * tidak boleh membuang hasil yang sudah didapat.
    */
   async grepText(root: string, query: string, limit = GREP_MAX) {
     const start = await jailPath(root);
     const needle = String(query ?? '');
     if (needle.trim().length < 2) throw new BadRequestException('Kata kunci minimal 2 karakter');
     const max = Math.min(GREP_MAX, Math.max(1, Number(limit) || GREP_MAX));
+
+    const args = [
+      '-rIn',
+      '--binary-files=without-match',
+      '--exclude-dir=node_modules',
+      '--exclude-dir=.git',
+      '--exclude-dir=dist',
+      '--exclude-dir=.cache',
+      '--exclude-dir=.pnpm-store',
+      '-m',
+      '20',
+      '-F',
+      '-e',
+      needle,
+      start,
+    ];
+
     const results: Array<{ path: string; line: number; text: string }> = [];
-    try {
-      const { stdout } = await exec(
-        'grep',
-        [
-          '-rIn',
-          '--binary-files=without-match',
-          '--exclude-dir=node_modules',
-          '--exclude-dir=.git',
-          '--exclude-dir=dist',
-          '--exclude-dir=.cache',
-          '--exclude-dir=.pnpm-store',
-          '-m',
-          '20',
-          '-F',
-          needle,
-          start,
-        ],
-        { timeout: 25_000, maxBuffer: 16 * 1024 * 1024 },
-      );
-      for (const row of stdout.split('\n')) {
-        if (!row) continue;
-        const first = row.indexOf(':');
-        const second = row.indexOf(':', first + 1);
-        if (first < 0 || second < 0) continue;
+    const warnings: string[] = [];
+
+    return new Promise<{ results: typeof results; truncated: boolean; warning?: string }>((resolve, reject) => {
+      const child = spawn('grep', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      let buffer = '';
+      let stderr = '';
+      let settled = false;
+
+      const finish = (error?: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (results.length) {
+          resolve({ results, truncated: results.length >= max, warning: warnings[0] });
+          return;
+        }
+        if (error) {
+          reject(new BadRequestException('Pencarian gagal: ' + error.slice(0, 140)));
+          return;
+        }
+        resolve({ results, truncated: false, warning: warnings[0] });
+      };
+
+      const timer = setTimeout(() => {
+        warnings.push('Pencarian dihentikan setelah 20 detik, hasil bisa belum lengkap.');
+        child.kill('SIGKILL');
+        finish();
+      }, 20_000);
+
+      const parse = (line: string) => {
+        const first = line.indexOf(':');
+        const second = line.indexOf(':', first + 1);
+        if (first < 0 || second < 0) return;
         results.push({
-          path: row.slice(0, first),
-          line: Number(row.slice(first + 1, second)) || 0,
-          text: row.slice(second + 1).slice(0, 300),
+          path: line.slice(0, first),
+          line: Number(line.slice(first + 1, second)) || 0,
+          text: line.slice(second + 1).slice(0, 300),
         });
-        if (results.length >= max) break;
-      }
-    } catch (err) {
-      const code = (err as { code?: number }).code;
-      if (code !== 1) throw new BadRequestException('Pencarian gagal: ' + (err as Error).message.slice(0, 120));
-    }
-    return { results, truncated: results.length >= max };
+        if (results.length >= max) {
+          child.kill('SIGKILL');
+          finish();
+        }
+      };
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf8');
+        let index = buffer.indexOf('\n');
+        while (index >= 0) {
+          parse(buffer.slice(0, index));
+          buffer = buffer.slice(index + 1);
+          if (settled) return;
+          index = buffer.indexOf('\n');
+        }
+      });
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+        if (stderr.length > 4000) stderr = stderr.slice(0, 4000);
+      });
+
+      child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(new BadRequestException('Perintah grep tidak tersedia: ' + (err as Error).message.slice(0, 120)));
+      });
+
+      child.on('close', (code) => {
+        if (buffer.trim()) parse(buffer);
+        const noisy = stderr
+          .split('\n')
+          .map((line) => line.trim())
+          .find((line) => line && !line.includes('Permission denied') && !line.includes('No such file'));
+        if (noisy) warnings.push(noisy.slice(0, 160));
+        if (code === 0 || code === 1 || code === null) finish();
+        else if (results.length) finish();
+        else if (!noisy) {
+          // exit 2 tanpa pesan nyata = hanya ada folder tanpa izin, bukan kegagalan.
+          warnings.push('Sebagian folder tidak bisa dibaca (izin ditolak).');
+          finish();
+        } else finish(noisy);
+      });
+    });
   }
 
   async search(root: string, query: string, includeAll: boolean) {

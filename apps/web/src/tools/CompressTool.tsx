@@ -14,6 +14,58 @@ type Result = {
 type Job = { id: string; state: 'running' | 'done' | 'error'; result?: Result; error?: string };
 
 const IMAGE = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'tif', 'tiff']);
+
+/** Kartu berkas: thumbnail untuk gambar, ikon untuk sisanya. */
+function FileCard({
+  label,
+  path,
+  size,
+  highlight,
+  download,
+}: {
+  label: string;
+  path: string;
+  size: number;
+  highlight?: boolean;
+  download?: boolean;
+}) {
+  const ext = (path.split('.').pop() ?? '').toLowerCase();
+  const isImage = IMAGE.has(ext);
+  return (
+    <div
+      className={cn(
+        'card flex min-w-0 flex-col gap-2 p-3',
+        highlight ? 'border-accent/40 bg-accent/5' : undefined,
+      )}
+    >
+      <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
+        {label}
+        {highlight ? <span className="rounded bg-accent/15 px-1 text-[10px] text-accent normal-case">baru</span> : null}
+      </div>
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel2">
+          {isImage ? (
+            <img src={RAW + encodeURIComponent(path) + '&v=' + size} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Icon name={ext === 'pdf' ? 'files' : 'markdown'} size={20} className="text-muted" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12.5px] text-ink">{path.split('/').pop()}</div>
+          {size > 0 ? <div className="mono text-[11px] text-muted">{bytes(size)}</div> : null}
+          <div className="mono truncate text-[10.5px] text-muted/70" title={path}>
+            {path}
+          </div>
+        </div>
+      </div>
+      {download ? (
+        <a className="btn cursor-pointer justify-center" href={RAW + encodeURIComponent(path) + '&download=1'} download>
+          <Icon name="download" size={13} /> Unduh
+        </a>
+      ) : null}
+    </div>
+  );
+}
 const RAW = '/api/fs/raw?path=';
 const DROP_DIR = '.super-tool-drop';
 
@@ -315,7 +367,7 @@ export default function CompressTool() {
           ) : null}
 
           {result ? (
-            <div className="card flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-3 text-[13px]">
                 <span className="text-muted">{t('compress.before')}</span>
                 <span className="mono">{bytes(result.input.size)}</span>
@@ -323,16 +375,18 @@ export default function CompressTool() {
                 <span className="text-muted">{t('compress.after')}</span>
                 <span className="mono text-ink">{bytes(result.output.size)}</span>
                 <span className={cn('rounded px-1.5 py-0.5 text-[11px]', result.saved > 0 ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-warn')}>
-                  {result.saved > 0 ? '-' + result.percent + '%' : '+' + Math.abs(result.percent) + '%'}
+                  {result.saved > 0 ? '-' + result.percent + '%' : result.saved === 0 ? t('compress.noChange') : '+' + Math.abs(result.percent) + '%'}
                 </span>
               </div>
-              <div className="mono break-all text-[11.5px] text-muted">{result.output.path}</div>
-              {result.note ? <div className="text-[11.5px] text-muted">{result.note}</div> : null}
-              <div className="flex gap-2">
-                <a className="btn cursor-pointer" href={RAW + encodeURIComponent(result.output.path) + '&download=1'} download>
-                  <Icon name="download" /> {t('compress.download')}
-                </a>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FileCard label={t('compress.original')} path={result.input.path} size={result.input.size} download />
+                <FileCard label={t('compress.result')} path={result.output.path} size={result.output.size} highlight download />
               </div>
+              {result.note ? <div className="text-[11.5px] text-muted">{result.note}</div> : null}
+            </div>
+          ) : path && !busy ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FileCard label={t('compress.original')} path={path} size={0} />
             </div>
           ) : null}
 

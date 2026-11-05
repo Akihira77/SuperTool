@@ -37,6 +37,7 @@ const PATHS: Record<string, string> = {
   minify: 'M4 12h16 M8 6h8 M8 18h8',
   compress: 'M9 9H4V4 M15 15h5v5 M4 4l7 7 M20 20l-7-7',
   dev: 'M3 4h18v16H3z M7 9l3 3-3 3 M13 15h4',
+  db: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
 };
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {

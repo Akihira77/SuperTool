@@ -62,7 +62,10 @@ export default function UrlTool() {
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem(ACTIVE_KEY) ?? '');
   const [draft, setDraft] = useState({ name: '', url: '' });
   const [editingId, setEditingId] = useState('');
-  const [nonce, setNonce] = useState(0);
+  const [nonces, setNonces] = useState<Record<string, number>>({});
+  const [opened, setOpened] = useState<string[]>([]);
+
+  const bump = (id: string) => setNonces((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   const [status, setStatus] = useState<Status | null>(null);
   const [checking, setChecking] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -134,7 +137,13 @@ export default function UrlTool() {
 
   useEffect(() => {
     setLoading(true);
-  }, [active?.id, nonce, active?.proxy]);
+  }, [active?.id, active?.proxy]);
+
+  // Tiap view yang pernah dibuka tetap hidup (iframe-nya tidak dilepas).
+  useEffect(() => {
+    if (!active?.id) return;
+    setOpened((prev) => (prev.includes(active.id) ? prev : [...prev, active.id]));
+  }, [active?.id]);
 
   const submit = async () => {
     const url = normalize(draft.url);
@@ -184,18 +193,22 @@ export default function UrlTool() {
     }
   };
 
+  const srcFor = (view: View) => {
+    if (!view.proxy) return fixHost(view.url);
+    const sub = mode === 'sub' ? subdomainSrc(view.url) : null;
+    return sub ?? proxySrc(view.url);
+  };
+
   const subSrc = useMemo(() => (active ? subdomainSrc(active.url) : null), [active?.url]);
   const usbSub = mode === 'sub' && !!subSrc;
-  const src = useMemo(
-    () => (active ? (active.proxy ? (usbSub ? subSrc! : proxySrc(active.url)) : fixHost(active.url)) : ''),
-    [active?.url, active?.proxy, usbSub, subSrc],
-  );
+  const src = useMemo(() => (active ? srcFor(active) : ''), [active?.url, active?.proxy, mode, subSrc]);
   const openUrl = active ? (active.proxy ? src : fixHost(active.url)) : '#';
+  const openViews = views.filter((view) => opened.includes(view.id));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="URL Viewer" subtitle={active ? active.url : 'Simpan URL tool lain lalu buka di sini'}>
-        <button type="button" className="btn" onClick={() => setNonce((n) => n + 1)} disabled={!active} title="Muat ulang">
+        <button type="button" className="btn" onClick={() => active && bump(active.id)} disabled={!active} title="Muat ulang">
           <Icon name="refresh" /> Muat ulang
         </button>
         <button type="button" className="btn" onClick={() => active && void probe(active)} disabled={!active || checking} title="Cek koneksi">
@@ -222,7 +235,7 @@ export default function UrlTool() {
                 type="button"
                 onClick={() => {
                   setMode(id);
-                  setNonce((n) => n + 1);
+                  active && bump(active.id);
                 }}
                 title={hint}
                 className={cn(
@@ -335,15 +348,17 @@ export default function UrlTool() {
               <Spinner />
             </div>
           ) : null}
-          {active ? (
-            <iframe
-              key={active.id + ':' + nonce}
-              src={src}
-              title={active.name}
-              onLoad={() => setLoading(false)}
-              className="h-full w-full border-0"
-              allow="clipboard-read; clipboard-write; fullscreen; microphone; camera"
-            />
+          {openViews.length ? (
+            openViews.map((view) => (
+              <iframe
+                key={view.id + ':' + (nonces[view.id] ?? 0)}
+                src={srcFor(view)}
+                title={view.name}
+                onLoad={() => setLoading(false)}
+                className={cn('h-full w-full border-0', view.id !== active?.id && 'hidden')}
+                allow="clipboard-read; clipboard-write; fullscreen; microphone; camera"
+              />
+            ))
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted">{ready ? 'Tambah URL untuk mulai' : ''}</div>
           )}

@@ -240,6 +240,18 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 `/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB.
 
+## SQLite Viewer
+
+Penampil database aplikasi sendiri (`ST_DATA_DIR/super-tool.db`). Semua route wajib login (AuthGuard global), dan `POST` wajib header `x-st-csrf: 1`.
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/sqlite/info` | – | `{ path, size, mtime, tables: [{ name, type, rows }] }` |
+| GET | `/sqlite/table` | `name`, `limit` (maks 500), `offset` | `{ table, columns[], rows[], total, limit, offset }` |
+| POST | `/sqlite/query` | `{ sql }` | `{ columns[], rows[], total, truncated }` |
+
+Koneksi viewer dibuka **read-only** (`readOnly: true`, `PRAGMA query_only = ON`) dengan `busy_timeout = 5000`, sedangkan koneksi utama memakai `journal_mode = WAL` — jadi membaca database tidak memblokir aplikasi yang sedang menulis. `/sqlite/query` hanya menerima `SELECT` / `WITH` / `PRAGMA` / `EXPLAIN`, satu perintah per request, dan memotong hasil di 500 baris.
+
 ## Kode error
 
 | Status | Arti |
