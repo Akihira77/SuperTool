@@ -5,6 +5,7 @@ import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { useToast } from '../components/toast';
 import { useConfirm } from '../components/confirm';
+import { PrayerSettings } from '../components/PrayerSettings';
 
 type DbInfo = { path: string; size: number; mtime: number; tables: Array<{ name: string; rows: number }> };
 
@@ -141,6 +142,8 @@ export default function SettingsTool() {
           </div>
           {error ? <div className="text-[11.5px] text-bad">{error}</div> : null}
         </div>
+
+        <PrayerSettings />
       </div>
     </div>
   );

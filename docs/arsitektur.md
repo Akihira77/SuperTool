@@ -93,6 +93,9 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
 | `tools/CalendarTool.tsx` | Agenda 20 event terdekat: cek `/calendar/events`, tombol connect (OAuth di tab baru), Sync, dikelompokkan per hari |
+| `lib/prayer.ts` | Setelan sholat di `localStorage`, daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio |
+| `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; minta geolocation sekali saat load; cek pengingat tiap menit |
+| `components/PrayerSettings.tsx` | Form Settings: pilih kota/koordinat, tombol lokasi perangkat, toggle suara & pop-up |
 | `tools/SettingsTool.tsx` | Unduh backup (`/api/backup`), restore zip (modal konfirmasi + `POST /api/restore`), info database |
 | `tools/*.tsx` | Satu tool = satu file, di-`lazy` load |
 | `tools/devspace/*.tsx` | Satu tab Dev Space = satu file, di-`lazy` load saat tab pertama dibuka |

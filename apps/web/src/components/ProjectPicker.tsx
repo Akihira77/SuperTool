@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Icon, Spinner, cn } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -11,7 +11,7 @@ type Root = { path: string; label: string };
  * Pemilih folder proyek: dropdown di kanan atas + modal penjelajah folder.
  * Path disimpan di ProjectProvider (localStorage), jadi umur pilihan lintas reload.
  */
-export function ProjectPicker() {
+export function ProjectPicker({ right }: { right?: ReactNode }) {
   const { t } = useI18n();
   const { projectPath, setProject, clearProject, recent, forget } = useProject();
   const [open, setOpen] = useState(false);
@@ -117,6 +117,7 @@ export function ProjectPicker() {
             </div>
           ) : null}
         </div>
+        {right}
       </div>
 
       {picker || busy || error ? (

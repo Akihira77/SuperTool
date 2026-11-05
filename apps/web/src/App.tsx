@@ -6,6 +6,7 @@ import { ConfirmProvider } from './components/confirm';
 import { ProjectProvider } from './lib/project';
 import { PlayerProvider } from './lib/player';
 import { ProjectPicker } from './components/ProjectPicker';
+import { PrayerWidget } from './components/PrayerWidget';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -259,7 +260,7 @@ function Shell() {
       </aside>
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-        <ProjectPicker />
+        <ProjectPicker right={<PrayerWidget />} />
         {route === 'password' ? (
           <div className="flex-1 overflow-y-auto">
             <ChangePassword forced={false} onDone={() => navigate('markdown')} />

@@ -34,6 +34,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | Gambar | `sharp` | Codec gambar cepat (libvips), tanpa proses eksternal |
 | PDF | `pdf-lib` | Baca/tulis PDF murni JS, aman untuk simpan-ulang |
 | Office | ZIP + regex sendiri (`zip.ts`, `office.ts`) | docx/xlsx/pptx/odt/ods/odp tanpa library berat |
+| Jadwal sholat | `adhan` (frontend) | Perhitungan astronomi lokal; tanpa API jadwal sholat |
 
 Dependency runtime sengaja minim: backend hanya paket inti Nest, `sharp`, `pdf-lib`; frontend hanya React, `marked`, dan `DOMPurify`.
 
@@ -271,6 +272,17 @@ Halaman Calendar:
 - Event dikelompokkan per hari: judul, tanggal + jam (atau **Sepanjang hari**), lokasi kalau ada, dan tautan ke Google Calendar. Tombol **Sync** di header memuat ulang data.
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
+
+## Widget Waktu & Jadwal Sholat
+
+Widget di header (kanan atas, sebelah pemilih proyek) menampilkan hari, tanggal, bulan, tahun, dan jam 24 jam sesuai waktu perangkat. Klik jam untuk membuka popover berisi jadwal sholat hari ini.
+
+- Perhitungan memakai `adhan` di browser (tanpa API): **CalculationMethod.Singapore** (Fajr 20°, Isya 18°, madhab Shafi), metode yang umum untuk Indonesia.
+- Saat aplikasi dimuat, browser diminta izin lokasi sekali. Kalau diizinkan, koordinat disimpan di `localStorage` (`st:prayer`) dan **tidak pernah dikirim ke server**.
+- Kalau izin ditolak, buka **Settings → Waktu & Jadwal Sholat**: pilih kota dari daftar (27 kota), isi latitude/longitude manual, atau klik **Gunakan lokasi perangkat** untuk meminta izin lagi. Perubahan langsung dipakai widget tanpa reload.
+- Pengingat dicek tiap menit: jendela 5 menit sebelum sampai 1 menit sesudah waktu sholat. Saat masuk jendela, muncul kartu **“Waktunya Sholat [Nama]”** di pojok kiri bawah (bukan alert browser) dan/atau bunyi beep Web Audio. Satu sholat hanya memicu sekali per hari; pop-up menutup sendiri setelah 20 detik atau bisa ditutup manual.
+- Toggle **Suara pengingat** dan **Pop-up pengingat** ada di Settings. Kalau pop-up dimatikan, pengingat suara tetap jalan (dan sebaliknya).
+- Batasan: bunyi bisa diblokir browser sampai ada interaksi user (kebijakan autoplay); perhitungan memakai zona waktu perangkat, jadi untuk kota di zona lain jam ditampilkan menurut waktu lokal perangkat.
 
 ## Notifikasi toast
 
