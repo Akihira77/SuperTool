@@ -102,6 +102,9 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_LLM_API_KEY` | kosong | API key bila provider mewajibkan |
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
 | `ST_DEV_ORIGIN` | `http://localhost:5173` | Origin yang diizinkan CORS saat dev |
+| `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
+| `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
+| `GOOGLE_REDIRECT_URI` | `http://127.0.0.1:<ST_PORT>/api/calendar/callback` | Redirect URI yang sama persis dengan Google Cloud Console |
 
 Contoh untuk mengakses dua folder:
 
@@ -235,6 +238,32 @@ curl -X POST http://127.0.0.1:3001/api/hook/<token> \
 ```
 
 Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu item untuk melihat header dan body; body JSON dirapikan otomatis. Batasan: endpoint + token dibuat ulang tiap server restart, riwayat hanya di memori (100 request total, body maksimal 200 KB), dan endpoint ini sengaja tanpa login supaya aplikasi luar bisa memanggilnya — server tetap binding ke loopback.
+
+## Google Calendar (backend)
+
+Integrasi baca-saja ke Google Calendar. Halaman Calendar di frontend belum dibuat; endpoint backend sudah siap dipakai.
+
+Setup:
+
+1. Google Cloud Console → buat project → aktifkan **Google Calendar API**.
+2. OAuth consent screen (External, mode Testing) → tambahkan akun Google yang dipakai sebagai test user.
+3. Credentials → Create credentials → OAuth client ID → Web application → Authorized redirect URI: `http://127.0.0.1:3001/api/calendar/callback`. Harus sama persis dengan `GOOGLE_REDIRECT_URI`. Endpoint juga menerima alias `http://127.0.0.1:3001/api/google/callback`; kalau `.env`/Google Console sudah memakai salah satunya, cukup samakan keduanya.
+4. Isi `apps/api/.env` (lihat `apps/api/.env.example`):
+
+```bash
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxxx
+GOOGLE_REDIRECT_URI=http://127.0.0.1:3001/api/calendar/callback
+```
+
+Alur:
+
+- `GET /api/calendar/auth` (wajib login lewat AuthGuard cookie — aplikasi ini tidak memakai JWT) → `{ url }`; frontend membuka URL tersebut.
+- Google mengembalikan `code` ke `GET /api/calendar/callback`. Route ini publik karena consent bisa diselesaikan di profil browser lain; keamanannya dari `state` acak sekali pakai (TTL 10 menit). Token ditukar lalu disimpan ke tabel `google_tokens`, setelah itu user diarahkan ke `/#/calendar?google=connected` (atau `denied`/`error`).
+- `GET /api/calendar/events` (wajib login) → 20 event terdekat dari kalender `primary`, `timeMin` = sekarang, `singleEvents` + `orderBy=startTime`. Access token di-refresh otomatis 60 detik sebelum kedaluwarsa; refresh token lama dipertahankan.
+- Scope hanya `https://www.googleapis.com/auth/calendar.readonly`. Token tidak pernah dikirim ke browser. Backup database ikut memuat token, jadi perlakukan file backup seperti kredensial.
+
+Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 
 ## Notifikasi toast
 

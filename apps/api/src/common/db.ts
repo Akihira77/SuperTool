@@ -52,6 +52,15 @@ db.exec(`
     PRIMARY KEY (kind, path)
   );
   CREATE INDEX IF NOT EXISTS idx_recent ON recent_paths(kind, opened_at DESC);
+  CREATE TABLE IF NOT EXISTS google_tokens (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    expiry INTEGER,
+    scope TEXT,
+    token_type TEXT,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */

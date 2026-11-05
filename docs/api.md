@@ -2,7 +2,7 @@
 
 Base URL: `http://127.0.0.1:3001/api` (dev: sama, di-proxy Vite).
 
-Semua endpoint (kecuali `/auth/login`) butuh cookie `st_session`. Metode selain GET wajib menyertakan header `X-ST-CSRF: 1`.
+Semua endpoint (kecuali `/auth/login`, `/hook/<token>`, dan `/calendar/callback`) butuh cookie `st_session`. Metode selain GET wajib menyertakan header `X-ST-CSRF: 1`.
 
 Contoh login dan menyimpan cookie:
 
@@ -270,6 +270,21 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | GET | `/webhook/stream` | login | SSE `{ endpoints, items }` setiap ada request/perubahan |
 
 Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pertama), jadi endpoint ini menerima JSON, form, teks, atau biner kecil. Tiap endpoint punya token acak 6 byte yang dibuat saat server start (atau saat endpoint ditambah); riwayat hanya di memori, total 100 item terakhir dengan `endpointId` di tiap item.
+
+## Google Calendar
+
+Route `/calendar/auth` dan `/calendar/events` dilindungi AuthGuard global (cookie sesi; aplikasi ini tidak memakai JWT). Callback publik dengan `state` sekali pakai.
+
+| Metode | Path | Auth | Hasil |
+|--------|------|------|-------|
+| GET | `/calendar/auth` | login | `{ url }` URL consent Google (`calendar.readonly`, `access_type=offline`, `state` 32 hex sekali pakai) |
+| GET | `/calendar/callback?code=&state=` | publik (state) | 302 ke `/#/calendar?google=connected` / `denied` / `error`; menukar code dan menyimpan token ke `google_tokens` |
+| GET | `/google/callback?code=&state=` | publik (state) | alias callback untuk `GOOGLE_REDIRECT_URI` lama (perilaku sama) |
+| GET | `/calendar/events` | login | `{ calendarId: "primary", timeMin, events: [...] }` — 20 event terdekat |
+
+`events[]` berisi `{ id, summary, description, location, start, end, htmlLink, status, allDay }`. `start`/`end` mengikuti format Google: `{ dateTime, timeZone }` atau `{ date }` untuk all-day.
+
+Token disimpan di satu baris tabel `google_tokens` (`access_token`, `refresh_token`, `expiry`, `scope`, `token_type`, `updated_at`). Access token di-refresh otomatis 60 detik sebelum kedaluwarsa dan refresh token lama dipertahankan. Tanpa env `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `/calendar/auth` membalas 400 berisi instruksi; `/calendar/events` tanpa token tersimpan juga 400 dengan pesan "belum terhubung". Callback tidak memakai sesi karena consent bisa selesai di profil browser lain — keamanannya dari `state` acak 16 byte, berlaku 10 menit, dan sekali pakai.
 
 ## SQLite Viewer
 

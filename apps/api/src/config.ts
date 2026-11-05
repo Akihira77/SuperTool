@@ -36,6 +36,13 @@ export const cfg = {
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
   devOrigin: env.ST_DEV_ORIGIN ?? 'http://localhost:5173',
   webDist: resolve(env.ST_WEB_DIST ?? join(process.cwd(), '..', 'web', 'dist')),
+  // Google Calendar (OAuth2). Kosong = endpoint calendar menolak dengan pesan jelas.
+  calendar: {
+    clientId: env.GOOGLE_CLIENT_ID ?? '',
+    clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
+    redirectUri:
+      env.GOOGLE_REDIRECT_URI ?? 'http://127.0.0.1:' + Number(env.ST_PORT ?? 3001) + '/api/calendar/callback',
+  },
   // LLM kompatibel OpenAI (9router, ollama, dsb). Default: 9router lokal.
   llm: {
     baseUrl: env.ST_LLM_BASE_URL ?? 'http://127.0.0.1:20128/v1',

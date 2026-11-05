@@ -14,6 +14,7 @@ import { DevModule } from './modules/dev/dev.module';
 import { SqliteModule } from './modules/sqlite/sqlite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { BackupModule } from './modules/backup/backup.module';
     SqliteModule,
     WebhookModule,
     BackupModule,
+    CalendarModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })
