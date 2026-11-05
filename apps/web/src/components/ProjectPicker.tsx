@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, Spinner, cn } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -19,22 +19,35 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
   const [roots, setRoots] = useState<Root[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const rootRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef(0);
 
   const browse = useCallback(async (path: string) => {
+    const request = ++requestRef.current;
     setBusy(true);
     setError('');
     try {
-      setPicker(await api.get<Listing>('/fs/list?path=' + encodeURIComponent(path)));
+      const result = await api.get<Listing>('/fs/list?path=' + encodeURIComponent(path));
+      if (request === requestRef.current) setPicker(result);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('err.readFolder'));
+      if (request === requestRef.current) {
+        setError(err instanceof ApiError ? err.message : t('err.readFolder'));
+      }
     } finally {
-      setBusy(false);
+      if (request === requestRef.current) setBusy(false);
     }
   }, [t]);
 
+  const closePicker = useCallback(() => {
+    requestRef.current += 1;
+    setPicker(null);
+    setBusy(false);
+    setError('');
+  }, []);
+
   const openPicker = async () => {
     setOpen(false);
-    setPicker(null);
+    closePicker();
     if (!roots.length) {
       try {
         setRoots(await api.get<Root[]>('/fs/roots'));
@@ -56,13 +69,20 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
   }, [open]);
 
   const pick = (path: string) => {
     setProject(path);
-    setPicker(null);
+    closePicker();
   };
 
   return (
@@ -80,7 +100,7 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
           <span className="text-[11.5px] text-muted">{t('project.none')}</span>
         )}
         {/* Dropdown di pojok kanan atas */}
-        <div className="relative ml-auto">
+        <div ref={rootRef} className="relative ml-auto">
           <button
             type="button"
             data-action="project:toggle"
@@ -122,12 +142,12 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
       </div>
 
       {picker || busy || error ? (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/55 p-4" onMouseDown={() => setPicker(null)}>
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/55 p-4" onMouseDown={closePicker}>
           <div className="flex max-h-[80vh] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('project.pickTitle')}>
             <div className="flex items-center gap-2">
               <Icon name="files" size={14} className="text-accent" />
               <span className="text-[13px] font-medium">{t('project.pickTitle')}</span>
-              <button type="button" className="btn btn-ghost ml-auto cursor-pointer px-1 py-0.5" onClick={() => setPicker(null)} title={t('common.close')}>
+              <button type="button" className="btn btn-ghost ml-auto cursor-pointer px-1 py-0.5" onClick={closePicker} title={t('common.close')}>
                 <Icon name="x" size={13} />
               </button>
             </div>

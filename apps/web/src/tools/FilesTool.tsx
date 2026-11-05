@@ -511,12 +511,9 @@ export default function FilesTool() {
   const inProject = Boolean(projectPath) && (rootPath === projectPath || rootPath.startsWith(projectPath + '/'));
   const treeRoots = inProject && projectPath ? [{ path: projectPath, label: projectName(projectPath) }] : roots;
   const rootValue = roots.find((root) => rootPath === root.path || rootPath.startsWith(root.path + '/'))?.path ?? rootPath;
-  // Saat proyek aktif: keluar ke root yang memuat proyek (atau root lain).
-  const exitRoot = projectPath
-    ? roots.find((root) => projectPath.startsWith(root.path + '/') && root.path !== projectPath) ??
-      roots.find((root) => root.path !== projectPath) ??
-      roots[0]
-    : roots[0];
+  const parent = listing?.parent ?? null;
+  const parentPath =
+    parent && roots.some((root) => parent === root.path || parent.startsWith(root.path + '/')) ? parent : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -659,16 +656,15 @@ export default function FilesTool() {
               ))}
             </div>
           ) : null}
-          {inProject && exitRoot && exitRoot.path !== projectPath ? (
+          {parentPath ? (
             <button
               type="button"
-              onClick={() => openRoot(exitRoot.path)}
-              title={'Akses folder di luar ' + projectName(projectPath ?? '')}
+              onClick={() => void loadListing(parentPath)}
+              title={parentPath}
               className="mb-1 flex w-full items-center gap-1.5 rounded-md border border-line bg-panel2/60 px-1.5 py-1 text-[11.5px] text-muted transition-colors hover:border-accent/40 hover:text-ink"
             >
               <Icon name="back" size={12} className="shrink-0" />
-              <span className="truncate">{t('files.exitProject')}</span>
-              <span className="mono ml-auto max-w-[45%] truncate text-[10px] text-muted/70">{exitRoot.label}</span>
+              <span className="truncate">{t('files.up')}</span>
             </button>
           ) : null}
           {treeRoots.map((root) => (
