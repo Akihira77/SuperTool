@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useI18n } from '../lib/i18n';
 
 export const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
@@ -38,6 +39,8 @@ const PATHS: Record<string, string> = {
   compress: 'M9 9H4V4 M15 15h5v5 M4 4l7 7 M20 20l-7-7',
   dev: 'M3 4h18v16H3z M7 9l3 3-3 3 M13 15h4',
   db: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
+  webhook: 'M12 3v8 M8 7l4 4 4-4 M5 13h14v6H5z M8 16h.01 M12 16h.01 M16 16h.01',
+  filter: 'M3 5h18l-7 8v6l-4 2v-8z',
 };
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
@@ -112,7 +115,8 @@ export function PageHeader({ title, subtitle, children }: { title: string; subti
   );
 }
 
-export function CopyButton({ text, label = 'Salin' }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
+  const { t } = useI18n();
   const [done, setDone] = useState(false);
   return (
     <button
@@ -129,7 +133,7 @@ export function CopyButton({ text, label = 'Salin' }: { text: string; label?: st
       }}
     >
       <Icon name={done ? 'check' : 'copy'} />
-      {done ? 'Tersalin' : label}
+      {done ? t('common.copied') : (label ?? t('common.copy'))}
     </button>
   );
 }

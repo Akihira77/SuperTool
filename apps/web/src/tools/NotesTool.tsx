@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
+import { useI18n } from '../lib/i18n';
 import { useSidebar } from '../lib/useSidebar';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number };
@@ -10,6 +11,7 @@ type Note = NoteMeta & { body: string };
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function NotesTool() {
+  const { t } = useI18n();
   const [panelOpen, togglePanel] = useSidebar('notes', true);
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
@@ -55,14 +57,14 @@ export default function NotesTool() {
   };
 
   const create = async () => {
-    const note = await api.post<Note>('/notes', { title: 'Catatan baru', body: '' });
+    const note = await api.post<Note>('/notes', { title: t('notes.newTitle'), body: '' });
     await refresh();
     setActive(note);
     setStatus('idle');
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('Hapus catatan ini?')) return;
+    if (!window.confirm(t('notes.confirmDelete'))) return;
     await api.del('/notes/' + id);
     const list = await refresh();
     if (active?.id === id) {
@@ -76,16 +78,16 @@ export default function NotesTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
-        title="Catatan"
+        title={t('notes.title')}
         subtitle={
-          status === 'saving' ? 'Menyimpan...' : status === 'error' ? 'Gagal menyimpan' : status === 'saved' ? 'Tersimpan' : notes.length + ' catatan'
+          status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : status === 'saved' ? t('notes.saved') : notes.length + ' ' + t('notes.count')
         }
       >
         <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
           <Icon name="panel" />
         </button>
         <button type="button" className="btn btn-primary" onClick={create}>
-          <Icon name="plus" /> Baru
+          <Icon name="plus" /> {t('notes.new')}
         </button>
       </PageHeader>
 
@@ -95,7 +97,7 @@ export default function NotesTool() {
           <div className="p-2">
             <div className="relative">
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari catatan" className="input py-1.5 pl-8 text-[13px]" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} className="input py-1.5 pl-8 text-[13px]" />
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -104,7 +106,7 @@ export default function NotesTool() {
                 <Spinner />
               </div>
             ) : filtered.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted">Belum ada catatan</p>
+              <p className="p-4 text-center text-xs text-muted">{t('notes.none')}</p>
             ) : (
               filtered.map((note) => (
                 <button
@@ -133,10 +135,10 @@ export default function NotesTool() {
                   value={active.title}
                   onChange={(e) => patch({ title: e.target.value })}
                   className="min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] font-semibold outline-none"
-                  placeholder="Judul catatan"
+                  placeholder={t('notes.titlePlaceholder')}
                 />
                 <span className="text-[11px] text-muted">{active.body.length} karakter</span>
-                <button type="button" className="btn btn-danger" onClick={() => remove(active.id)} title="Hapus">
+                <button type="button" className="btn btn-danger" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>
               </div>
@@ -149,7 +151,7 @@ export default function NotesTool() {
               />
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">Pilih atau buat catatan baru</div>
+            <div className="flex flex-1 items-center justify-center text-sm text-muted">{t("notes.empty")}</div>
           )}
         </div>
       </div>

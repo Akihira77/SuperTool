@@ -15,9 +15,10 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
-| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, dengan pola exclude), upload, rename, hapus |
+| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik commit + branch), cron manager, DNS/IP lookup, SQLite viewer |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
+| 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
 
 ## Tech stack
 
@@ -178,7 +179,7 @@ Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil
 | HTTP Client | `POST /api/dev/http` | seperti curl ringan: method, header, body, timeout. Alamat metadata cloud (169.254.169.254) diblokir |
 | Log Tailer | `GET /api/dev/logs`, `GET /api/dev/logs/stream` | tail 400 baris, mode live pakai SSE, filter teks, preset `/var/log/nginx/*` |
 | Docker | `GET /api/dev/docker` | read-only: `docker ps`, `docker images`, `docker logs --tail 300` |
-| Git Status | `GET /api/dev/git` | pilih folder lewat daftar direktori (klik nama = pakai folder, tombol `›` = masuk folder), lalu lihat branch, ahead/behind, staged/changed/untracked, 10 commit terakhir, diff stat, tag |
+| Git Status | `GET /api/dev/git`, `POST /api/dev/git/stage`, `GET /api/dev/git/diff`, `GET /api/dev/git/show` | pilih folder lewat daftar direktori (klik nama = pakai folder, tombol `›` = masuk folder). Dua kolom: kiri grafik commit (SVG, warna per lane/branch) + daftar commit (inisial penulis, waktu, hash biru, badge HEAD/branch), kanan kartu berkas staged/diubah/belum dilacak dengan centang untuk stage/unstage + panel diff merah/hijau saat berkas atau commit diklik |
 | Cron Job | `GET/POST/DELETE /api/dev/cron` | `crontab -l`, tambah baris, hapus per indeks |
 | DNS/IP Lookup | `GET /api/dev/dns` | A, AAAA, MX, CNAME, NS, TXT + lokasi lewat ip-api.com |
 | Database | `GET /api/sqlite/*` | viewer read-only `super-tool.db`: daftar tabel, isi tabel dengan paging, query SELECT/PRAGMA |
@@ -205,13 +206,28 @@ Yang perlu diketahui:
 - Bundel JS/JSON yang memuat alamat API absolut (misalnya Chroma UI yang menyimpan `http://localhost:8000`) ditulis ulang ke origin proxy, jadi panggilan API-nya tidak lagi diblokir sebagai lintas origin.
 - Tab yang sudah dibuka **tetap hidup** saat pindah menu: iframe tidak di-unmount dan tidak di-`display:none` (hanya disembunyikan lewat `visibility`/`opacity`), jadi sesi ssh, `pm2 log`, atau terminal panjang di dalam Termix terus berjalan dan tidak macet di layar loading. Tiap tab punya iframe sendiri dan hanya yang aktif yang bisa diklik.
 
+## Webhook Receiver
+
+Menu **Webhook Receiver** memberi satu URL siap pakai, misalnya `http://127.0.0.1:3001/api/hook/67ac6f2fcf00`, untuk menerima request dari aplikasi lain (GitHub, Stripe, skrip sendiri). Kirim method apa pun:
+
+```bash
+curl -X POST http://127.0.0.1:3001/api/hook/<token> \
+  -H 'content-type: application/json' -d '{"hello":"world"}'
+```
+
+Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu item untuk melihat header dan body; body JSON dirapikan otomatis. **Bersihkan** menghapus riwayat. Batasan: token dibuat ulang tiap server restart, riwayat hanya di memori (100 request terakhir, body maksimal 200 KB), dan endpoint ini sengaja tanpa login supaya aplikasi luar bisa memanggilnya — server tetap binding ke loopback.
+
+## Notifikasi toast
+
+Aksi yang berhasil/gagal menampilkan toast di kanan bawah (`components/toast.tsx`), auto hilang 3,5 detik, klik untuk menutup. Dipakai antara lain oleh webhook, git stage/unstage, dan operasi berkas.
+
 ## Command Palette
 
 Tekan **Ctrl + K** (atau **Cmd + K** di macOS) di mana saja untuk membuka palette: ketik nama menu (misal `json`, `file`, `git`), pilih dengan ↑↓, lalu **Enter** untuk pindah halaman. Selain menu, palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). **Esc** menutup.
 
 ## Bahasa (ID / EN)
 
-Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `localStorage` (`st:lang`). Yang diterjemahkan: menu, judul & subjudul tool, tab Dev Space, kompresor, header tabel File Explorer, serta tombol aksi umum. Teks penjelasan panjang (batasan, pesan error rinci, dokumentasi di layar) tetap Bahasa Indonesia.
+Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `localStorage` (`st:lang`). Hampir semua teks statis ikut berganti: menu, judul & subjudul tool, label form, header tabel, tombol, placeholder, pesan error, dialog konfirmasi, dan tab Dev Space. Yang tidak diterjemahkan hanya data dinamis (nama berkas, isi dokumen, output perintah, contoh JSON/markdown, waktu relatif dari server).
 
 ## Keamanan
 
@@ -223,6 +239,7 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Semua path File Explorer dipaksa berada di dalam `ST_FS_ROOTS`, termasuk pemeriksaan symlink (tidak bisa kabur lewat `..` atau link).
 - Proxy URL hanya boleh ke `localhost`/IP privat; `169.254.x.x` (metadata cloud) dan host publik ditolak kecuali diaktifkan.
 - Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini.
+- Endpoint webhook (`/api/hook/<token>`) sengaja tanpa login dan tanpa CSRF; token acak 6 byte dibuat tiap restart dan endpoint hanya bisa dijangkau lewat loopback. Jangan diekspos ke publik.
 
 Aplikasi ini alat pribadi. Jangan bind ke `0.0.0.0` lalu membukanya ke internet tanpa reverse proxy + HTTPS.
 

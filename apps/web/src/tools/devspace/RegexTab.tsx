@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { cn } from '../../components/ui';
+import { useI18n } from '../../lib/i18n';
 
 const FLAGS = ['g', 'i', 'm', 's', 'u'] as const;
 
 type Hit = { index: number; text: string; groups: string[] };
 
 export default function RegexTab() {
+  const { t } = useI18n();
   const [pattern, setPattern] = useState('(\\w+)@(\\w+)\\.com');
   const [flags, setFlags] = useState<string[]>(['g']);
   const [text, setText] = useState('hubungi budi@mail.com dan sari@kerja.id');
@@ -117,7 +119,7 @@ export default function RegexTab() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Hasil replace</span>
+          <span className="text-[11px] tracking-wide text-muted uppercase">{t('regex.result')}</span>
           <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-3 text-[12.5px]">
             {result.error ? '' : result.replaced}
           </pre>

@@ -60,4 +60,19 @@ export class DevController {
   git(@Query('path') path: string, @Query('ref') ref?: string) {
     return this.dev.git(path, ref);
   }
+
+  @Post('git/stage')
+  stage(@Body() body: { path?: string; files?: string[]; action?: string }) {
+    return this.dev.gitStage(body?.path ?? '', body?.files ?? [], body?.action ?? 'stage');
+  }
+
+  @Get('git/diff')
+  diff(@Query('path') path: string, @Query('file') file: string, @Query('staged') staged?: string) {
+    return this.dev.gitDiff(path, file, staged === '1');
+  }
+
+  @Get('git/show')
+  show(@Query('path') path: string, @Query('hash') hash: string) {
+    return this.dev.gitShow(path, hash);
+  }
 }

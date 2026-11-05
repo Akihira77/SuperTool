@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type CommandItem } from './components/CommandPalette';
+import { ToastProvider } from './components/toast';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -27,6 +28,7 @@ const TOOLS: Array<Tool & { key: string }> = [
   { key: 'nav.files', id: 'files', label: 'File Explorer', desc: 'Jelajah & lihat file', icon: 'files', component: lazy(() => import('./tools/FilesTool')) },
   { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', component: lazy(() => import('./tools/CompressTool')) },
   { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', component: lazy(() => import('./tools/DevSpaceTool')) },
+  { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', component: lazy(() => import('./tools/WebhookTool')) },
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
@@ -34,7 +36,9 @@ type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
 export default function App() {
   return (
     <I18nProvider>
-      <Shell />
+      <ToastProvider>
+        <Shell />
+      </ToastProvider>
     </I18nProvider>
   );
 }

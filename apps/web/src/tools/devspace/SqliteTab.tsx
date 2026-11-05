@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 import { bytes } from '../../lib/format';
 
 type TableInfo = { name: string; type: string; rows: number };
@@ -21,6 +22,7 @@ function cell(value: unknown) {
 }
 
 function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line">
       <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-2 py-1 text-[11px] text-muted">
@@ -52,7 +54,7 @@ function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
             {!grid.rows.length ? (
               <tr>
                 <td colSpan={Math.max(1, grid.columns.length)} className="px-3 py-4 text-center text-[12px] text-muted">
-                  Tidak ada baris.
+                  {t("db.noRows")}
                 </td>
               </tr>
             ) : null}
@@ -64,6 +66,7 @@ function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
 }
 
 export default function SqliteTab() {
+  const { t } = useI18n();
   const [info, setInfo] = useState<Info | null>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [caption, setCaption] = useState('');
@@ -78,7 +81,7 @@ export default function SqliteTab() {
     try {
       setInfo(await api.get<Info>('/sqlite/info'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca database');
+      setError(err instanceof ApiError ? err.message : t('err.readDb'));
     }
   }, []);
 
@@ -93,7 +96,7 @@ export default function SqliteTab() {
       setOffset(nextOffset);
       setLimit(nextLimit);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca tabel');
+      setError(err instanceof ApiError ? err.message : t('err.readTable'));
     } finally {
       setBusy(false);
     }
@@ -134,7 +137,7 @@ export default function SqliteTab() {
         ) : null}
         <span className="ml-auto flex items-center gap-2 text-[11px] text-muted">
           read-only
-          <button type="button" className="btn cursor-pointer px-1.5 py-0.5" onClick={() => void loadInfo()} title="Muat ulang">
+          <button type="button" className="btn cursor-pointer px-1.5 py-0.5" onClick={() => void loadInfo()} title={t('common.reload')}>
             <Icon name="refresh" size={13} />
           </button>
         </span>
@@ -159,7 +162,7 @@ export default function SqliteTab() {
               <span className="text-[10px] text-muted/70">{table.rows < 0 ? '?' : table.rows}</span>
             </button>
           ))}
-          {!info?.tables.length ? <div className="text-[11.5px] text-muted">Tidak ada tabel.</div> : null}
+          {!info?.tables.length ? <div className="text-[11.5px] text-muted">{t("db.noTables")}</div> : null}
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
@@ -206,7 +209,7 @@ export default function SqliteTab() {
             {busy ? <Spinner /> : null}
           </div>
 
-          {grid ? <DataGrid grid={grid} caption={caption} /> : <div className="text-[12px] text-muted">Pilih tabel di kiri atau jalankan query.</div>}
+          {grid ? <DataGrid grid={grid} caption={caption} /> : <div className="text-[12px] text-muted">{t("db.pick")}</div>}
 
           <div className="card flex shrink-0 flex-col gap-2 p-2">
             <textarea
@@ -220,7 +223,7 @@ export default function SqliteTab() {
             />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void runSql()} disabled={busy || !sql.trim()}>
-                {busy ? <Spinner /> : <Icon name="play" />} Jalankan
+                {busy ? <Spinner /> : <Icon name="play" />} {t('common.run')}
               </button>
               <span className="text-[11px] text-muted">
                 SELECT / WITH / PRAGMA / EXPLAIN saja · <span className="mono">Ctrl+Enter</span>

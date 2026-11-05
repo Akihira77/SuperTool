@@ -232,7 +232,10 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`) |
 | GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
 | GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
-| GET | `/dev/git` | `path`, `ref` (opsional) | `{ branch, ahead, behind, staged[], changed[], untracked[], commits[], diffstat, tags[], branches[], graph, ref }` |
+| GET | `/dev/git` | `path`, `ref` (opsional) | `{ branch, head, ahead, behind, staged[], changed[], untracked[], log[], diffstat, tags[], branches[], graph, ref }` — `staged/changed/untracked` berisi `{ status, path }`, `log` berisi `{ hash, short, parents[], author, email, when, subject, refs[] }` |
+| POST | `/dev/git/stage` | `{ path, files[], action: "stage"\|"unstage" }` | `{ ok, files, action }` |
+| GET | `/dev/git/diff` | `path`, `file`, `staged=1` | `{ diff }` (patch working tree atau `--cached`) |
+| GET | `/dev/git/show` | `path`, `hash` | `{ diff }` (patch commit) |
 | GET | `/dev/cron` | – | `{ entries: [{ index, line }], raw }` |
 | POST | `/dev/cron` | `{ line }` | daftar terbaru |
 | DELETE | `/dev/cron` | `index` | daftar terbaru |
@@ -242,7 +245,18 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 `/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB.
 
-`/dev/git`: `graph` adalah keluaran `git log --graph --oneline --decorate` (semua branch, 40 baris) atau untuk `ref` tertentu kalau parameternya diisi; `branches` = daftar branch lokal (maks 30).
+`/dev/git`: `log` diambil dari `git log --all` (60 commit) atau `ref` tertentu, lengkap dengan parent untuk menghitung lane grafik di browser; `graph` tetap dikirim sebagai teks `git log --graph --oneline --decorate` untuk kompatibilitas. `branches` = daftar branch lokal (maks 30). `git stage` memakai `git add --` / `git restore --staged --`, maksimal 200 berkas per request.
+
+## Webhook Receiver
+
+| Metode | Path | Auth | Hasil |
+|--------|------|------|-------|
+| ANY | `/hook/<token>` | publik (token) | `{ ok, received }` — request disimpan ke ring buffer |
+| GET | `/webhook` | login | `{ token, path, items[] }` |
+| GET | `/webhook/stream` | login | SSE `{ items[] }` setiap ada request baru / clear |
+| DELETE | `/webhook` | login + CSRF | `{ ok }` — kosongkan riwayat |
+
+Body mentah dikumpulkan sebelum body-parser JSON (maks 10 MB, disimpan 200 KB pertama), jadi endpoint ini menerima JSON, form, teks, atau biner kecil. Token dibuat acak 6 byte saat server start; riwayat hanya di memori dan dibatasi 100 item.
 
 ## SQLite Viewer
 
@@ -262,5 +276,5 @@ Koneksi viewer dibuka **read-only** (`readOnly: true`, `PRAGMA query_only = ON`)
 |--------|------|
 | 401 | Belum login / password salah / token kedaluwarsa |
 | 403 | CSRF tidak ada, path di luar root, atau wajib ganti password |
-| 404 | File/catatan tidak ditemukan |
+| 404 | File/catatan tidak ditemukan, token webhook salah |
 | 415/400 | Input tidak valid (JSON rusak, nama file tidak sah) |

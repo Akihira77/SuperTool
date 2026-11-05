@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 
 type Entry = { index: number; line: string };
 
@@ -12,6 +13,7 @@ const PRESETS: Array<{ label: string; value: string }> = [
 ];
 
 export default function CronTab() {
+  const { t } = useI18n();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [line, setLine] = useState('0 3 * * * /home/user/backup.sh');
   const [busy, setBusy] = useState(false);
@@ -24,7 +26,7 @@ export default function CronTab() {
       const result = await api.get<{ entries: Entry[] }>('/dev/cron');
       setEntries(result.entries);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca crontab');
+      setError(err instanceof ApiError ? err.message : t('err.cronRead'));
     } finally {
       setBusy(false);
     }
@@ -41,21 +43,21 @@ export default function CronTab() {
       const result = await api.post<{ entries: Entry[] }>('/dev/cron', { line });
       setEntries(result.entries);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menambah jadwal');
+      setError(err instanceof ApiError ? err.message : t('err.cronAdd'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (entry: Entry) => {
-    if (!window.confirm('Hapus jadwal ini dari crontab?\n\n' + entry.line)) return;
+    if (!window.confirm(t('cron.confirmDelete') + '\n\n' + entry.line)) return;
     setBusy(true);
     setError('');
     try {
       const result = await api.del<{ entries: Entry[] }>('/dev/cron' + qs({ index: entry.index }));
       setEntries(result.entries);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghapus jadwal');
+      setError(err instanceof ApiError ? err.message : t('err.cronDelete'));
     } finally {
       setBusy(false);
     }
@@ -67,7 +69,7 @@ export default function CronTab() {
         <div className="flex items-center gap-2">
           <span className="text-[11px] tracking-wide text-muted uppercase">Tambah jadwal</span>
           {busy ? <Spinner /> : null}
-          <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => void load()} title="Muat ulang">
+          <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => void load()} title={t('common.reload')}>
             <Icon name="refresh" size={13} />
           </button>
         </div>

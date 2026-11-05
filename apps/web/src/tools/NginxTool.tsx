@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
+import { useI18n } from '../lib/i18n';
 import { bytes, timeAgo } from '../lib/format';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
@@ -39,6 +40,7 @@ function contextAround(full: string, picked: string): string {
 }
 
 export default function NginxTool() {
+  const { t } = useI18n();
   const [panelOpen, togglePanel] = useSidebar('nginx', true);
   const [dir, setDir] = useState('');
   const [files, setFiles] = useState<ConfFile[]>([]);
@@ -88,7 +90,7 @@ export default function NginxTool() {
       setFiles(result.files);
       if (!activePath && result.files.length) await open(result.files[0].path);
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal membaca folder nginx' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.nginxFolder') });
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,7 @@ export default function NginxTool() {
       setNotice(null);
       void loadRecents();
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal membuka file' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.openFile') });
     }
   };
 
@@ -134,7 +136,7 @@ export default function NginxTool() {
       setNotice({ ok: true, message: 'File tersimpan (cadangan .bak dibuat)' });
       await loadList();
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal menyimpan' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.save') });
     } finally {
       setBusy(false);
     }
@@ -161,13 +163,13 @@ export default function NginxTool() {
       await open(result.path);
       setNotice({ ok: true, message: 'File dibuat: ' + name });
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal membuat file' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.createFile') });
     }
   };
 
   const remove = async () => {
     if (!activePath) return;
-    if (!window.confirm('Hapus ' + activePath + '? File dan cadangannya ikut terhapus.')) return;
+    if (!window.confirm(t('nginx.confirmDelete') + ' ' + activePath + '?')) return;
     try {
       await api.del('/nginx/file' + qs({ path: activePath }));
       setActivePath('');
@@ -176,13 +178,13 @@ export default function NginxTool() {
       await loadList();
       setNotice({ ok: true, message: 'File dihapus' });
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal menghapus' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.delete') });
     }
   };
 
   const revert = async () => {
     if (!activePath) return;
-    if (!window.confirm('Kembalikan isi file ke cadangan sebelum diedit?')) return;
+    if (!window.confirm(t('nginx.confirmRestore'))) return;
     try {
       const result = await api.post<{ text: string }>('/nginx/revert', { path: activePath });
       setText(result.text);
@@ -190,14 +192,14 @@ export default function NginxTool() {
       await loadList();
       setNotice({ ok: true, message: 'Isi asli dikembalikan' });
     } catch (err) {
-      setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal mengembalikan' });
+      setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.restore') });
     }
   };
 
   const explainText = async (code: string) => {
     if (!code) return;
     if (!model) {
-      setExplain({ loading: false, text: '', error: 'Model LLM belum dipilih', model: '' });
+      setExplain({ loading: false, text: '', error: t('nginx.noModel'), model: '' });
       return;
     }
     setExplain({ loading: true, text: '', error: '', model });
@@ -225,22 +227,22 @@ export default function NginxTool() {
           <Icon name="play" /> Test
         </button>
         <button type="button" className="btn btn-primary" onClick={save} disabled={!dirty || busy} title="Ctrl+S">
-          {busy ? <Spinner /> : <Icon name="save" />} Simpan
+          {busy ? <Spinner /> : <Icon name="save" />} {t("common.save")}
         </button>
       </PageHeader>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
         <button type="button" className="btn px-2 py-1 text-[12px]" onClick={create}>
-          <Icon name="plus" /> Baru
+          <Icon name="plus" /> {t('nginx.new')}
         </button>
         <button type="button" className="btn px-2 py-1 text-[12px]" onClick={remove} disabled={!activePath}>
-          <Icon name="trash" /> Hapus
+          <Icon name="trash" /> {t("common.delete")}
         </button>
         <button type="button" className="btn px-2 py-1 text-[12px]" onClick={revert} disabled={!activeFile?.hasBackup} title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}>
           <Icon name="refresh" /> Kembalikan asli
         </button>
         <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => activePath && open(activePath)} disabled={!dirty}>
-          Batal
+          {t('common.cancel')}
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           <input
@@ -271,7 +273,7 @@ export default function NginxTool() {
               <option key={item} value={item} />
             ))}
           </datalist>
-          <span className="hidden text-[11px] text-muted md:inline">klik kanan di editor → jelaskan</span>
+          <span className="hidden text-[11px] text-muted md:inline">{t('nginx.hintExplain')}</span>
         </div>
       </div>
 
@@ -280,7 +282,7 @@ export default function NginxTool() {
           <div className="flex w-64 shrink-0 flex-col border-r border-line">
             {recents.length ? (
               <div className="mb-1 border-b border-line pb-1">
-                <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">Terakhir dibuka</div>
+                <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
                 {recents.slice(0, 5).map((item) => (
                   <button
                     key={item.path}
@@ -300,7 +302,7 @@ export default function NginxTool() {
                   <Spinner />
                 </div>
               ) : files.length === 0 ? (
-                <p className="p-4 text-center text-xs text-muted">Tidak ada file .conf terbaca</p>
+                <p className="p-4 text-center text-xs text-muted">{t("nginx.empty")}</p>
               ) : (
                 files.map((file) => (
                   <button
@@ -351,7 +353,7 @@ export default function NginxTool() {
               }}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">Pilih file konfigurasi</div>
+            <div className="flex flex-1 items-center justify-center text-sm text-muted">{t("nginx.pickFile")}</div>
           )}
         </div>
 

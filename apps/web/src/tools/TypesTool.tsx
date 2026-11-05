@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
 import { CopyButton, Icon, PageHeader } from '../components/ui';
 import { jsonToTs } from '../lib/json2ts';
+import { useI18n } from '../lib/i18n';
 
 const KEY = 'st:types';
 const SAMPLE = JSON.stringify(
@@ -21,6 +22,7 @@ const SAMPLE = JSON.stringify(
 );
 
 export default function TypesTool() {
+  const { t } = useI18n();
   const [text, setText] = useState(() => localStorage.getItem(KEY) ?? SAMPLE);
   const [root, setRoot] = useState('Root');
 
@@ -64,7 +66,7 @@ export default function TypesTool() {
           className="input w-36 py-1.5 text-[13px]"
           aria-label="Nama root"
         />
-        <CopyButton text={result.output} label="Salin TS" />
+        <CopyButton text={result.output} label={t('common.copy') + ' TS'} />
         <button type="button" className="btn" onClick={download} disabled={!result.ok} title="Unduh .ts">
           <Icon name="download" />
         </button>

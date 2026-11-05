@@ -28,6 +28,34 @@ async function bootstrap() {
       });
   });
 
+  // Webhook receiver butuh body mentah apa adanya (JSON, form, teks, biner kecil).
+  // Kumpulkan sendiri tanpa body-parser: req._body = true membuat parser JSON di
+  // bawahnya melewati route ini, jadi endpoint lain tetap aman.
+  instance.use('/api/hook', (req: any, res: any, next: () => void) => {
+    if (req.method === 'GET' || req.method === 'HEAD') return next();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > 10 * 1024 * 1024) {
+        done = true;
+        res.statusCode = 413;
+        res.end('Body terlalu besar');
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (done) return;
+      req.body = Buffer.concat(chunks);
+      req._body = true;
+      next();
+    });
+    req.on('error', () => next());
+  });
+
   // Setelah proxy: baru parse JSON untuk endpoint sendiri.
   app.useBodyParser('json', { limit: '25mb' });
 

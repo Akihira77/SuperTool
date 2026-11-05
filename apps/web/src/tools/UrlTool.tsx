@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
+import { useI18n } from '../lib/i18n';
 
 type View = { id: string; name: string; url: string; proxy: boolean; createdAt?: number };
 type Status = { ok: boolean; status?: number; error?: string };
@@ -57,6 +58,7 @@ function subdomainSrc(url: string): string | null {
 }
 
 export default function UrlTool() {
+  const { t } = useI18n();
   const [views, setViews] = useState<View[]>([]);
   const [ready, setReady] = useState(false);
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem(ACTIVE_KEY) ?? '');
@@ -92,7 +94,7 @@ export default function UrlTool() {
       }
       setError('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memuat daftar URL');
+      setError(err instanceof ApiError ? err.message : t('err.loadUrls'));
     } finally {
       setReady(true);
     }
@@ -166,7 +168,7 @@ export default function UrlTool() {
       setDraft({ name: '', url: '' });
       setError('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan URL');
+      setError(err instanceof ApiError ? err.message : t('err.saveUrl'));
     }
   };
 
@@ -176,12 +178,12 @@ export default function UrlTool() {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('Hapus URL ini dari daftar?')) return;
+    if (!window.confirm(t('viewer.confirmDelete'))) return;
     try {
       await api.del('/urls/' + id);
       setViews((prev) => prev.filter((view) => view.id !== id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghapus URL');
+      setError(err instanceof ApiError ? err.message : t('err.deleteUrl'));
     }
   };
 
@@ -190,7 +192,7 @@ export default function UrlTool() {
       const result = await api.put<{ url: View }>('/urls/' + view.id, { proxy: !view.proxy });
       setViews((prev) => prev.map((item) => (item.id === view.id ? result.url : item)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mengubah mode proxy');
+      setError(err instanceof ApiError ? err.message : t('err.proxyMode'));
     }
   };
 
@@ -208,9 +210,9 @@ export default function UrlTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="URL Viewer" subtitle={active ? active.url : 'Simpan URL tool lain lalu buka di sini'}>
-        <button type="button" className="btn" onClick={() => active && bump(active.id)} disabled={!active} title="Muat ulang">
-          <Icon name="refresh" /> Muat ulang
+      <PageHeader title="URL Viewer" subtitle={active ? active.url : t('viewer.subtitle')}>
+        <button type="button" className="btn" onClick={() => active && bump(active.id)} disabled={!active} title={t('common.reload')}>
+          <Icon name="refresh" /> {t('common.reload')}
         </button>
         <button type="button" className="btn" onClick={() => active && void probe(active)} disabled={!active || checking} title="Cek koneksi">
           {checking ? <Spinner /> : <Icon name="play" />} Cek
@@ -260,9 +262,7 @@ export default function UrlTool() {
 
       {active && !active.proxy ? (
         <div className="shrink-0 border-b border-line bg-accent/5 px-3 py-1.5 text-[11.5px] text-muted">
-          Login gagal? Aktifkan <span className="text-ink">Proxy</span> lalu pilih{' '}
-          <span className="text-ink">Subdomain</span>: tiap tool dapat origin sendiri, jadi cookie dan panggilan{' '}
-          <span className="mono">/api/...</span> bekerja seperti aslinya.
+          {t('viewer.proxyTip')} <span className="text-ink">Proxy</span> + <span className="text-ink">Subdomain</span>: <span className="mono">/api/...</span>
         </div>
       ) : null}
 
@@ -276,7 +276,7 @@ export default function UrlTool() {
         <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">
           <Icon name="x" size={13} />
           <span className="min-w-0 flex-1 truncate">
-            Tidak bisa terhubung ke {active.url}. {status.error ?? 'Status ' + status.status}
+            {t('viewer.cannotConnect')} {active.url}. {status.error ?? t('viewer.status') + ' ' + status.status}
           </span>
           {!active.proxy ? (
             <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" onClick={() => void toggleProxy(active)}>
@@ -338,7 +338,7 @@ export default function UrlTool() {
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" className="input py-1.5 text-[12px]" />
             <input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="http://127.0.0.1:3000" className="input py-1.5 text-[12px]" />
             <button type="submit" className="btn btn-primary w-full justify-center py-1.5 text-[12px]">
-              <Icon name={editingId ? 'check' : 'plus'} /> {editingId ? 'Simpan' : 'Tambah URL'}
+              <Icon name={editingId ? 'check' : 'plus'} /> {editingId ? t('common.save') : t('viewer.addUrl')}
             </button>
           </form>
         </div>
@@ -368,7 +368,7 @@ export default function UrlTool() {
               />
             ))
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted">{ready ? 'Tambah URL untuk mulai' : ''}</div>
+            <div className="flex h-full items-center justify-center text-sm text-muted">{ready ? t('viewer.addToStart') : ''}</div>
           )}
         </div>
       </div>

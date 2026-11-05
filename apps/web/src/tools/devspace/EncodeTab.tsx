@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CopyButton, Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 
 type Mode = 'konversi' | 'url' | 'html' | 'jwt';
 type Enc = 'text' | 'base64' | 'base64url' | 'hex';
@@ -66,6 +67,7 @@ function transform(mode: Mode, text: string, decode: boolean): string {
 }
 
 export default function EncodeTab() {
+  const { t } = useI18n();
   const [mode, setMode] = useState<Mode>('konversi');
   const [from, setFrom] = useState<Enc>('text');
   const [to, setTo] = useState<Enc>('base64');
@@ -95,7 +97,7 @@ export default function EncodeTab() {
       const result = await api.post<{ hex: string }>('/dev/hash', { text: input, algo, hmacKey: hmacKey || undefined });
       setHash(result.hex);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghitung hash');
+      setError(err instanceof ApiError ? err.message : t('err.hash'));
     } finally {
       setBusy(false);
     }
@@ -178,7 +180,7 @@ export default function EncodeTab() {
             </label>
           ) : null}
           <button type="button" className="btn btn-primary cursor-pointer" onClick={run}>
-            <Icon name="play" /> Jalankan
+            <Icon name="play" /> {t('common.run')}
           </button>
         </div>
       </div>

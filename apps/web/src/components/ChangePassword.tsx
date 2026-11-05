@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useI18n } from '../lib/i18n';
 import { Icon, PasswordInput, Spinner } from './ui';
 
 export default function ChangePassword({ onDone, forced }: { onDone: () => void; forced: boolean }) {
+  const { t } = useI18n();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -33,7 +35,7 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
       await api.post('/auth/change-password', { current, next });
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan password');
+      setError(err instanceof ApiError ? err.message : t('password.error'));
     } finally {
       setBusy(false);
     }
@@ -48,7 +50,7 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
           </div>
           <div>
             <h1 className="text-base font-semibold">Ganti password</h1>
-            <p className="text-xs text-muted">{forced ? 'Wajib diganti sebelum memakai tool' : 'Perbarui password akun'}</p>
+            <p className="text-xs text-muted">{forced ? t('password.forced') : t('password.subtitle')}</p>
           </div>
         </div>
 
@@ -73,7 +75,7 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
 
         <button type="submit" disabled={busy || !ready} className="btn btn-primary mt-5 w-full justify-center py-2">
           {busy ? <Spinner /> : <Icon name="check" />}
-          Simpan password
+          {t('password.save')}
         </button>
       </form>
     </div>

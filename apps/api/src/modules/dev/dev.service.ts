@@ -310,13 +310,15 @@ export class DevService {
     }
   }
 
+  private async gitExec(abs: string, args: string[], maxBuffer = 8 * 1024 * 1024) {
+    const { stdout } = await exec('git', ['-C', abs, ...args], { timeout: 20_000, maxBuffer });
+    return stdout;
+  }
+
   async git(path: string, ref?: string) {
     const abs = await jailPath(path);
     const wanted = String(ref ?? '').trim();
-    const run = async (args: string[]) => {
-      const { stdout } = await exec('git', ['-C', abs, ...args], { timeout: 15_000, maxBuffer: 8 * 1024 * 1024 });
-      return stdout;
-    };
+    const run = (args: string[]) => this.gitExec(abs, args);
     try {
       await run(['rev-parse', '--git-dir']);
     } catch {
@@ -326,7 +328,11 @@ export class DevService {
     const [branch, status, log, diffstat, tags, branches, graph] = await Promise.all([
       run(['branch', '--show-current']).catch(() => ''),
       run(['status', '--porcelain=v1', '-uall']).catch(() => ''),
-      (wanted ? run(['log', '-10', '--pretty=%h|%s|%an|%ar', wanted]) : run(['log', '-10', '--pretty=%h|%s|%an|%ar'])).catch(() => ''),
+      // Riwayat commit untuk grafik: hash, parent, penulis, dekorasi branch.
+      (wanted
+        ? run(['log', '-60', '--pretty=%H%x1f%P%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%D%x1f%s', wanted])
+        : run(['log', '--all', '-60', '--pretty=%H%x1f%P%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%D%x1f%s'])
+      ).catch(() => ''),
       run(['diff', '--stat=100']).catch(() => ''),
       run(['tag', '--sort=-creatordate']).catch(() => ''),
       run(['branch', '--format=%(refname:short)']).catch(() => ''),
@@ -347,15 +353,16 @@ export class DevService {
       // tidak ada upstream
     }
 
-    const staged: string[] = [];
-    const changed: string[] = [];
-    const untracked: string[] = [];
+    // status per berkas: { status: 'M', path, }
+    const staged: Array<{ status: string; path: string }> = [];
+    const changed: Array<{ status: string; path: string }> = [];
+    const untracked: Array<{ status: string; path: string }> = [];
     for (const line of status.split('\n').filter(Boolean)) {
       const code = line.slice(0, 2);
       const file = line.slice(3);
-      if (code === '??') untracked.push(file);
-      else if (code[0] !== ' ' && code[0] !== '?') staged.push(code + ' ' + file);
-      else changed.push(code + ' ' + file);
+      if (code === '??') untracked.push({ status: '?', path: file });
+      else if (code[0] !== ' ' && code[0] !== '?') staged.push({ status: code.trim() || 'M', path: file });
+      else changed.push({ status: (code[1] ?? 'M').trim() || 'M', path: file });
     }
 
     return {
@@ -366,18 +373,67 @@ export class DevService {
       staged,
       changed,
       untracked,
-      commits: log
+      log: log
         .split('\n')
         .filter(Boolean)
         .map((line) => {
-          const [hash, subject, author, when] = line.split('|');
-          return { hash, subject, author, when };
+          const [hash, parents, short, author, email, when, refs, subject] = line.split('\x1f');
+          return {
+            hash,
+            short: short ?? hash.slice(0, 7),
+            parents: (parents ?? '').split(' ').filter(Boolean),
+            author,
+            email,
+            when,
+            subject,
+            refs: (refs ?? '')
+              .split(',')
+              .map((item) => item.trim().replace(/^HEAD -> /, '').replace(/^tag: /, ''))
+              .filter(Boolean),
+          };
         }),
       diffstat: diffstat.trim(),
       tags: tags.split('\n').filter(Boolean).slice(0, 5),
       ref: wanted || null,
       branches: branches.split('\n').filter(Boolean).slice(0, 30),
       graph: graph.replace(/\s+$/g, ''),
+      head: branch.trim() || null,
     };
+  }
+
+  /** Stage / unstage berkas dari panel status. */
+  async gitStage(path: string, files: string[], action: string) {
+    const abs = await jailPath(path);
+    const list = files.filter(Boolean).slice(0, 200);
+    if (!list.length) throw new BadRequestException('Tidak ada berkas dipilih');
+    const args = action === 'unstage' ? ['restore', '--staged', '--', ...list] : ['add', '--', ...list];
+    try {
+      await this.gitExec(abs, args);
+    } catch (err) {
+      throw new BadRequestException('Git gagal: ' + (err as Error).message.slice(0, 160));
+    }
+    return { ok: true, files: list.length, action: action === 'unstage' ? 'unstage' : 'stage' };
+  }
+
+  /** Diff satu berkas (working tree atau staged). */
+  async gitDiff(path: string, file: string, staged = false) {
+    const abs = await jailPath(path);
+    const args = ['diff', ...(staged ? ['--cached'] : []), '--', file];
+    try {
+      return { diff: await this.gitExec(abs, args, 4 * 1024 * 1024) };
+    } catch (err) {
+      throw new BadRequestException('Git gagal: ' + (err as Error).message.slice(0, 160));
+    }
+  }
+
+  /** Patch satu commit. */
+  async gitShow(path: string, hash: string) {
+    const abs = await jailPath(path);
+    if (!/^[0-9a-f]{4,40}$/i.test(hash)) throw new BadRequestException('Hash tidak valid');
+    try {
+      return { diff: await this.gitExec(abs, ['show', '--format=', '--patch', hash], 4 * 1024 * 1024) };
+    } catch (err) {
+      throw new BadRequestException('Git gagal: ' + (err as Error).message.slice(0, 160));
+    }
   }
 }

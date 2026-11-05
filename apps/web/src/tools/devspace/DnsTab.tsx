@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon, Spinner } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 
 type Geo = { status?: string; country?: string; regionName?: string; city?: string; isp?: string; org?: string; timezone?: string; query?: string } | null;
 type Result = {
@@ -29,6 +30,7 @@ function Group({ title, rows }: { title: string; rows: string[] }) {
 }
 
 export default function DnsTab() {
+  const { t } = useI18n();
   const [host, setHost] = useState('github.com');
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,7 +45,7 @@ export default function DnsTab() {
       setResult(data);
     } catch (err) {
       setResult(null);
-      setError(err instanceof ApiError ? err.message : 'Gagal melakukan lookup');
+      setError(err instanceof ApiError ? err.message : t('err.lookup'));
     } finally {
       setBusy(false);
     }

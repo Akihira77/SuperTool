@@ -169,8 +169,9 @@ export class FilesService {
       '--exclude-dir=dist',
       '--exclude-dir=.cache',
       '--exclude-dir=.pnpm-store',
-      // Pola exclude dari UI, contoh: *.log, *.map, *.min.js
-      ...exclude.filter(Boolean).map((glob) => '--exclude=' + glob),
+      // Pola exclude dari UI: berkas (*.log) dan folder (node_modules/).
+      ...exclude.filter((glob) => !glob.endsWith('/')).map((glob) => '--exclude=' + glob),
+      ...exclude.filter((glob) => glob.endsWith('/')).map((glob) => '--exclude-dir=' + glob.slice(0, -1)),
       '-m',
       '20',
       '-F',
@@ -286,7 +287,7 @@ export class FilesService {
       }
       for (const dirent of dirents) {
         const full = join(dir, dirent.name);
-        if (exclude.some((glob) => globMatch(glob, dirent.name))) continue;
+        if (exclude.some((glob) => globMatch(glob.replace(/\/$/, ''), dirent.name))) continue;
         if (dirent.name.toLowerCase().includes(needle)) {
           let size = 0;
           let mtime = 0;

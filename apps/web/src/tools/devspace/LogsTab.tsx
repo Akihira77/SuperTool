@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 import { bytes } from '../../lib/format';
 
 type TailReply = { path: string; size: number; mtime: number; lines: string[] };
 
 export default function LogsTab() {
+  const { t } = useI18n();
   const [path, setPath] = useState('');
   const [lines, setLines] = useState<string[]>([]);
   const [info, setInfo] = useState<{ size: number; path: string } | null>(null);
@@ -50,7 +52,7 @@ export default function LogsTab() {
       setLines(result.lines);
       setInfo({ size: result.size, path: result.path });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca log');
+      setError(err instanceof ApiError ? err.message : t('err.log'));
     } finally {
       setBusy(false);
     }
@@ -69,7 +71,7 @@ export default function LogsTab() {
       setInfo({ size: result.size, path: result.path });
     } catch (err) {
       setBusy(false);
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca log');
+      setError(err instanceof ApiError ? err.message : t('err.log'));
       return;
     }
     setBusy(false);
@@ -115,7 +117,7 @@ export default function LogsTab() {
           spellCheck={false}
         />
         <button type="button" className="btn" onClick={() => void load(path)} disabled={busy}>
-          {busy ? <Spinner /> : <Icon name="refresh" />} Muat
+          {busy ? <Spinner /> : <Icon name="refresh" />} {t('common.reload')}
         </button>
         <button
           type="button"
@@ -177,7 +179,7 @@ export default function LogsTab() {
         ref={boxRef}
         className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#0b1118] p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
       >
-        {shown.length ? shown.join(String.fromCharCode(10)) : '(belum ada baris)'}
+        {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.empty')}
       </pre>
     </div>
   );

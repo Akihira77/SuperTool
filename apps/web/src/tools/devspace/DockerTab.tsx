@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
 
 type Container = {
   id: string;
@@ -15,6 +16,7 @@ type Container = {
 type Image = { repo: string; tag: string; size: string; created: string };
 
 export default function DockerTab() {
+  const { t } = useI18n();
   const [view, setView] = useState<'containers' | 'images'>('containers');
   const [containers, setContainers] = useState<Container[]>([]);
   const [images, setImages] = useState<Image[]>([]);
@@ -35,7 +37,7 @@ export default function DockerTab() {
           setContainers(result.rows);
         }
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Gagal membaca docker');
+        setError(err instanceof ApiError ? err.message : t('err.docker'));
       } finally {
         setBusy(false);
       }
@@ -53,7 +55,7 @@ export default function DockerTab() {
       const result = await api.get<{ text: string }>('/dev/docker' + qs({ view: 'logs', id: container.id }));
       setLogs({ id: container.name, text: result.text });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca log');
+      setError(err instanceof ApiError ? err.message : t('err.log'));
     }
   };
 
@@ -73,7 +75,7 @@ export default function DockerTab() {
           ))}
         </div>
         <button type="button" className="btn ml-auto" onClick={() => void load(view)} disabled={busy}>
-          {busy ? <Spinner /> : <Icon name="refresh" />} Muat ulang
+          {busy ? <Spinner /> : <Icon name="refresh" />} {t('common.reload')}
         </button>
         <span className="text-[11px] text-muted">read-only</span>
       </div>
@@ -130,7 +132,7 @@ export default function DockerTab() {
             </tbody>
           </table>
           {view === 'containers' && !containers.length && !busy ? (
-            <div className="p-4 text-[12px] text-muted">Tidak ada container.</div>
+            <div className="p-4 text-[12px] text-muted">{t("docker.empty")}</div>
           ) : null}
         </div>
 

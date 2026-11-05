@@ -148,13 +148,13 @@ export default function CompressTool() {
         if (pollRef.current) window.clearInterval(pollRef.current);
         pollRef.current = null;
         setBusy(false);
-        if (job.state === 'error') setError(job.error ?? 'Gagal memproses');
+        if (job.state === 'error') setError(job.error ?? t('err.process'));
         else if (job.result) setResult(job.result);
       } catch (err) {
         if (pollRef.current) window.clearInterval(pollRef.current);
         pollRef.current = null;
         setBusy(false);
-        setError(err instanceof ApiError ? err.message : 'Gagal memantau proses');
+        setError(err instanceof ApiError ? err.message : t('err.monitor'));
       }
     }, 700);
   };
@@ -179,7 +179,7 @@ export default function CompressTool() {
       poll(body.jobId);
     } catch (err) {
       setBusy(false);
-      setError(err instanceof ApiError ? err.message : 'Gagal memproses');
+      setError(err instanceof ApiError ? err.message : t('err.process'));
     }
   };
 

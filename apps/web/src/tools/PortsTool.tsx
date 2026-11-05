@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError } from '../lib/api';
+import { useI18n } from '../lib/i18n';
 import { bytes, duration } from '../lib/format';
 
 type Port = {
@@ -28,6 +29,40 @@ type Proc = {
 
 type System = { load: number[]; cpus: number; memTotal: number; memFree: number; uptime: number };
 type SortKey = 'pid' | 'user' | 'cpu' | 'mem' | 'rssKb' | 'elapsed';
+
+/** Bar tipis untuk metrik (0-100%). */
+function Meter({ value, label, text, tone }: { value: number; label: string; text: string; tone?: 'warn' | 'bad' }) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div className="flex min-w-32 flex-col gap-0.5">
+      <div className="flex items-baseline gap-1.5 text-[11px] text-muted">
+        <span className="tracking-wide uppercase">{label}</span>
+        <span className="mono text-ink/85">{text}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-panel2">
+        <div
+          className={cn('h-full rounded-full transition-[width]', tone === 'bad' ? 'bg-bad' : tone === 'warn' ? 'bg-warn' : 'bg-accent')}
+          style={{ width: pct + '%' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Sel metrik: angka + bar latar sesuai nilai. */
+function MetricCell({ value, danger = 30 }: { value: number; danger?: number }) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <td className="relative border-b border-line/60 px-3 py-1.5 text-right">
+      <span
+        className={cn('absolute inset-y-1 left-1 rounded-sm opacity-20', value >= danger ? 'bg-warn' : 'bg-accent')}
+        style={{ width: 'calc(' + pct + '% - 8px)' }}
+        aria-hidden="true"
+      />
+      <span className={cn('mono relative', value >= danger ? 'text-warn' : 'text-ink/85')}>{value.toFixed(1)}</span>
+    </td>
+  );
+}
 
 const elapsedSeconds = (value: string) => {
   const parts = value.split(':').map((part) => Number(part.replace(/[^0-9.]/g, '')) || 0);
@@ -74,6 +109,7 @@ export default function PortsTool() {
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'cpu', dir: -1 });
+  const { t } = useI18n();
 
   const load = useCallback(async () => {
     try {
@@ -89,7 +125,7 @@ export default function PortsTool() {
       }
       setError('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca data proses');
+      setError(err instanceof ApiError ? err.message : t('ports.error'));
     } finally {
       setLoading(false);
     }
@@ -107,12 +143,12 @@ export default function PortsTool() {
   }, [auto, load]);
 
   const kill = async (pid: number, label: string) => {
-    if (!window.confirm('Kirim SIGTERM ke PID ' + pid + '?\n\n' + label + '\n\nProses akan berhenti.')) return;
+    if (!window.confirm(t('ports.confirmKill') + ' ' + pid + '?\n\n' + label)) return;
     try {
       await api.post('/ports/kill', { pid });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghentikan proses');
+      setError(err instanceof ApiError ? err.message : t('err.kill'));
     }
   };
 
@@ -146,11 +182,13 @@ export default function PortsTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
-        title="Port & Proses"
+        title={t('ports.title')}
         subtitle={
-          (tab === 'ports' ? ports.length + ' port listening' : procs.length + ' proses teratas') +
-          ' · diperbarui ' +
-          (updatedAt ? new Date(updatedAt).toLocaleTimeString('id-ID') : '-')
+          (tab === 'ports' ? ports.length + ' ' + t('ports.listening') : procs.length + ' ' + t('ports.topProcs')) +
+          ' · ' +
+          t('ports.updated') +
+          ' ' +
+          (updatedAt ? new Date(updatedAt).toLocaleTimeString() : '-')
         }
       >
         <div className="flex overflow-hidden rounded-lg border border-line">
@@ -164,34 +202,43 @@ export default function PortsTool() {
                 tab === item ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
               )}
             >
-              {item === 'ports' ? 'Port' : 'Proses'}
+              {item === 'ports' ? t('ports.tabPorts') : t('ports.tabProcs')}
             </button>
           ))}
         </div>
         <div className="relative">
           <Icon name="search" className="absolute top-2 left-2 text-muted" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter" className="input w-44 py-1.5 pl-7 text-[13px]" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('ports.filter')} className="input w-44 py-1.5 pl-7 text-[13px]" />
         </div>
-        <button type="button" className={cn('btn', auto && 'btn-primary')} onClick={() => setAuto(!auto)} title="Auto refresh 5 detik">
-          Auto
+        <button type="button" className={cn('btn', auto && 'btn-primary')} onClick={() => setAuto(!auto)} title={t('ports.autoHint')}>
+          {t('ports.auto')}
         </button>
         <button type="button" className="btn" onClick={() => void load()}>
-          <Icon name="refresh" /> Refresh
+          <Icon name="refresh" /> {t('ports.refresh')}
         </button>
       </PageHeader>
 
       {system ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-4 border-b border-line px-3 py-1.5 text-[11.5px] text-muted">
-          <span>
-            load <span className="mono text-ink/80">{system.load.join(' / ')}</span>
+        <div className="flex shrink-0 flex-wrap items-center gap-5 border-b border-line px-3 py-2">
+          <Meter
+            label="load"
+            value={(system.load[0] / system.cpus) * 100}
+            text={system.load.map((item) => item.toFixed(2)).join(' / ')}
+            tone={system.load[0] / system.cpus > 1 ? 'warn' : undefined}
+          />
+          <Meter
+            label="RAM"
+            value={(memUsed / system.memTotal) * 100}
+            text={bytes(memUsed) + ' / ' + bytes(system.memTotal)}
+            tone={memUsed / system.memTotal > 0.9 ? 'bad' : memUsed / system.memTotal > 0.75 ? 'warn' : undefined}
+          />
+          <span className="text-[11.5px] text-muted">
+            {t('ports.cpu')} <span className="mono text-ink/80">{system.cpus}</span>
           </span>
-          <span>
-            CPU <span className="mono text-ink/80">{system.cpus}</span>
+          <span className="text-[11.5px] text-muted">
+            {t('ports.procs')} <span className="mono text-ink/80">{procs.length}</span>
           </span>
-          <span>
-            RAM <span className="mono text-ink/80">{bytes(memUsed)}</span> / {bytes(system.memTotal)}
-          </span>
-          <span>
+          <span className="text-[11.5px] text-muted">
             uptime <span className="mono text-ink/80">{duration(Math.round(system.uptime))}</span>
           </span>
         </div>
@@ -210,11 +257,11 @@ export default function PortsTool() {
               <tr>
                 <th className="border-b border-line px-3 py-2 font-medium">Port</th>
                 <th className="border-b border-line px-3 py-2 font-medium">Alamat</th>
-                <th className="border-b border-line px-3 py-2 font-medium">Proses</th>
+                <th className="border-b border-line px-3 py-2 font-medium">{t('ports.tabProcs')}</th>
                 <th className="border-b border-line px-3 py-2 font-medium">PID</th>
                 <th className="border-b border-line px-3 py-2 font-medium">Uptime</th>
                 <th className="border-b border-line px-3 py-2 font-medium">Koneksi</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium">Aksi</th>
+                <th className="border-b border-line px-3 py-2 text-right font-medium">{t('ports.action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -239,7 +286,7 @@ export default function PortsTool() {
                       rel="noreferrer"
                       title="Buka di tab baru"
                     >
-                      <Icon name="external" size={13} /> buka
+                      <Icon name="external" size={13} /> {t('common.open')}
                     </a>
                     <button
                       type="button"
@@ -263,21 +310,21 @@ export default function PortsTool() {
               ))}
             </tbody>
           </table>
-          {filteredPorts.length === 0 ? <p className="p-6 text-center text-sm text-muted">Tidak ada port yang cocok</p> : null}
+          {filteredPorts.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t('ports.noMatch')}</p> : null}
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[12.5px]">
             <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
               <tr>
-                <SortTh label="PID" sortKey="pid" sort={sort} onSort={toggleSort} />
-                <SortTh label="User" sortKey="user" sort={sort} onSort={toggleSort} />
+                <SortTh label={t('ports.pid')} sortKey="pid" sort={sort} onSort={toggleSort} />
+                <SortTh label={t('ports.user')} sortKey="user" sort={sort} onSort={toggleSort} />
                 <SortTh label="CPU%" sortKey="cpu" sort={sort} onSort={toggleSort} right />
                 <SortTh label="MEM%" sortKey="mem" sort={sort} onSort={toggleSort} right />
                 <SortTh label="RSS" sortKey="rssKb" sort={sort} onSort={toggleSort} right />
-                <SortTh label="Waktu" sortKey="elapsed" sort={sort} onSort={toggleSort} />
-                <th className="border-b border-line px-3 py-2 text-left font-medium text-muted">Perintah</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium text-muted">Aksi</th>
+                <SortTh label={t('ports.time')} sortKey="elapsed" sort={sort} onSort={toggleSort} />
+                <th className="border-b border-line px-3 py-2 text-left font-medium text-muted">{t('ports.command')}</th>
+                <th className="border-b border-line px-3 py-2 text-right font-medium text-muted">{t('ports.action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -285,8 +332,8 @@ export default function PortsTool() {
                 <tr key={row.pid} className="group hover:bg-panel2/60">
                   <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.pid}</td>
                   <td className="border-b border-line/60 px-3 py-1.5 text-muted">{row.user}</td>
-                  <td className={cn('mono border-b border-line/60 px-3 py-1.5 text-right', row.cpu > 30 && 'text-warn')}>{row.cpu.toFixed(1)}</td>
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-right">{row.mem.toFixed(1)}</td>
+                  <MetricCell value={row.cpu} />
+                  <MetricCell value={row.mem} danger={50} />
                   <td className="mono border-b border-line/60 px-3 py-1.5 text-right text-muted">{bytes(row.rssKb * 1024)}</td>
                   <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.elapsed}</td>
                   <td className="max-w-[26rem] border-b border-line/60 px-3 py-1.5">
@@ -309,7 +356,7 @@ export default function PortsTool() {
               ))}
             </tbody>
           </table>
-          {filteredProcs.length === 0 ? <p className="p-6 text-center text-sm text-muted">Tidak ada proses yang cocok</p> : null}
+          {filteredProcs.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t('ports.noMatch')}</p> : null}
         </div>
       )}
     </div>

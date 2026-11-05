@@ -1,35 +1,168 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Icon, Spinner, cn } from '../../components/ui';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Empty, Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
+import { useI18n } from '../../lib/i18n';
+import { useToast } from '../../components/toast';
 
+type Change = { status: string; path: string };
+type Commit = {
+  hash: string;
+  short: string;
+  parents: string[];
+  author: string;
+  email: string;
+  when: string;
+  subject: string;
+  refs: string[];
+};
 type GitState = {
   path: string;
   branch: string;
+  head: string | null;
   ahead: number;
   behind: number;
-  staged: string[];
-  changed: string[];
-  untracked: string[];
-  commits: Array<{ hash: string; subject: string; author: string; when: string }>;
+  staged: Change[];
+  changed: Change[];
+  untracked: Change[];
+  log: Commit[];
+  branches: string[];
+  graph: string;
   diffstat: string;
   tags: string[];
   ref: string | null;
-  branches: string[];
-  graph: string;
 };
-
 type Dir = { name: string; path: string };
+type Selection = { kind: 'file'; file: string; staged: boolean } | { kind: 'commit'; hash: string };
+
+const LANE_W = 14;
+const ROW_H = 30;
+const COLORS = ['#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa', '#22d3ee', '#f87171'];
+
+/**
+ * Hitung posisi lane tiap commit (mirip git log --graph, tanpa lib).
+ * lanes[] = hash yang ditunggu di kolom itu pada baris berikutnya.
+ */
+function layout(commits: Commit[]) {
+  const lanes: Array<string | null> = [];
+  const rows = commits.map((commit) => {
+    let lane = lanes.indexOf(commit.hash);
+    if (lane < 0) {
+      lane = lanes.indexOf(null);
+      if (lane < 0) {
+        lane = lanes.length;
+        lanes.push(commit.hash);
+      } else {
+        lanes[lane] = commit.hash;
+      }
+    }
+    const before = lanes.slice();
+    const after = lanes.slice();
+    after[lane] = commit.parents[0] ?? null;
+    for (const parent of commit.parents.slice(1)) {
+      if (after.includes(parent)) continue;
+      const slot = after.indexOf(null);
+      if (slot >= 0) after[slot] = parent;
+      else after.push(parent);
+    }
+    for (let index = 0; index < after.length; index += 1) lanes[index] = after[index] ?? null;
+    return { commit, lane, before, after };
+  });
+  const width = Math.max(1, ...rows.map((row) => Math.max(row.before.length, row.after.length, row.lane + 1)));
+  return { rows, width };
+}
+
+/** Grafik satu baris dalam SVG: garis lane + titik commit + kurva ke parent. */
+function GraphCell({ row, width }: { row: ReturnType<typeof layout>['rows'][number]; width: number }) {
+  const x = (lane: number) => lane * LANE_W + LANE_W / 2;
+  const color = (lane: number) => COLORS[lane % COLORS.length];
+  const mid = ROW_H / 2;
+  return (
+    <svg width={width * LANE_W} height={ROW_H} className="shrink-0" aria-hidden="true">
+      {row.before.map((hash, lane) =>
+        hash && lane !== row.lane ? (
+          <line key={'b' + lane} x1={x(lane)} y1={0} x2={x(lane)} y2={ROW_H} stroke={color(lane)} strokeWidth={1.6} opacity={0.75} />
+        ) : null,
+      )}
+      {row.before[row.lane] ? (
+        <line x1={x(row.lane)} y1={0} x2={x(row.lane)} y2={mid} stroke={color(row.lane)} strokeWidth={1.8} />
+      ) : null}
+      {row.after.map((hash, lane) =>
+        hash && lane !== row.lane ? (
+          <line key={'a' + lane} x1={x(lane)} y1={0} x2={x(lane)} y2={ROW_H} stroke={color(lane)} strokeWidth={1.6} opacity={0.75} />
+        ) : null,
+      )}
+      {row.after[row.lane] ? (
+        <line x1={x(row.lane)} y1={mid} x2={x(row.lane)} y2={ROW_H} stroke={color(row.lane)} strokeWidth={1.8} />
+      ) : null}
+      {row.commit.parents.map((parent, index) => {
+        const target = row.after.indexOf(parent);
+        if (target < 0 || target === row.lane) return null;
+        return (
+          <path
+            key={'p' + index}
+            d={'M' + x(row.lane) + ' ' + mid + ' C' + x(row.lane) + ' ' + (mid + 8) + ' ' + x(target) + ' ' + (mid - 2) + ' ' + x(target) + ' ' + ROW_H}
+            fill="none"
+            stroke={color(target)}
+            strokeWidth={1.7}
+          />
+        );
+      })}
+      <circle cx={x(row.lane)} cy={mid} r={4} fill={color(row.lane)} stroke="#0b1118" strokeWidth={1.5} />
+    </svg>
+  );
+}
+
+function initials(author: string) {
+  return author
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+function DiffView({ text, loading }: { text: string; loading: boolean }) {
+  const { t } = useI18n();
+  if (loading) return <div className="flex items-center gap-2 p-4 text-[12px] text-muted"><Spinner /> {t('git.loadingDiff')}</div>;
+  if (!text.trim()) return <Empty text={t('git.noDiff')} />;
+  return (
+    <pre className="mono min-h-0 flex-1 overflow-auto p-2 text-[11.5px] leading-[1.45]">
+      {text.split('\n').map((line, index) => (
+        <div
+          key={index}
+          className={cn(
+            'whitespace-pre-wrap px-1',
+            line.startsWith('+++') || line.startsWith('---')
+              ? 'text-muted'
+              : line.startsWith('+')
+                ? 'bg-ok/12 text-ok'
+                : line.startsWith('-')
+                  ? 'bg-bad/12 text-bad'
+                  : line.startsWith('@@')
+                    ? 'text-accent'
+                    : 'text-ink/70',
+          )}
+        >
+          {line || ' '}
+        </div>
+      ))}
+    </pre>
+  );
+}
 
 export default function GitTab() {
+  const { t } = useI18n();
+  const toast = useToast();
   const [roots, setRoots] = useState<Array<{ path: string; label: string }>>([]);
   const [browse, setBrowse] = useState('');
   const [parent, setParent] = useState<string | null>(null);
   const [dirs, setDirs] = useState<Dir[]>([]);
-  const [picked, setPicked] = useState('');
-  const [ref, setRef] = useState<string | null>(null);
   const [state, setState] = useState<GitState | null>(null);
+  const [ref, setRef] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [diff, setDiff] = useState('');
+  const [diffLoading, setDiffLoading] = useState(false);
 
   const loadDirs = useCallback(async (path: string) => {
     if (!path) return;
@@ -45,9 +178,9 @@ export default function GitTab() {
           .map((entry) => ({ name: entry.name, path: entry.path })),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca folder');
+      setError(err instanceof ApiError ? err.message : t('git.readFolderError'));
     }
-  }, []);
+  }, [t]);
 
   const load = useCallback(async (target: string, branch?: string | null) => {
     if (!target.trim()) return;
@@ -57,132 +190,116 @@ export default function GitTab() {
       setState(await api.get<GitState>('/dev/git' + qs({ path: target, ref: branch ?? undefined })));
     } catch (err) {
       setState(null);
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca git');
+      setError(err instanceof ApiError ? err.message : t('git.readError'));
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     api
       .get<Array<{ path: string; label: string }>>('/fs/roots')
       .then((list) => {
         setRoots(list);
-        if (list.length) {
-          void loadDirs(list[0].path);
-          setPicked(list[0].path);
-        }
+        if (list.length) void loadDirs(list[0].path);
       })
       .catch(() => undefined);
   }, [loadDirs]);
 
-  const crumbs = browse
-    ? browse
-        .slice((roots.find((root) => browse.startsWith(root.path))?.path ?? '').length)
-        .split('/')
-        .filter(Boolean)
-    : [];
+  const openDiff = useCallback(async (next: Selection) => {
+    if (!state) return;
+    setSelection(next);
+    setDiffLoading(true);
+    setDiff('');
+    try {
+      const result =
+        next.kind === 'file'
+          ? await api.get<{ diff: string }>('/dev/git/diff' + qs({ path: state.path, file: next.file, staged: next.staged ? '1' : '0' }))
+          : await api.get<{ diff: string }>('/dev/git/show' + qs({ path: state.path, hash: next.hash }));
+      setDiff(result.diff);
+    } catch (err) {
+      setDiff('');
+      toast(err instanceof ApiError ? err.message : t('git.diffError'), 'error');
+    } finally {
+      setDiffLoading(false);
+    }
+  }, [state, t, toast]);
+
+  const stage = async (file: string, action: 'stage' | 'unstage') => {
+    if (!state) return;
+    try {
+      await api.post('/dev/git/stage', { path: state.path, files: [file], action });
+      await load(state.path, ref);
+      toast((action === 'stage' ? t('git.stageDone') : t('git.unstageDone')) + ' ' + file, 'ok');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('git.stageError'), 'error');
+    }
+  };
+
+  const rows = useMemo(() => (state ? layout(state.log) : { rows: [], width: 1 }), [state]);
+  const maxCols = rows.width;
 
   const total = state ? state.staged.length + state.changed.length + state.untracked.length : 0;
+
+  const fileGroup = (title: string, items: Change[], staged: boolean, tone: string) => (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 text-[10.5px] tracking-wide text-muted uppercase">
+        {title}
+        <span className="rounded bg-panel2 px-1 text-ink">{items.length}</span>
+      </div>
+      <div className="flex flex-col">
+        {items.map((item) => (
+          <div
+            key={item.path}
+            className={cn(
+              'group flex items-center gap-2 rounded px-1 py-0.5 text-[11.5px]',
+              selection?.kind === 'file' && selection.file === item.path ? 'bg-accent/10' : 'hover:bg-panel2',
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={staged}
+              onChange={() => void stage(item.path, staged ? 'unstage' : 'stage')}
+              className="size-3 cursor-pointer accent-[var(--color-accent)]"
+              title={staged ? t('git.unstage') : t('git.stage')}
+            />
+            <span className={cn('mono w-4 shrink-0 text-center text-[10.5px]', tone)}>{item.status}</span>
+            <button type="button" onClick={() => void openDiff({ kind: 'file', file: item.path, staged })} className="min-w-0 flex-1 cursor-pointer truncate text-left text-ink/85" title={item.path}>
+              {item.path}
+            </button>
+          </div>
+        ))}
+        {!items.length ? <div className="px-1 text-[11px] text-muted/60">{t('git.none')}</div> : null}
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
       <div className="card flex flex-col gap-2 p-3">
         <div className="flex flex-wrap items-center gap-1">
           {roots.map((root) => (
-            <button
-              key={root.path}
-              type="button"
-              onClick={() => void loadDirs(root.path)}
-              className={cn(
-                'cursor-pointer rounded px-2 py-0.5 text-[11.5px] transition-colors',
-                browse.startsWith(root.path) ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
-              )}
-            >
+            <button key={root.path} type="button" onClick={() => void loadDirs(root.path)} className={cn('cursor-pointer rounded px-2 py-0.5 text-[11.5px]', browse.startsWith(root.path) ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>
               {root.label}
             </button>
           ))}
-          <span className="mono ml-auto max-w-full truncate text-[11px] text-muted" title={browse}>
-            {browse}
-          </span>
+          <span className="mono ml-auto max-w-full truncate text-[11px] text-muted" title={browse}>{browse}</span>
         </div>
-
         <div className="flex flex-wrap items-center gap-1 text-[11.5px] text-muted">
-          <button
-            type="button"
-            disabled={!parent}
-            onClick={() => parent && void loadDirs(parent)}
-            className="cursor-pointer rounded px-1 py-0.5 hover:bg-panel2 hover:text-ink disabled:opacity-40"
-            title="Naik satu folder"
-          >
-            <Icon name="back" size={12} />
-          </button>
-          {crumbs.length ? (
-            crumbs.map((part, index) => {
-              const base = roots.find((root) => browse.startsWith(root.path))?.path ?? '';
-              const path = base + '/' + crumbs.slice(0, index + 1).join('/');
-              return (
-                <span key={path} className="flex items-center gap-1">
-                  <button type="button" className="cursor-pointer rounded px-1 hover:bg-panel2 hover:text-ink" onClick={() => void loadDirs(path)}>
-                    {part}
-                  </button>
-                  <span className="text-muted/40">/</span>
-                </span>
-              );
-            })
-          ) : null}
-        </div>
-
-        <div className="flex max-h-52 flex-wrap gap-1 overflow-auto">
+          <button type="button" disabled={!parent} onClick={() => parent && void loadDirs(parent)} className="cursor-pointer rounded px-1 py-0.5 hover:bg-panel2 hover:text-ink disabled:opacity-40"><Icon name="back" size={12} /></button>
           {dirs.map((dir) => (
-            <span
-              key={dir.path}
-              className={cn(
-                'flex items-center overflow-hidden rounded border transition-colors',
-                picked === dir.path ? 'border-accent/50' : 'border-line hover:border-accent/40',
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setPicked(dir.path);
-                  void load(dir.path);
-                }}
-                title={'Pakai folder ini — ' + dir.path}
-                className={cn(
-                  'flex cursor-pointer items-center gap-1 px-2 py-1 text-[11.5px] transition-colors',
-                  picked === dir.path ? 'bg-accent/15 text-accent' : 'text-muted hover:text-ink',
-                )}
-              >
-                <Icon name="files" size={12} /> {dir.name}
-              </button>
-              <button
-                type="button"
-                onClick={() => void loadDirs(dir.path)}
-                title="Buka folder"
-                className="cursor-pointer border-l border-line px-1 py-1 text-[11.5px] text-muted hover:bg-panel2 hover:text-ink"
-              >
-                ›
-              </button>
+            <span key={dir.path} className="flex items-center overflow-hidden rounded border border-line">
+              <button type="button" onClick={() => { void loadDirs(dir.path); void load(dir.path, null); setRef(null); setSelection(null); }} className="cursor-pointer px-2 py-0.5 text-[11.5px] text-muted hover:text-ink">{dir.name}</button>
+              <button type="button" onClick={() => void loadDirs(dir.path)} className="cursor-pointer border-l border-line px-1 py-0.5 text-muted hover:bg-panel2 hover:text-ink">›</button>
             </span>
           ))}
-          {!dirs.length ? <span className="text-[11.5px] text-muted">Tidak ada subfolder.</span> : null}
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-primary cursor-pointer"
-            onClick={() => {
-              setPicked(browse);
-              void load(browse);
-            }}
-            disabled={busy || !browse}
-          >
-            {busy ? <Spinner /> : <Icon name="check" />} Pakai folder ini
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-primary cursor-pointer" onClick={() => { setSelection(null); void load(browse, null); setRef(null); }} disabled={busy || !browse}>
+            {busy ? <Spinner /> : <Icon name="check" />} {t('git.open')}
           </button>
-          <button type="button" className="btn cursor-pointer" onClick={() => void load(picked || browse)} disabled={busy || !picked}>
-            <Icon name="refresh" /> Muat ulang
+          <button type="button" className="btn cursor-pointer" onClick={() => void load(browse, ref)} disabled={busy || !state}>
+            <Icon name="refresh" /> {t('git.reload')}
           </button>
         </div>
       </div>
@@ -191,139 +308,105 @@ export default function GitTab() {
 
       {state ? (
         <>
-          <div className="card flex flex-wrap items-center gap-2 p-3 text-[12.5px]">
-            <span className="flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-accent">
-              <Icon name="git" size={12} /> {state.branch}
-            </span>
-            {state.ahead ? <span className="rounded bg-ok/15 px-1.5 py-0.5 text-[11px] text-ok">↑ {state.ahead} belum di-push</span> : null}
-            {state.behind ? <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">↓ {state.behind} tertinggal</span> : null}
-            <span className={cn('rounded px-1.5 py-0.5 text-[11px]', total ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok')}>
-              {total ? total + ' perubahan' : 'bersih'}
-            </span>
-            {state.tags.length ? (
-              <span className="flex flex-wrap gap-1">
-                {state.tags.slice(0, 6).map((tag) => (
-                  <span key={tag} className="mono rounded border border-line px-1.5 py-0.5 text-[10.5px] text-muted">
-                    {tag}
-                  </span>
-                ))}
-              </span>
-            ) : null}
-            <span className="mono ml-auto truncate text-[11px] text-muted" title={state.path}>
-              {state.path}
-            </span>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-3">
-            {[
-              { title: 'Staged', rows: state.staged, tone: 'text-ok', mark: '+' },
-              { title: 'Diubah', rows: state.changed, tone: 'text-warn', mark: 'M' },
-              { title: 'Belum dilacak', rows: state.untracked, tone: 'text-muted', mark: '?' },
-            ].map((group) => (
-              <div key={group.title} className="card flex flex-col gap-1 p-3">
-                <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
-                  {group.title}
-                  <span className="rounded bg-panel2 px-1 text-ink">{group.rows.length}</span>
-                </div>
-                <div className="mono max-h-52 overflow-auto text-[11.5px]">
-                  {group.rows.length ? (
-                    group.rows.map((row) => (
-                      <div key={row} className="flex items-start gap-1.5">
-                        <span className={cn('w-4 shrink-0 text-center', group.tone)}>{group.mark}</span>
-                        <span className="truncate text-ink/85" title={row}>
-                          {row}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-muted/60">tidak ada</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="card flex flex-col gap-2 p-3">
-            <div className="flex flex-wrap items-center gap-1 text-[11px] tracking-wide text-muted uppercase">
-              Branch
-              <span className="rounded bg-panel2 px-1 text-ink normal-case">{state.branches.length}</span>
-              <span className="ml-2 text-[10.5px] normal-case">klik untuk lihat log branch itu</span>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-[12px]">
+            <span className="flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-accent"><Icon name="git" size={12} /> {state.branch}</span>
+            {state.ahead ? <span className="rounded bg-ok/15 px-1.5 py-0.5 text-[11px] text-ok">↑ {state.ahead}</span> : null}
+            {state.behind ? <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">↓ {state.behind}</span> : null}
+            <span className={cn('rounded px-1.5 py-0.5 text-[11px]', total ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok')}>{total ? total + ' ' + t('git.changes') : t('git.clean')}</span>
             <div className="flex flex-wrap gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setRef(null);
-                  void load(browse, null);
-                }}
-                className={cn(
-                  'cursor-pointer rounded px-2 py-0.5 text-[11.5px]',
-                  !ref ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
-                )}
-              >
-                semua branch
-              </button>
+              <button type="button" onClick={() => { setRef(null); void load(browse, null); }} className={cn('cursor-pointer rounded px-2 py-0.5 text-[11px]', !ref ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>{t('git.allBranches')}</button>
               {state.branches.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => {
-                    setRef(name);
-                    void load(browse, name);
-                  }}
-                  className={cn(
-                    'mono cursor-pointer rounded px-2 py-0.5 text-[11.5px]',
-                    ref === name
-                      ? 'bg-accent/15 text-accent'
-                      : name === state.branch
-                        ? 'text-ink hover:bg-panel2'
-                        : 'text-muted hover:bg-panel2 hover:text-ink',
-                  )}
-                >
-                  {name === state.branch ? '● ' : ''}
-                  {name}
+                <button key={name} type="button" onClick={() => { setRef(name); void load(browse, name); }} className={cn('mono cursor-pointer rounded px-2 py-0.5 text-[11px]', ref === name ? 'bg-accent/15 text-accent' : name === state.branch ? 'text-ink hover:bg-panel2' : 'text-muted hover:bg-panel2 hover:text-ink')}>
+                  {name === state.branch ? '● ' : ''}{name}
                 </button>
               ))}
             </div>
+            <span className="mono ml-auto truncate text-[11px] text-muted" title={state.path}>{state.path}</span>
           </div>
 
-          <div className="card flex max-h-80 flex-col gap-1 overflow-auto p-3">
-            <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
-              Grafik commit
-              <span className="normal-case">{ref ? ref : 'semua branch'}</span>
-            </div>
-            <pre className="mono text-[11.5px] leading-[1.45] whitespace-pre text-ink/85">
-              {state.graph || 'tidak ada commit'}
-            </pre>
-          </div>
+          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2">
+            <div className="flex min-h-0 flex-col gap-2">
+              <div className="card flex max-h-[60vh] flex-col gap-0 overflow-hidden p-0">
+                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[10.5px] tracking-wide text-muted uppercase">
+                  {t('git.history')}
+                  <span className="rounded bg-panel2 px-1 text-ink">{state.log.length}</span>
+                  <span className="ml-auto normal-case">{ref ?? t('git.allBranches')}</span>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto">
+                  {rows.rows.map((row) => {
+                    const active = selection?.kind === 'commit' && selection.hash === row.commit.hash;
+                    return (
+                      <div
+                        key={row.commit.hash}
+                        className={cn('flex items-start gap-2 border-b border-line/40 px-1 py-1', active ? 'bg-accent/10' : 'hover:bg-panel2/60')}
+                      >
+                        <div className="flex items-center self-stretch pt-0">
+                          <GraphCell row={row} width={maxCols} />
+                        </div>
+                        <button type="button" onClick={() => void openDiff({ kind: 'commit', hash: row.commit.hash })} className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-left">
+                          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-panel2 text-[10px] font-semibold text-accent">{initials(row.commit.author)}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[12px] text-ink/92" title={row.commit.subject}>{row.commit.subject}</span>
+                            <span className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted">
+                              <span>{row.commit.author}</span>
+                              <span>·</span>
+                              <span>{row.commit.when}</span>
+                              <span className="mono text-[#60a5fa]">{row.commit.short}</span>
+                              {row.commit.refs.map((item) => (
+                                <span key={item} className={cn('rounded px-1 text-[9.5px]', item === state.head ? 'bg-accent/20 text-accent' : 'bg-ok/15 text-ok')}>
+                                  {item === state.head ? 'HEAD' : item}
+                                </span>
+                              ))}
+                            </span>
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {!rows.rows.length ? <div className="px-3 py-4 text-[11.5px] text-muted">{t('git.noCommits')}</div> : null}
+                </div>
+              </div>
 
-          <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
-            <div className="card flex flex-col gap-1 p-3">
-              <div className="mb-1 text-[11px] tracking-wide text-muted uppercase">Commit terakhir</div>
-              <div className="flex flex-col divide-y divide-line/50">
-                {state.commits.map((commit) => (
-                  <div key={commit.hash} className="flex items-baseline gap-2 py-1 text-[12px]">
-                    <span className="mono shrink-0 rounded bg-panel2 px-1 text-[11px] text-accent">{commit.hash.slice(0, 7)}</span>
-                    <span className="min-w-0 flex-1 truncate text-ink/90" title={commit.subject}>
-                      {commit.subject}
-                    </span>
-                    <span className="shrink-0 text-[10.5px] text-muted">
-                      {commit.author} · {commit.when}
-                    </span>
-                  </div>
-                ))}
-                {!state.commits.length ? <div className="text-[11.5px] text-muted">Belum ada commit.</div> : null}
+              <div className="card flex max-h-40 flex-col gap-1 overflow-auto p-2">
+                <div className="text-[10.5px] tracking-wide text-muted uppercase">{t('git.diffstat')}</div>
+                <pre className="mono text-[10.5px] leading-[1.4] whitespace-pre-wrap text-ink/75">{state.diffstat || t('git.noChanges')}</pre>
               </div>
             </div>
 
-            <div className="card flex max-h-72 flex-col gap-1 overflow-auto p-3">
-              <div className="text-[11px] tracking-wide text-muted uppercase">Diff stat</div>
-              <pre className="mono overflow-auto text-[11px] whitespace-pre-wrap text-ink/80">{state.diffstat || 'tidak ada perubahan'}</pre>
+            <div className="flex min-h-0 flex-col gap-2">
+              <div className="card flex flex-col gap-2 p-2">
+                <div className="flex items-center gap-2 text-[10.5px] tracking-wide text-muted uppercase">
+                  {t('git.workingTree')}
+                  <span className="ml-auto flex gap-2 normal-case">
+                    <button type="button" className="cursor-pointer text-[10.5px] text-muted hover:text-ink" onClick={() => void load(state.path, ref)}>{t('git.refresh')}</button>
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {fileGroup(t('git.staged'), state.staged, true, 'text-ok')}
+                  {fileGroup(t('git.changed'), state.changed, false, 'text-warn')}
+                  {fileGroup(t('git.untracked'), state.untracked, false, 'text-muted')}
+                </div>
+              </div>
+
+              <div className="card flex min-h-[16rem] flex-1 flex-col overflow-hidden p-0">
+                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[10.5px] tracking-wide text-muted uppercase">
+                  {t('git.diff')}
+                  {selection ? (
+                    <span className="mono truncate normal-case text-ink/80" title={selection.kind === 'file' ? selection.file : selection.hash}>
+                      {selection.kind === 'file' ? selection.file : selection.hash.slice(0, 7)}
+                    </span>
+                  ) : null}
+                  {selection?.kind === 'file' ? (
+                    <span className="ml-auto normal-case">{selection.staged ? t('git.stagedFile') : t('git.workingFile')}</span>
+                  ) : null}
+                </div>
+                {selection ? <DiffView text={diff} loading={diffLoading} /> : <Empty text={t('git.pickFile')} />}
+              </div>
             </div>
           </div>
         </>
       ) : (
-        <div className="text-[12px] text-muted">Pilih folder lalu klik “Pakai folder ini”.</div>
+        <div className="text-[12px] text-muted">{t('git.pickFolder')}</div>
       )}
     </div>
   );

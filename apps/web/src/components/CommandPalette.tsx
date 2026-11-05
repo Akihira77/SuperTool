@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, cn } from './ui';
+import { useI18n } from '../lib/i18n';
 
 export type CommandItem = {
   id: string;
@@ -25,6 +26,7 @@ export default function CommandPalette({
   onClose: () => void;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +104,7 @@ export default function CommandPalette({
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari menu atau aksi…"
+            placeholder={t('palette.placeholder')}
             className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-muted"
             autoComplete="off"
             spellCheck={false}
@@ -134,7 +136,7 @@ export default function CommandPalette({
             </button>
           ))}
           {!filtered.length ? (
-            <div className="px-2 py-6 text-center text-[12px] text-muted">Tidak ada hasil untuk “{query}”.</div>
+            <div className="px-2 py-6 text-center text-[12px] text-muted">{t('palette.empty')} “{query}”.</div>
           ) : null}
         </div>
         <div className="flex items-center gap-3 border-t border-line px-3 py-1.5 text-[10.5px] text-muted">

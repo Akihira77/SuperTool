@@ -94,7 +94,15 @@ export default function FilesTool() {
   const [hits, setHits] = useState<GrepHit[] | null>(null);
   const [grepWarning, setGrepWarning] = useState('');
   const [searching, setSearching] = useState(false);
-  const [exclude, setExclude] = useState(() => localStorage.getItem('st:files:exclude') ?? '*.log, *.map');
+  const [exclude, setExclude] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('st:files:exclude') ?? '["*.log"]');
+      return Array.isArray(saved) ? saved.filter((item) => typeof item === 'string') : ['*.log'];
+    } catch {
+      return ['*.log'];
+    }
+  });
+  const [excludeOpen, setExcludeOpen] = useState(false);
   const searchAbort = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -114,7 +122,7 @@ export default function FilesTool() {
       setResults(null);
       setHits(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membaca folder');
+      setError(err instanceof ApiError ? err.message : t('err.readFolder'));
     } finally {
       setBusy(false);
     }
@@ -134,7 +142,7 @@ export default function FilesTool() {
           void loadListing(list[0].path);
         }
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Gagal memuat root'));
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('err.loadRoots')));
   }, [loadListing]);
 
   const loadRecents = async () => {
@@ -184,7 +192,7 @@ export default function FilesTool() {
       await loadOffice(office.path);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan');
+      setError(err instanceof ApiError ? err.message : t('err.save'));
     } finally {
       setBusy(false);
     }
@@ -209,7 +217,7 @@ export default function FilesTool() {
       setPreview(false);
       void loadRecents();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuka file');
+      setError(err instanceof ApiError ? err.message : t('err.openFile'));
     } finally {
       setBusy(false);
     }
@@ -223,21 +231,21 @@ export default function FilesTool() {
       setFile({ ...file, text: draft, size: new Blob([draft]).size });
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan');
+      setError(err instanceof ApiError ? err.message : t('err.save'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (path: string) => {
-    if (!window.confirm('Hapus ' + path + '?')) return;
+    if (!window.confirm(t('files.confirmDelete') + ' ' + path + '?')) return;
     try {
       await api.del('/fs' + qs({ path }));
       if (file?.path === path) setFile(null);
       if (office?.path === path) setOffice(null);
       if (listing) await loadListing(listing.path);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghapus');
+      setError(err instanceof ApiError ? err.message : t('err.delete'));
     }
   };
 
@@ -249,7 +257,7 @@ export default function FilesTool() {
       if (file?.path === entry.path) setFile(null);
       if (listing) await loadListing(listing.path);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mengganti nama');
+      setError(err instanceof ApiError ? err.message : t('err.rename'));
     }
   };
 
@@ -261,7 +269,7 @@ export default function FilesTool() {
       await api.post('/fs/mkdir', { path: listing.path + '/' + name });
       await loadListing(listing.path);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuat folder');
+      setError(err instanceof ApiError ? err.message : t('err.mkdir'));
     }
   };
 
@@ -275,7 +283,7 @@ export default function FilesTool() {
     setError('');
     try {
       setGrepWarning('');
-      const params = { path: listing.path, q: query, exclude: exclude.trim() || undefined };
+      const params = { path: listing.path, q: query, exclude: exclude.join(',') || undefined };
       if (deep) {
         const result = await api.get<{ results: GrepHit[]; truncated: boolean; warning?: string }>(
           '/fs/grep' + qs(params),
@@ -382,7 +390,7 @@ export default function FilesTool() {
         <div className="flex overflow-hidden rounded-md border border-line">
           {([
             [false, t('files.modeName'), 'Cocokkan nama berkas'],
-            [true, t('files.modeContent'), 'Cari di dalam isi berkas (grep)'],
+            [true, t('files.modeContent'), t('files.modeContentHint')],
           ] as const).map(([value, label, hint]) => (
             <button
               key={String(value)}
@@ -413,25 +421,22 @@ export default function FilesTool() {
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
-        <div className="relative hidden lg:block">
-          <input
-            value={exclude}
-            onChange={(e) => {
-              setExclude(e.target.value);
-              localStorage.setItem('st:files:exclude', e.target.value);
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && void search()}
-            placeholder="kecualikan: *.log, *.map"
-            title="Pola berkas yang dilewati saat mencari (pisahkan dengan koma)"
-            className="input w-44 py-1.5 pl-2 text-[11.5px]"
-          />
-        </div>
+        <button
+          type="button"
+          className={cn('btn hidden cursor-pointer lg:inline-flex', exclude.length > 0 && 'border-accent/40 text-accent')}
+          onClick={() => setExcludeOpen(true)}
+          title={t('files.excludeTitle')}
+        >
+          <Icon name="filter" size={13} />
+          {t('files.exclude')}
+          {exclude.length ? <span className="rounded bg-accent/20 px-1 text-[10px]">{exclude.length}</span> : null}
+        </button>
         {searching ? (
           <button type="button" className="btn cursor-pointer text-bad" onClick={cancelSearch} title="Hentikan pencarian">
             <Icon name="x" size={13} /> Batal
           </button>
         ) : (
-          <button type="button" className="btn cursor-pointer" onClick={() => void search()} title="Cari">
+          <button type="button" className="btn cursor-pointer" onClick={() => void search()} title={t("common.search")}>
             <Icon name="search" size={13} />
           </button>
         )}
@@ -447,12 +452,23 @@ export default function FilesTool() {
         <input ref={uploadRef} type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
       </PageHeader>
 
+      <ExcludeDialog
+        open={excludeOpen}
+        value={exclude}
+        onClose={() => setExcludeOpen(false)}
+        onApply={(next) => {
+          setExclude(next);
+          localStorage.setItem('st:files:exclude', JSON.stringify(next));
+          setExcludeOpen(false);
+        }}
+      />
+
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2">
           {recents.length ? (
             <div className="mb-1 border-b border-line pb-1">
-              <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">Terakhir dibuka</div>
+              <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
               {recents.slice(0, 5).map((item) => (
                 <button
                   key={item.path}
@@ -527,7 +543,7 @@ export default function FilesTool() {
                   {editing ? (
                     <>
                       <button type="button" className="btn btn-primary" onClick={() => void saveOffice()}>
-                        <Icon name="save" /> Simpan
+                        <Icon name="save" /> {t("common.save")}
                       </button>
                       <button type="button" className="btn" onClick={() => { setEditing(false); void loadOffice(office.path); }}>
                         Batal
@@ -631,7 +647,7 @@ export default function FilesTool() {
                   {editing ? (
                     <>
                       <button type="button" className="btn btn-primary" onClick={save}>
-                        <Icon name="save" /> Simpan
+                        <Icon name="save" /> {t("common.save")}
                       </button>
                       <button type="button" className="btn" onClick={() => { setEditing(false); setDraft(file.text); }}>
                         Batal
@@ -799,7 +815,7 @@ export default function FilesTool() {
                         <button
                           type="button"
                           className="btn btn-ghost px-1.5 py-0.5"
-                          title="Hapus"
+                          title={t("common.delete")}
                           onClick={(e) => {
                             e.stopPropagation();
                             void remove(entry.path);
@@ -815,6 +831,150 @@ export default function FilesTool() {
               {rows.length === 0 ? <p className="p-6 text-center text-sm text-muted">Folder kosong</p> : null}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EXCLUDE_FILES = ['*.log', '*.map', '*.min.js', '*.min.css', '*.lock', '*.tmp', '*.bak', '*.cache', '*.snap', '*.d.ts'];
+const EXCLUDE_DIRS = [
+  'node_modules/',
+  '.git/',
+  'dist/',
+  'build/',
+  '.cache/',
+  '.next/',
+  'coverage/',
+  'vendor/',
+  'tmp/',
+  'logs/',
+  '.venv/',
+  'target/',
+  '.pnpm-store/',
+];
+
+/** Dialog pilihan exclude: centang tipe berkas & folder, atau tambah pola sendiri. */
+function ExcludeDialog({
+  open,
+  value,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  value: string[];
+  onClose: () => void;
+  onApply: (next: string[]) => void;
+}) {
+  const { t } = useI18n();
+  const [picked, setPicked] = useState<string[]>(value);
+  const [custom, setCustom] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setPicked(value);
+      setCustom('');
+    }
+  }, [open, value]);
+
+  if (!open) return null;
+
+  const toggle = (item: string) =>
+    setPicked((prev) => (prev.includes(item) ? prev.filter((entry) => entry !== item) : [...prev, item]));
+
+  const addCustom = () => {
+    const raw = custom.trim();
+    if (!raw) return;
+    const item = raw.endsWith('/') ? raw : raw.includes('.') || raw.includes('*') ? raw : raw + '/';
+    if (!picked.includes(item)) setPicked((prev) => [...prev, item]);
+    setCustom('');
+  };
+
+  const extra = picked.filter((item) => !EXCLUDE_FILES.includes(item) && !EXCLUDE_DIRS.includes(item));
+
+  const section = (title: string, options: string[]) => (
+    <div className="flex flex-col gap-1">
+      <div className="text-[10.5px] tracking-wide text-muted uppercase">{title}</div>
+      <div className="flex flex-wrap gap-1">
+        {options.map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => toggle(item)}
+            className={cn(
+              'mono cursor-pointer rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+              picked.includes(item) ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
+            )}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={onClose}>
+      <div
+        className="flex w-full max-w-lg flex-col gap-3 rounded-xl border border-line bg-panel p-4 shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('files.excludeTitle')}
+      >
+        <div className="flex items-center gap-2">
+          <Icon name="filter" size={15} className="text-accent" />
+          <span className="text-[13px] font-medium">{t('files.excludeTitle')}</span>
+          <span className="ml-auto text-[11px] text-muted">
+            {picked.length} {t('files.excludeSelected')}
+          </span>
+          <button type="button" className="btn cursor-pointer px-1" onClick={onClose} aria-label="Tutup">
+            <Icon name="x" size={13} />
+          </button>
+        </div>
+
+        {section(t('files.excludeFiles'), EXCLUDE_FILES)}
+        {section(t('files.excludeDirs'), EXCLUDE_DIRS)}
+
+        {extra.length ? (
+          <div className="flex flex-col gap-1">
+            <div className="text-[10.5px] tracking-wide text-muted uppercase">{t('files.excludeCustom')}</div>
+            <div className="flex flex-wrap gap-1">
+              {extra.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggle(item)}
+                  className="mono cursor-pointer rounded border border-accent/60 bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent"
+                  title={t("common.delete")}
+                >
+                  {item} ×
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-2">
+          <input
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && addCustom()}
+            placeholder="*.csv atau vendor/"
+            className="input flex-1 py-1 text-[12px]"
+          />
+          <button type="button" className="btn cursor-pointer" onClick={addCustom} disabled={!custom.trim()}>
+            <Icon name="plus" size={13} /> {t('files.excludeAdd')}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-line pt-2">
+          <button type="button" className="btn cursor-pointer" onClick={() => setPicked([])}>
+            {t('files.excludeReset')}
+          </button>
+          <button type="button" className="btn btn-primary cursor-pointer" onClick={() => onApply(picked)}>
+            <Icon name="check" size={13} /> {t('files.excludeApply')}
+          </button>
         </div>
       </div>
     </div>

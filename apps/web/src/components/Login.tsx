@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useI18n } from '../lib/i18n';
 import { Icon, PasswordInput, Spinner } from './ui';
 
 export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) => void }) {
+  const { t } = useI18n();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -15,7 +17,7 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
       const result = await api.post<{ mustChange: boolean }>('/auth/login', { password });
       onSuccess(result.mustChange);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal terhubung ke server');
+      setError(err instanceof ApiError ? err.message : t('login.error'));
     } finally {
       setBusy(false);
     }
