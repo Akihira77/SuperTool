@@ -223,6 +223,10 @@ export function Tabs<T extends string>({
 
 export function Spinner() {
   return (
-    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-accent [animation-duration:1.5s]" />
+    <span
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-accent"
+      style={{ animationDuration: '2.4s' }}
+      aria-hidden="true"
+    />
   );
 }
