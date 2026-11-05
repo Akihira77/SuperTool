@@ -58,6 +58,8 @@ export class FilesService {
   /** Thumbnail kecil untuk daftar berkas: gambar lewat sharp, video lewat ffmpeg (kalau ada). */
   private thumbs = new Map<string, Buffer>();
   private ffmpegReady?: Promise<boolean>;
+  private thumbJobs = 0;
+  private readonly thumbWaiters: Array<() => void> = [];
 
   private hasFfmpeg(): Promise<boolean> {
     this.ffmpegReady ??= exec('ffmpeg', ['-version'], { timeout: 5000 })
@@ -66,14 +68,29 @@ export class FilesService {
     return this.ffmpegReady;
   }
 
+  /** Batasi thumbnail (sharp/ffmpeg) supaya daftar folder besar tidak memicu puluhan proses sekaligus. */
+  private async withThumbSlot<T>(task: () => Promise<T>): Promise<T> {
+    while (this.thumbJobs >= 2) await new Promise<void>((resolve) => this.thumbWaiters.push(resolve));
+    this.thumbJobs += 1;
+    try {
+      return await task();
+    } finally {
+      this.thumbJobs -= 1;
+      this.thumbWaiters.shift()?.();
+    }
+  }
+
   private videoFrame(abs: string, at: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const child = spawn(
         'ffmpeg',
         [
+          '-nostdin',
           '-ss', String(at),
           '-i', abs,
           '-frames:v', '1',
+          '-an',
+          '-threads', '1',
           '-vf', 'scale=' + THUMB_SIZE + ':' + THUMB_SIZE + ':force_original_aspect_ratio=increase,crop=' + THUMB_SIZE + ':' + THUMB_SIZE,
           '-f', 'image2pipe',
           '-vcodec', 'webp',
@@ -114,12 +131,14 @@ export class FilesService {
     let body: Buffer;
     try {
       if (THUMB_IMAGE.has(ext)) {
-        body = await sharp(abs, { failOn: 'none' }).rotate().resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' }).webp({ quality: 72 }).toBuffer();
+        body = await this.withThumbSlot(() =>
+          sharp(abs, { failOn: 'none' }).rotate().resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' }).webp({ quality: 72 }).toBuffer(),
+        );
       } else if (THUMB_VIDEO.has(ext)) {
         if (!(await this.hasFfmpeg())) {
           throw new BadRequestException('Thumbnail video butuh ffmpeg yang belum terpasang');
         }
-        body = await this.videoFrame(abs, 1).catch(() => this.videoFrame(abs, 0));
+        body = await this.withThumbSlot(() => this.videoFrame(abs, 1).catch(() => this.videoFrame(abs, 0)));
       } else {
         throw new BadRequestException('Berkas ini tidak punya thumbnail');
       }

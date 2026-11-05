@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { connect } from 'node:net';
+import { Readable } from 'node:stream';
 import type { AuthService } from '../auth/auth.service';
 import { assertLocalUrl } from '../../common/net-guard';
 
@@ -305,6 +306,20 @@ export async function handleProxyRequest(
   if (cookies.length) outHeaders['set-cookie'] = rewriteCookiesFor(cookies, targetInfo);
 
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
+  const rewrite =
+    type.includes('text/html') ||
+    (type.includes('text/css') && !subMode) ||
+    (subMode && /(javascript|ecmascript|json|text\/plain)/.test(type));
+
+  // Respons non-teks (gambar, font, wasm, media) tidak perlu di-rewrite: alirkan langsung.
+  if (!rewrite && upstream.body) {
+    res.writeHead(upstream.status, outHeaders);
+    Readable.fromWeb(upstream.body as import('node:stream/web').ReadableStream)
+      .on('error', () => res.destroy())
+      .pipe(res);
+    return true;
+  }
+
   const buffer = Buffer.from(await upstream.arrayBuffer());
 
   // Bundel JS / respons JSON juga bisa memuat URL absolut ke origin target.

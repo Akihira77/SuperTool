@@ -25,6 +25,7 @@ function normalize(input: string): string | null {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : 'http://' + trimmed;
   try {
     const url = new URL(fixHost(withScheme));
+    if (!url.hostname || /[%\s]/.test(url.hostname)) return null;
     return (url.origin + url.pathname).replace(/\/$/, '');
   } catch {
     return null;
@@ -73,14 +74,27 @@ export default function UrlTool() {
   const [opened, setOpened] = useState<string[]>([]);
 
   const bump = (id: string) => {
+    setOpened((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setNonces((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
     setLoaded((prev) => ({ ...prev, [id]: false }));
+  };
+
+  const unload = () => {
+    if (!active) return;
+    setOpened((prev) => prev.filter((id) => id !== active.id));
+    setLoaded((prev) => {
+      const next = { ...prev };
+      delete next[active.id];
+      return next;
+    });
   };
   const [status, setStatus] = useState<Status | null>(null);
   const [checking, setChecking] = useState(false);
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'sub' | 'path'>(() => (localStorage.getItem('st:urls:mode') === 'path' ? 'path' : 'sub'));
+  const draftUrl = normalize(draft.url);
+  const draftInvalid = Boolean(draft.url.trim()) && !draftUrl;
 
   useEffect(() => {
     localStorage.setItem('st:urls:mode', mode);
@@ -237,6 +251,11 @@ export default function UrlTool() {
         <button type="button" className="btn" onClick={() => active && void probe(active)} disabled={!active || checking} title="Cek koneksi">
           {checking ? <Spinner /> : <Icon name="play" />} Cek
         </button>
+        {active && opened.includes(active.id) ? (
+          <button type="button" className="btn" onClick={unload} title={t('viewer.unloadHint')}>
+            <Icon name="x" /> {t('viewer.unload')}
+          </button>
+        ) : null}
         {active ? (
           <button
             type="button"
@@ -356,15 +375,26 @@ export default function UrlTool() {
               </div>
             ) : null}
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" className="input py-1.5 text-[12px]" />
-            <input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="http://127.0.0.1:3000" className="input py-1.5 text-[12px]" />
-            <button type="submit" className="btn btn-primary w-full justify-center py-1.5 text-[12px]">
+            <input
+              value={draft.url}
+              onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+              placeholder="http://127.0.0.1:3000"
+              aria-invalid={draftInvalid}
+              className={cn('input py-1.5 text-[12px]', draftInvalid && 'border-bad')}
+            />
+            {draftInvalid ? <span className="text-[10.5px] text-bad">URL tidak valid</span> : null}
+            <button
+              type="submit"
+              className="btn btn-primary w-full justify-center py-1.5 text-[12px]"
+              disabled={!draftUrl}
+            >
               <Icon name={editingId ? 'check' : 'plus'} /> {editingId ? t('common.save') : t('viewer.addUrl')}
             </button>
           </form>
         </div>
 
         <div className="relative min-w-0 flex-1 bg-[#070d14]">
-          {active && !loaded[active.id] ? (
+          {active && opened.includes(active.id) && !loaded[active.id] ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#070d14]/70">
               <Spinner />
             </div>
@@ -388,7 +418,7 @@ export default function UrlTool() {
               />
             ))
           ) : (
-            <Empty icon="url" text={ready ? t('viewer.addToStart') : ''} />
+            <Empty icon="url" text={ready ? (active ? t('viewer.closed') : t('viewer.addToStart')) : ''} />
           )}
         </div>
       </div>

@@ -89,6 +89,7 @@ export default function WebhookTool() {
   const current = items.find((item) => item.id === selected) ?? null;
   const urlPrefix = window.location.origin + '/api/hook/';
   const url = active ? urlOf(active) : '';
+  const tokenValid = /^[A-Za-z0-9_-]{1,64}$/.test(tokenDraft);
   const tokenDirty = Boolean(active && tokenDraft !== active.token);
 
   useEffect(() => {
@@ -231,13 +232,16 @@ export default function WebhookTool() {
                     if (event.key === 'Escape') setTokenDraft(active?.token ?? '');
                   }}
                   disabled={!active || savingToken}
+                  maxLength={64}
                   spellCheck={false}
                   aria-label={t('webhook.endpoint')}
+                  aria-invalid={tokenDirty && !tokenValid}
                   className="mono min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none disabled:opacity-60"
                 />
               </div>
+              {tokenDirty && !tokenValid ? <span className="text-[11px] text-bad">{t('webhook.tokenRule')}</span> : null}
               {tokenDirty ? (
-                <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void saveToken()} disabled={savingToken}>
+                <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void saveToken()} disabled={savingToken || !tokenValid}>
                   <Icon name="check" size={13} /> {t('common.save')}
                 </button>
               ) : null}

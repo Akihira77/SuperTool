@@ -324,8 +324,12 @@ export default function FilesTool() {
   };
 
   const rename = async (entry: Entry) => {
-    const name = window.prompt('Nama baru', entry.name);
+    const name = window.prompt('Nama baru', entry.name)?.trim();
     if (!name || name === entry.name) return;
+    if (name === '.' || name === '..' || /[\\/]/.test(name)) {
+      setError('Nama tidak valid: jangan pakai / atau \\');
+      return;
+    }
     try {
       await api.post('/fs/rename', { path: entry.path, name });
       toast(t('common.renamed'), 'ok');
@@ -338,8 +342,12 @@ export default function FilesTool() {
 
   const makeFolder = async () => {
     if (!listing) return;
-    const name = window.prompt('Nama folder baru');
+    const name = window.prompt('Nama folder baru')?.trim();
     if (!name) return;
+    if (name === '.' || name === '..' || /[\\/]/.test(name)) {
+      setError('Nama folder tidak valid: jangan pakai / atau \\');
+      return;
+    }
     try {
       await api.post('/fs/mkdir', { path: listing.path + '/' + name });
       toast(t('common.created'), 'ok');
@@ -860,11 +868,16 @@ export default function FilesTool() {
                   ) : fileExt === 'pdf' ? (
                     <iframe title={file.path} src={RAW + encodeURIComponent(file.path)} className="h-full w-full rounded-lg border border-line bg-white" />
                   ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-line text-sm text-muted">
-                      <Icon name="files" size={26} />
-                      File biner tidak bisa ditampilkan
+                    <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-warn/30 bg-warn/5 p-6 text-center">
+                      <span className="grid size-11 place-items-center rounded-xl border border-warn/30 bg-warn/10 text-warn">
+                        <Icon name="eyeOff" size={20} />
+                      </span>
+                      <div className="text-[13px] font-medium text-ink">
+                        {t('files.previewUnsupported')} .{fileExt || 'berkas'}
+                      </div>
+                      <p className="max-w-md text-[11.5px] text-muted">{t('files.previewHint')}</p>
                       <a className="btn" href={RAW + encodeURIComponent(file.path) + '&download=1'} download>
-                        <Icon name="download" /> Unduh
+                        <Icon name="download" /> Unduh untuk membuka
                       </a>
                     </div>
                   )

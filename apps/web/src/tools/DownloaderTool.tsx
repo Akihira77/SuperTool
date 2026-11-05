@@ -316,7 +316,7 @@ export default function DownloaderTool() {
                   placeholder={t('downloader.placeholder')}
                   disabled={busy}
                 />
-                <button type="submit" className="btn btn-primary shrink-0 justify-center" disabled={busy}>
+                <button type="submit" className="btn btn-primary shrink-0 justify-center" disabled={busy || !url.trim()}>
                   {stage === 'info' ? <Spinner /> : <Icon name="search" size={14} />}
                   {stage === 'info' ? t('downloader.inspecting') : info ? t('downloader.recheck') : t('downloader.inspect')}
                 </button>

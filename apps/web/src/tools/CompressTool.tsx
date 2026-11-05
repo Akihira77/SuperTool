@@ -108,6 +108,7 @@ export default function CompressTool() {
   const ext = (path.split('.').pop() ?? '').toLowerCase();
   const isImage = IMAGE.has(ext);
   const isPdf = ext === 'pdf';
+  const widthValid = Number.isFinite(maxWidth) && maxWidth >= 200 && maxWidth <= 8000;
   const convertTargets = isImage
     ? ['pdf', 'png', 'jpg', 'webp']
     : isPdf
@@ -165,6 +166,10 @@ export default function CompressTool() {
 
   const run = async () => {
     if (!path.trim()) return;
+    if (tab === 'compress' && isImage && !widthValid) {
+      setError(t('compress.maxWidthError'));
+      return;
+    }
     setBusy(true);
     setError('');
     setResult(null);
@@ -213,7 +218,7 @@ export default function CompressTool() {
     }
   };
 
-  const canRun = tab === 'compress' ? isImage || isPdf : convertTargets.includes(target);
+  const canRun = tab === 'compress' ? (isImage ? widthValid : isPdf) : convertTargets.includes(target);
 
   return (
     <div className="flex h-full flex-col">
@@ -305,7 +310,16 @@ export default function CompressTool() {
                   </label>
                   <label className="flex flex-col gap-1">
                     <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.maxWidth')}</span>
-                    <input type="number" min={200} max={8000} value={maxWidth} onChange={(event) => setMaxWidth(Number(event.target.value))} className="input" />
+                    <input
+                      type="number"
+                      min={200}
+                      max={8000}
+                      value={Number.isFinite(maxWidth) ? maxWidth : ''}
+                      onChange={(event) => setMaxWidth(event.target.value === '' ? Number.NaN : Number(event.target.value))}
+                      aria-invalid={!widthValid}
+                      className="input"
+                    />
+                    {!widthValid ? <span className="text-[11px] text-bad">{t('compress.maxWidthError')}</span> : null}
                   </label>
                   <label className="flex flex-col gap-1 sm:col-span-2">
                     <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.format')}</span>
