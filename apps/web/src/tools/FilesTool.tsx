@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
+import { VirtualCode } from '../components/VirtualCode';
 import { CopyButton, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
@@ -504,6 +505,9 @@ export default function FilesTool() {
   };
 
   const fileExt = (file?.ext ?? '').toLowerCase();
+  const lineCount = file && !file.binary ? file.text.split('\n').length : 0;
+  // Di atas ambang ini textarea + gutter penuh membuat UI hang; pakai penampil virtual.
+  const largeFile = Boolean(file) && !file!.binary && (file!.truncated || lineCount > 2000);
   const inProject = Boolean(projectPath) && (rootPath === projectPath || rootPath.startsWith(projectPath + '/'));
   const treeRoots = inProject && projectPath ? [{ path: projectPath, label: projectName(projectPath) }] : roots;
   const rootValue = roots.find((root) => rootPath === root.path || rootPath.startsWith(root.path + '/'))?.path ?? rootPath;
@@ -816,7 +820,8 @@ export default function FilesTool() {
                 <span className="mono truncate text-[12.5px] font-medium">{file.path.split('/').pop()}</span>
                 <span className="text-[11px] text-muted">
                   {bytes(file.size)} · {timeAgo(file.mtime)}
-                  {file.binary ? '' : ' · ' + file.text.split('\n').length + ' baris'}
+                  {file.binary ? '' : ' · ' + lineCount + ' baris'}
+                  {largeFile ? ' · mode baca (berkas besar)' : ''}
                 </span>
                 <div className="ml-auto flex items-center gap-1.5">
                   {!file.binary && fileExt === 'md' ? (
@@ -824,7 +829,7 @@ export default function FilesTool() {
                       <Icon name="eye" /> Preview
                     </button>
                   ) : null}
-                  {!file.binary && !editing ? (
+                  {!file.binary && !editing && !largeFile ? (
                     <button type="button" className="btn" onClick={() => setEditing(true)}>
                       <Icon name="edit" /> Edit
                     </button>
@@ -866,6 +871,8 @@ export default function FilesTool() {
                       </a>
                     </div>
                   )
+                ) : largeFile ? (
+                  <VirtualCode value={file.text} ext={fileExt} />
                 ) : preview ? (
                   <div className="md h-full overflow-y-auto rounded-lg border border-line bg-[#0b1118] p-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(file.text) }} />
                 ) : (

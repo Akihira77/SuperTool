@@ -15,7 +15,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
-| 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
+| 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode (virtual untuk berkas besar)/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
@@ -344,6 +344,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 ## Batasan yang diketahui
 
 - **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` punya dua gaya: **Subdomain** (`<token>.localhost:PORT`, default, origin terpisah per tool sehingga login/cookie/`/api/...` bekerja normal) dan **Path** (satu origin, HTML ditulis ulang, hanya untuk halaman statis). Butuh `*.localhost` yang di Chromium sudah otomatis menunjuk 127.0.0.1; di browser lain tanpa dukungan subdomain lokal, pakai mode path atau buka di tab baru.
+- **File Explorer / berkas besar**: teks lebih dari 2.000 baris (atau terpotong di batas 2 MB) dibuka di penampil virtual (`@tanstack/react-virtual`): hanya baris yang terlihat masuk DOM, jadi 40 ribu baris terbuka < 0,5 dtk. Mode baca saja; syntax highlight per baris tetap jalan (JSON memakai highlighter lama, bahasa lain pola ringan). Berkas kecil tetap memakai editor textarea.
 - **Catatan**: sudah di SQLite, tapi belum ada pencarian penuh (FTS5) di dalam isi catatan.
 - **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas. Aksi *kill* mengirim SIGTERM (bukan SIGKILL) dan menolak PID 1 serta proses server ini sendiri.
 - **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". URL lama di browser otomatis dibenahi saat dibuka.
