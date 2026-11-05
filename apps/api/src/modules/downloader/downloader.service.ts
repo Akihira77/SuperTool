@@ -135,6 +135,18 @@ function isBilibiliHost(hostname: string): boolean {
   return host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com');
 }
 
+/** B23 share links sometimes redirect to /en/video/BV...; yt-dlp's BiliBili
+ * extractor only recognizes the canonical /video/BV... path. */
+export function canonicalBilibiliUrl(url: URL): string | null {
+  if (!isBilibiliHost(url.hostname) || url.hostname.toLowerCase() === 'b23.tv') return null;
+  const match = /^\/(?:[a-z]{2}(?:-[a-z]{2,})?\/)?video\/(BV[0-9A-Za-z]+|av\d+)/i.exec(url.pathname);
+  if (!match) return null;
+  const canonical = new URL('https://www.bilibili.com/video/' + match[1]);
+  const page = url.searchParams.get('p');
+  if (page && /^\d{1,4}$/.test(page)) canonical.searchParams.set('p', page);
+  return canonical.toString();
+}
+
 function httpUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try {
@@ -233,8 +245,52 @@ export class DownloaderService implements OnModuleInit {
     if (stderr) this.logger.error(context + '; stderr:\n' + stderr.slice(-12000));
   }
 
+  /** Resolve b23.tv redirects to a canonical Bilibili video URL before yt-dlp. */
+  private async resolveBilibiliUrl(raw: string, signal?: AbortSignal): Promise<string> {
+    const parsed = new URL(raw);
+    const direct = canonicalBilibiliUrl(parsed);
+    if (direct) return direct;
+    if (parsed.hostname.toLowerCase() !== 'b23.tv') return raw;
+
+    let current = parsed;
+    for (let hop = 0; hop < 5; hop += 1) {
+      const canonical = canonicalBilibiliUrl(current);
+      if (canonical) return canonical;
+      let response;
+      try {
+        const timeout = AbortSignal.timeout(5000);
+        response = await fetch(current, {
+          method: 'GET',
+          redirect: 'manual',
+          signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+          headers: {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36',
+            'accept-language': 'en-US,en;q=0.9',
+            referer: 'https://www.bilibili.com/',
+          },
+        });
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        return raw;
+      }
+      if (response.status < 300 || response.status >= 400) return raw;
+      const location = response.headers.get('location');
+      if (!location) return raw;
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        return raw;
+      }
+      if (next.protocol !== 'https:' || !isBilibiliHost(next.hostname)) return raw;
+      current = next;
+    }
+    return raw;
+  }
+
   async prepare(input: DownloadRequest, signal: AbortSignal): Promise<PreparedDownload> {
     const request = normalizeRequest(input);
+    const target = await this.resolveBilibiliUrl(request.url, signal);
     if (!ffmpegPath) {
       throw new ServiceUnavailableException('ffmpeg-static tidak tersedia. Jalankan pnpm install ulang.');
     }
@@ -299,7 +355,7 @@ export class DownloaderService implements OnModuleInit {
             };
 
         try {
-          await youtubeDl.exec(request.url, flags, { cwd: attemptDir, signal });
+          await youtubeDl.exec(target, flags, { cwd: attemptDir, signal });
           const files = (await readdir(attemptDir))
             .filter((name) => !name.startsWith('.') && !/\.(part|ytdl|temp)$/i.test(name))
             .map((name) => join(attemptDir, name));
@@ -364,6 +420,7 @@ export class DownloaderService implements OnModuleInit {
   /** Metadata saja (--skip-download), untuk preview sebelum user memilih resolusi. */
   async info(input: DownloadRequest, signal?: AbortSignal): Promise<DownloadInfo> {
     const request = normalizeRequest(input);
+    const target = await this.resolveBilibiliUrl(request.url, signal);
     const cookies = await this.cookiesPath();
     const flags: Flags = {
       dumpSingleJson: true,
@@ -379,7 +436,7 @@ export class DownloaderService implements OnModuleInit {
 
     let parsed: unknown;
     try {
-      parsed = await youtubeDl(request.url, flags, { signal });
+      parsed = await youtubeDl(target, flags, { signal });
     } catch (error) {
       if (signal?.aborted) throw new BadRequestException('Pengambilan info dibatalkan.');
       this.logYtDlpFailure(error, 'yt-dlp info gagal');

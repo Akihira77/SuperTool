@@ -10,7 +10,7 @@ import webhook from './dist/modules/webhook/webhook.service.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
-const { isAllowedHost } = downloader;
+const { isAllowedHost, canonicalBilibiliUrl } = downloader;
 const { authPrompt } = calendarOauth;
 const { WebhookService } = webhook;
 
@@ -56,4 +56,13 @@ test('downloader: allowlist host tidak bisa ditipu suffix', () => {
   assert.equal(isAllowedHost('youtube.com.evil.test'), false);
   assert.equal(isAllowedHost('evil-youtube.com'), false);
   assert.equal(isAllowedHost('127.0.0.1'), false);
+});
+
+test('downloader: URL /en/video Bilibili dinormalisasi ke /video', () => {
+  assert.equal(
+    canonicalBilibiliUrl(new URL('https://www.bilibili.com/en/video/BV1Xa4y1h7LT?p=2&share_source=COPY')),
+    'https://www.bilibili.com/video/BV1Xa4y1h7LT?p=2',
+  );
+  assert.equal(canonicalBilibiliUrl(new URL('https://b23.tv/KHQdMVt')), null);
+  assert.equal(canonicalBilibiliUrl(new URL('https://www.bilibili.com/bangumi/play/ss123')), null);
 });
