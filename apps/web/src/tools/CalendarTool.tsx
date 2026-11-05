@@ -831,7 +831,7 @@ export default function CalendarTool() {
 
       {composer ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving) setComposer(false);

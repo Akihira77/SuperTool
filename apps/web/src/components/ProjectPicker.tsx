@@ -67,7 +67,8 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
 
   return (
     <>
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-panel/35 px-4 backdrop-blur-sm">
+      {/* backdrop-blur membuat stacking context; z-40 agar dropdown tidak tertutup PageHeader. */}
+      <div className="relative z-40 flex h-10 shrink-0 items-center gap-2 border-b border-line bg-panel/35 px-4 backdrop-blur-sm">
         <span className="label hidden sm:inline">{t('project.label')}</span>
         {projectPath ? (
           <span className="flex min-w-0 items-center gap-1.5" title={projectPath}>
