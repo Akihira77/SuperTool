@@ -3,6 +3,8 @@ import { CodeEditor } from '../components/CodeEditor';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { useConfirm } from '../components/confirm';
+import { useToast } from '../components/toast';
 import { bytes, timeAgo } from '../lib/format';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
@@ -41,6 +43,8 @@ function contextAround(full: string, picked: string): string {
 
 export default function NginxTool() {
   const { t } = useI18n();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [panelOpen, togglePanel] = useSidebar('nginx', true);
   const [dir, setDir] = useState('');
   const [files, setFiles] = useState<ConfFile[]>([]);
@@ -133,7 +137,7 @@ export default function NginxTool() {
     try {
       await api.put('/nginx/file', { path: activePath, content: text });
       setSaved(text);
-      setNotice({ ok: true, message: 'File tersimpan (cadangan .bak dibuat)' });
+      toast(t('nginx.saved'), 'ok');
       await loadList();
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.save') });
@@ -161,7 +165,7 @@ export default function NginxTool() {
       const result = await api.post<{ path: string }>('/nginx/file', { name });
       await loadList();
       await open(result.path);
-      setNotice({ ok: true, message: 'File dibuat: ' + name });
+      toast(t('common.created') + ': ' + name, 'ok');
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.createFile') });
     }
@@ -169,14 +173,15 @@ export default function NginxTool() {
 
   const remove = async () => {
     if (!activePath) return;
-    if (!window.confirm(t('nginx.confirmDelete') + ' ' + activePath + '?')) return;
+    const ok = await confirm({ title: t('nginx.confirmDelete'), message: activePath, danger: true, confirmLabel: t('common.delete') });
+    if (!ok) return;
     try {
       await api.del('/nginx/file' + qs({ path: activePath }));
       setActivePath('');
       setText('');
       setSaved('');
       await loadList();
-      setNotice({ ok: true, message: 'File dihapus' });
+      toast(t('common.deleted'), 'ok');
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.delete') });
     }
@@ -184,13 +189,14 @@ export default function NginxTool() {
 
   const revert = async () => {
     if (!activePath) return;
-    if (!window.confirm(t('nginx.confirmRestore'))) return;
+    const ok = await confirm({ title: t('nginx.confirmRestore'), danger: true, confirmLabel: t('common.confirm') });
+    if (!ok) return;
     try {
       const result = await api.post<{ text: string }>('/nginx/revert', { path: activePath });
       setText(result.text);
       setSaved(result.text);
       await loadList();
-      setNotice({ ok: true, message: 'Isi asli dikembalikan' });
+      toast(t('common.saved'), 'ok');
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : t('err.restore') });
     }

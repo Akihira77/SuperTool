@@ -5,6 +5,8 @@ import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
+import { useConfirm } from '../components/confirm';
+import { useToast } from '../components/toast';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
 
@@ -79,6 +81,8 @@ function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: num
 
 export default function FilesTool() {
   const { t } = useI18n();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [panelOpen, togglePanel] = useSidebar('files', true);
   const [roots, setRoots] = useState<Root[]>([]);
   const [rootPath, setRootPath] = useState('');
@@ -231,6 +235,7 @@ export default function FilesTool() {
     setBusy(true);
     try {
       await api.put('/fs/write', { path: file.path, content: draft });
+      toast(t('common.saved'), 'ok');
       setFile({ ...file, text: draft, size: new Blob([draft]).size });
       setEditing(false);
     } catch (err) {
@@ -241,9 +246,11 @@ export default function FilesTool() {
   };
 
   const remove = async (path: string) => {
-    if (!window.confirm(t('files.confirmDelete') + ' ' + path + '?')) return;
+    const ok = await confirm({ title: t('files.confirmDelete'), message: path, danger: true, confirmLabel: t('common.delete') });
+    if (!ok) return;
     try {
       await api.del('/fs' + qs({ path }));
+      toast(t('common.deleted'), 'ok');
       if (file?.path === path) setFile(null);
       if (office?.path === path) setOffice(null);
       if (listing) await loadListing(listing.path);
@@ -257,6 +264,7 @@ export default function FilesTool() {
     if (!name || name === entry.name) return;
     try {
       await api.post('/fs/rename', { path: entry.path, name });
+      toast(t('common.renamed'), 'ok');
       if (file?.path === entry.path) setFile(null);
       if (listing) await loadListing(listing.path);
     } catch (err) {
@@ -270,6 +278,7 @@ export default function FilesTool() {
     if (!name) return;
     try {
       await api.post('/fs/mkdir', { path: listing.path + '/' + name });
+      toast(t('common.created'), 'ok');
       await loadListing(listing.path);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('err.mkdir'));
@@ -370,6 +379,7 @@ export default function FilesTool() {
     } finally {
       setBusy(false);
       if (uploadRef.current) uploadRef.current.value = '';
+      toast(t('common.uploaded'), 'ok');
     }
   };
 

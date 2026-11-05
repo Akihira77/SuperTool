@@ -3,6 +3,7 @@ import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes } from '../lib/format';
 import { useI18n } from '../lib/i18n';
+import { useToast } from '../components/toast';
 
 type Result = {
   input: { path: string; size: number };
@@ -87,6 +88,7 @@ const DROP_DIR = '.super-tool-drop';
 
 export default function CompressTool() {
   const { t } = useI18n();
+  const toast = useToast();
   const [tab, setTab] = useState<'compress' | 'convert'>('compress');
   const [path, setPath] = useState('');
   const [quality, setQuality] = useState(78);
@@ -148,8 +150,13 @@ export default function CompressTool() {
         if (pollRef.current) window.clearInterval(pollRef.current);
         pollRef.current = null;
         setBusy(false);
-        if (job.state === 'error') setError(job.error ?? t('err.process'));
-        else if (job.result) setResult(job.result);
+        if (job.state === 'error') {
+          setError(job.error ?? t('err.process'));
+          toast(job.error ?? t('err.process'), 'error');
+        } else if (job.result) {
+          setResult(job.result);
+          toast(t('compress.done'), 'ok');
+        }
       } catch (err) {
         if (pollRef.current) window.clearInterval(pollRef.current);
         pollRef.current = null;

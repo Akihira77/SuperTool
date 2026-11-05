@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { useConfirm } from '../components/confirm';
 import { bytes, duration } from '../lib/format';
 
 type Port = {
@@ -110,6 +111,7 @@ export default function PortsTool() {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'cpu', dir: -1 });
   const { t } = useI18n();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -143,7 +145,8 @@ export default function PortsTool() {
   }, [auto, load]);
 
   const kill = async (pid: number, label: string) => {
-    if (!window.confirm(t('ports.confirmKill') + ' ' + pid + '?\n\n' + label)) return;
+    const ok = await confirm({ title: t('ports.confirmKill'), message: pid + '\n' + label, danger: true, confirmLabel: t('ports.kill') });
+    if (!ok) return;
     try {
       await api.post('/ports/kill', { pid });
       await load();

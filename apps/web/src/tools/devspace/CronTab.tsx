@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
+import { useConfirm } from '../../components/confirm';
+import { useToast } from '../../components/toast';
 
 type Entry = { index: number; line: string };
 
@@ -14,6 +16,8 @@ const PRESETS: Array<{ label: string; value: string }> = [
 
 export default function CronTab() {
   const { t } = useI18n();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [line, setLine] = useState('0 3 * * * /home/user/backup.sh');
   const [busy, setBusy] = useState(false);
@@ -42,6 +46,7 @@ export default function CronTab() {
     try {
       const result = await api.post<{ entries: Entry[] }>('/dev/cron', { line });
       setEntries(result.entries);
+      toast(t('common.created'), 'ok');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('err.cronAdd'));
     } finally {
@@ -50,12 +55,14 @@ export default function CronTab() {
   };
 
   const remove = async (entry: Entry) => {
-    if (!window.confirm(t('cron.confirmDelete') + '\n\n' + entry.line)) return;
+    const ok = await confirm({ title: t('cron.confirmDelete'), message: entry.line, danger: true, confirmLabel: t('common.delete') });
+    if (!ok) return;
     setBusy(true);
     setError('');
     try {
       const result = await api.del<{ entries: Entry[] }>('/dev/cron' + qs({ index: entry.index }));
       setEntries(result.entries);
+      toast(t('common.deleted'), 'ok');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('err.cronDelete'));
     } finally {

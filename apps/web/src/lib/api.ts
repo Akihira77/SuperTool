@@ -9,6 +9,8 @@ export class ApiError extends Error {
   }
 }
 
+import { notify } from './notify';
+
 const BASE = '/api';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -29,6 +31,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const payload = data as { message?: string | string[]; code?: string } | null;
     const raw = payload?.message;
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? res.statusText;
+    // Semua kegagalan aksi (bukan GET/polling) muncul sebagai toast global.
+    if (init.method && init.method !== 'GET') notify(message, 'error');
     throw new ApiError(message, res.status, payload?.code);
   }
   return data as T;

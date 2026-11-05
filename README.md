@@ -219,7 +219,21 @@ Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu it
 
 ## Notifikasi toast
 
-Aksi yang berhasil/gagal menampilkan toast di kanan bawah (`components/toast.tsx`), auto hilang 3,5 detik, klik untuk menutup. Dipakai antara lain oleh webhook, git stage/unstage, dan operasi berkas.
+Toast di kanan bawah (`components/toast.tsx`): sukses hijau, gagal merah, klik untuk menutup. Durasi 3,5 detik (gagal 6 detik), pesan kembar dalam 1,2 detik digabung.
+
+- **Semua kegagalan aksi** (POST/PUT/DELETE) otomatis jadi toast lewat `lib/api.ts` → `notify()`; error GET tidak di-toast supaya polling tidak berisik.
+- **Operasi berhasil** memberi toast sendiri: simpan/unggah/rename/hapus di File Explorer, catatan dibuat/dihapus, URL disimpan/dihapus, nginx simpan/hapus/restore, cron tambah/hapus, kompresi selesai, webhook, git stage/unstage.
+
+## Modal konfirmasi
+
+Semua konfirmasi destruktif memakai modal sendiri (`components/confirm.tsx` → `useConfirm()`), bukan `window.confirm`. Enter = setuju, Esc/klik latar = batal, fokus awal di tombol batal, tombol setuju merah untuk aksi berbahaya. Dipakai untuk hapus berkas, catatan, URL, file nginx, cron, restore nginx, dan kill proses.
+
+## Gaya input dan tombol
+
+- `.input`: ring fokus biru lembut, hover border, status `aria-invalid`, file input bergaya, select/textarea konsisten.
+- `.btn`: efek tekan (`active:translate-y-px`), ring fokus keyboard, state disabled.
+- Utility `.label`, `.hint`, `.kbd` untuk label kecil, teks bantuan, dan petunjuk tombol.
+- Animasi toast dihormati `prefers-reduced-motion`; checkbox/radio memakai warna aksen.
 
 ## Command Palette
 

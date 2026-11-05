@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoti
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
+import { ConfirmProvider } from './components/confirm';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -38,7 +39,9 @@ export default function App() {
   return (
     <I18nProvider>
       <ToastProvider>
-        <Shell />
+        <ConfirmProvider>
+          <Shell />
+        </ConfirmProvider>
       </ToastProvider>
     </I18nProvider>
   );

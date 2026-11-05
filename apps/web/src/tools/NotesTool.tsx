@@ -3,6 +3,8 @@ import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
+import { useConfirm } from '../components/confirm';
+import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number };
@@ -12,6 +14,8 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function NotesTool() {
   const { t } = useI18n();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [panelOpen, togglePanel] = useSidebar('notes', true);
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
@@ -58,14 +62,17 @@ export default function NotesTool() {
 
   const create = async () => {
     const note = await api.post<Note>('/notes', { title: t('notes.newTitle'), body: '' });
+    toast(t('common.created'), 'ok');
     await refresh();
     setActive(note);
     setStatus('idle');
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm(t('notes.confirmDelete'))) return;
+    const ok = await confirm({ title: t('notes.confirmDelete'), danger: true, confirmLabel: t('common.delete') });
+    if (!ok) return;
     await api.del('/notes/' + id);
+    toast(t('common.deleted'), 'ok');
     const list = await refresh();
     if (active?.id === id) {
       if (list.length) await open(list[0].id);

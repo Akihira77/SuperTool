@@ -3,6 +3,8 @@ import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent } from '../lib/palette';
+import { useConfirm } from '../components/confirm';
+import { useToast } from '../components/toast';
 
 type View = { id: string; name: string; url: string; proxy: boolean; createdAt?: number };
 type Status = { ok: boolean; status?: number; error?: string };
@@ -60,6 +62,8 @@ function subdomainSrc(url: string): string | null {
 
 export default function UrlTool() {
   const { t } = useI18n();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [views, setViews] = useState<View[]>([]);
   const [ready, setReady] = useState(false);
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem(ACTIVE_KEY) ?? '');
@@ -159,10 +163,12 @@ export default function UrlTool() {
     try {
       if (editingId) {
         const result = await api.put<{ url: View }>('/urls/' + editingId, { name, url });
+      toast(t('common.saved'), 'ok');
         setViews((prev) => prev.map((view) => (view.id === editingId ? result.url : view)));
         setEditingId('');
       } else {
         const result = await api.post<{ url: View }>('/urls', { name, url });
+      toast(t('common.created'), 'ok');
         setViews((prev) => [...prev, result.url]);
         setActiveId(result.url.id);
       }
@@ -190,9 +196,11 @@ export default function UrlTool() {
   });
 
   const remove = async (id: string) => {
-    if (!window.confirm(t('viewer.confirmDelete'))) return;
+    const ok = await confirm({ title: t('viewer.confirmDelete'), danger: true, confirmLabel: t('common.delete') });
+    if (!ok) return;
     try {
       await api.del('/urls/' + id);
+      toast(t('common.deleted'), 'ok');
       setViews((prev) => prev.filter((view) => view.id !== id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('err.deleteUrl'));
