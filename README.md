@@ -294,6 +294,7 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Proxy URL hanya boleh ke `localhost`/IP privat; `169.254.x.x` (metadata cloud) dan host publik ditolak kecuali diaktifkan.
 - Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini.
 - Endpoint webhook (`/api/hook/<token>`) sengaja tanpa login dan tanpa CSRF; token acak 6 byte dibuat tiap restart dan endpoint hanya bisa dijangkau lewat loopback. Jangan diekspos ke publik.
+- Audit ketahanan & keamanan (commit `a6c3413`, temuan P0–P2 beserta bukti) ada di [docs/audit-resilience-security.md](docs/audit-resilience-security.md).
 
 Aplikasi ini alat pribadi. Jangan bind ke `0.0.0.0` lalu membukanya ke internet tanpa reverse proxy + HTTPS.
 
