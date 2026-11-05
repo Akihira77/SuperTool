@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Spinner, cn } from './ui';
 import { useI18n } from '../lib/i18n';
 import type { FilesSearchPayload } from '../lib/palette';
@@ -39,14 +39,19 @@ export default function CommandPalette({
   const [field, setField] = useState<'query' | 'include' | 'exclude'>('query');
   const inputRef = useRef<HTMLInputElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
+  // Submenu async dimuat lebih awal supaya saat Enter ditekan daftarnya sudah siap.
+  const prefetch = useRef<{ key: string; nodes: PaletteNode[] } | null>(null);
+  const inflight = useRef<Promise<PaletteNode[]> | null>(null);
 
   const current = stack.length ? stack[stack.length - 1] : null;
 
-  const items = (current ? siblings : root).filter((item) => {
+  const items = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return true;
-    return (item.label + ' ' + (item.desc ?? '') + ' ' + item.id).toLowerCase().includes(needle);
-  });
+    return (current ? siblings : root).filter((item) => {
+      if (!needle) return true;
+      return (item.label + ' ' + (item.desc ?? '') + ' ' + item.id).toLowerCase().includes(needle);
+    });
+  }, [current, query, root, siblings]);
 
   const close = useCallback(() => {
     setStack([]);
@@ -63,6 +68,7 @@ export default function CommandPalette({
     setForm(null);
     setQuery('');
     setActive(0);
+    prefetch.current = null;
     setField('query');
     const timer = setTimeout(() => inputRef.current?.focus(), 20);
     return () => clearTimeout(timer);
@@ -70,7 +76,26 @@ export default function CommandPalette({
 
   useEffect(() => {
     setActive(0);
-  }, [query]);
+  }, [query, stack.length, open]);
+
+  // Prefetch anak async (mis. daftar URL di URL Viewer) saat submenu tampil.
+  useEffect(() => {
+    if (!open || loading) return;
+    const parent = current?.id ?? 'root';
+    const pending = items.find((item) => typeof item.children === 'function');
+    if (!pending || prefetch.current?.key === pending.id || inflight.current) return;
+    const promise = (pending.children as () => Promise<PaletteNode[]>)();
+    inflight.current = promise;
+    void promise
+      .then((nodes) => {
+        prefetch.current = { key: pending.id, nodes };
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        inflight.current = null;
+      });
+    void parent;
+  }, [current, items, loading, open]);
 
   const enter = useCallback(
     async (node: PaletteNode) => {
@@ -81,8 +106,21 @@ export default function CommandPalette({
         return;
       }
       if (node.children) {
+        if (Array.isArray(node.children)) {
+          setStack((prev) => [...prev, node]);
+          setSiblings(node.children);
+          setQuery('');
+          return;
+        }
+        const cached = prefetch.current?.key === node.id ? prefetch.current.nodes : null;
+        if (cached) {
+          setStack((prev) => [...prev, node]);
+          setSiblings(cached);
+          setQuery('');
+          return;
+        }
         setLoading(true);
-        const next = typeof node.children === 'function' ? await node.children() : node.children;
+        const next = await node.children();
         setStack((prev) => [...prev, node]);
         setSiblings(next);
         setQuery('');
@@ -152,7 +190,7 @@ export default function CommandPalette({
     if (!open) return;
     const node = listRef.current?.querySelector('[data-active="true"]');
     node?.scrollIntoView({ block: 'nearest' });
-  }, [active, open, items]);
+  }, [active, open]);
 
   if (!open) return null;
 

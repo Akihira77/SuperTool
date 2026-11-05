@@ -118,6 +118,7 @@ export default function FilesTool() {
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
   const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
+  const [recentOpen, setRecentOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const loadListing = useCallback(async (path: string) => {
@@ -553,21 +554,32 @@ export default function FilesTool() {
         <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2">
           {recents.length ? (
             <div className="mb-1 border-b border-line pb-1">
-              <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
+              <div className="flex items-center gap-1 px-1 pb-1">
+                <span className="text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</span>
+                {recents.length ? (
+                  <button type="button" className="ml-auto cursor-pointer text-[10.5px] text-accent/80 hover:text-accent" onClick={() => setRecentOpen(true)}>
+                    {t('files.allRecent')}
+                  </button>
+                ) : null}
+              </div>
               {recents.slice(0, 5).map((item) => (
                 <button
                   key={item.path}
                   type="button"
                   onClick={() => void openFile({ path: item.path, ext: (item.path.split('.').pop() ?? '').toLowerCase() } as Entry)}
                   title={item.path}
-                  className="block w-full truncate rounded px-1 py-0.5 text-left text-[11.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-panel2"
                 >
-                  {item.path.split('/').pop()}
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted hover:text-ink">{item.path.split('/').pop()}</span>
+                  <span className="shrink-0 text-[10px] text-muted/60">{timeAgo(item.openedAt)}</span>
                 </button>
               ))}
             </div>
           ) : null}
-          {roots.map((root) => (
+          {(projectPath && roots.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/'))
+            ? [{ path: projectPath, label: projectName(projectPath) }]
+            : roots
+          ).map((root) => (
             <TreeNode
               key={root.path}
               entry={{ name: root.label, path: root.path, dir: true, size: 0, mtime: 0, ext: '', hidden: false }}
@@ -918,6 +930,41 @@ export default function FilesTool() {
           )}
         </div>
       </div>
+
+      {recentOpen ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4" onMouseDown={() => setRecentOpen(false)}>
+          <div className="flex max-h-[70vh] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('files.recentTitle')}>
+            <div className="flex items-center gap-2">
+              <Icon name="files" size={14} className="text-accent" />
+              <span className="text-[13px] font-medium">{t('files.recentTitle')}</span>
+              <button type="button" className="btn btn-ghost ml-auto cursor-pointer px-1 py-0.5" onClick={() => setRecentOpen(false)} title={t('common.close')}>
+                <Icon name="x" size={13} />
+              </button>
+            </div>
+            <div className="min-h-24 flex-1 overflow-y-auto rounded border border-line">
+              {recents.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => {
+                    setRecentOpen(false);
+                    void openFile({ path: item.path, ext: (item.path.split('.').pop() ?? '').toLowerCase() } as Entry);
+                  }}
+                  title={item.path}
+                  className="flex w-full items-center gap-2 border-b border-line/50 px-2 py-1.5 text-left last:border-0 hover:bg-panel2"
+                >
+                  <Icon name="markdown" size={13} className="shrink-0 text-muted" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] text-ink/90">{item.path.split('/').pop()}</span>
+                    <span className="mono block truncate text-[10px] text-muted/70">{item.path}</span>
+                  </span>
+                  <span className="shrink-0 text-[10.5px] text-muted/70">{timeAgo(item.openedAt)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

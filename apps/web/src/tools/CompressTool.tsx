@@ -26,18 +26,16 @@ function FileCard({
   size,
   highlight,
   download,
-  noPreview,
 }: {
   label: string;
   path: string;
   size: number;
   highlight?: boolean;
   download?: boolean;
-  noPreview?: boolean;
 }) {
   const ext = (path.split('.').pop() ?? '').toLowerCase();
   const isImage = IMAGE.has(ext);
-  const show = isImage && !noPreview;
+  const show = isImage;
   const src = RAW + encodeURIComponent(path) + '&v=' + size;
   return (
     <div
@@ -65,7 +63,6 @@ function FileCard({
         <div className="flex h-28 flex-col items-center justify-center gap-1 rounded-md border border-line bg-panel2 text-muted">
           <Icon name={ext === 'pdf' ? 'files' : 'markdown'} size={26} />
           <span className="text-[11px] uppercase">.{ext || 'berkas'}</span>
-          {isImage && noPreview ? <span className="text-[10.5px]">pratinjau tidak ditampilkan</span> : null}
         </div>
       )}
       <div className="min-w-0">
@@ -217,9 +214,6 @@ export default function CompressTool() {
   };
 
   const canRun = tab === 'compress' ? isImage || isPdf : convertTargets.includes(target);
-  // Konversi yang menyentuh PDF tidak perlu pratinjau isi, cukup info berkas.
-  const involvesPdf =
-    !!result && [result.input.path, result.output.path].some((item) => item.toLowerCase().endsWith('.pdf'));
 
   return (
     <div className="flex h-full flex-col">
@@ -410,7 +404,6 @@ export default function CompressTool() {
                   path={result.input.path}
                   size={result.input.size}
                   download
-                  noPreview={involvesPdf}
                 />
                 <FileCard
                   label={t('compress.result')}
@@ -418,7 +411,6 @@ export default function CompressTool() {
                   size={result.output.size}
                   highlight
                   download
-                  noPreview={involvesPdf}
                 />
               </div>
               {result.note ? <div className="text-[11.5px] text-muted">{result.note}</div> : null}
