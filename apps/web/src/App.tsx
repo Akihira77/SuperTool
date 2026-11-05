@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
+import CommandPalette, { type CommandItem } from './components/CommandPalette';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -44,6 +45,32 @@ function Shell() {
   const [navOpen, toggleNav] = useSidebar('nav');
   const { t, lang, setLang } = useI18n();
   const ViewerComponent = TOOLS.find((tool) => tool.id === 'viewer')!.component;
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Ctrl/Cmd + K membuka command palette.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const paletteItems = [
+    ...TOOLS.map<CommandItem>((tool) => ({
+      id: 'tool:' + tool.id,
+      label: t(tool.key as 'nav.markdown', tool.label),
+      desc: tool.desc,
+      icon: tool.icon,
+      group: 'menu',
+    })),
+    { id: 'action:lang', label: lang === 'id' ? 'Bahasa: English' : 'Bahasa: Indonesia', desc: 'Ganti bahasa antarmuka', icon: 'dev', group: 'aksi' },
+    { id: 'action:password', label: t('nav.password'), desc: 'Ganti password', icon: 'lock', group: 'aksi' },
+    { id: 'action:logout', label: t('nav.logout'), desc: 'Keluar dari sesi ini', icon: 'logout', group: 'aksi' },
+  ];
 
   useEffect(() => {
     let alive = true;
@@ -144,7 +171,7 @@ function Shell() {
         ) : null}
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
         {route === 'password' ? (
           <div className="flex-1 overflow-y-auto">
             <ChangePassword forced={false} onDone={() => navigate('markdown')} />
@@ -161,9 +188,12 @@ function Shell() {
               URL Viewer sengaja tetap ter-mount walau pindah tab: iframe di dalamnya
               (terminal ssh, pm2 log, dsb) tidak boleh reload hanya karena menu lain dibuka.
             */}
+            {/* visibility (bukan display:none) supaya iframe tetap punya ukuran dan prosesnya jalan. */}
             <div
-              style={{ display: route === 'viewer' ? 'flex' : 'none' }}
-              className={cn('min-h-0 flex-1 flex-col', route === 'viewer' && 'flex')}
+              className={cn(
+                'flex min-h-0 flex-1 flex-col',
+                route !== 'viewer' && 'pointer-events-none invisible absolute inset-0',
+              )}
             >
               <ViewerComponent />
             </div>
@@ -171,6 +201,18 @@ function Shell() {
           </Suspense>
         )}
       </main>
+
+      <CommandPalette
+        open={paletteOpen}
+        items={paletteItems}
+        onClose={() => setPaletteOpen(false)}
+        onSelect={(id) => {
+          if (id.startsWith('tool:')) navigate(id.slice(5));
+          else if (id === 'action:lang') setLang(lang === 'id' ? 'en' : 'id');
+          else if (id === 'action:password') navigate('password');
+          else if (id === 'action:logout') void logout();
+        }}
+      />
     </div>
   );
 }

@@ -73,8 +73,10 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | GET | `/fs/raw` | `path`, `download=1` | isi file mentah, mendukung HTTP Range (206) |
 | GET | `/fs/office` | `path` | pratinjau docx/xlsx/pptx/odt/ods/odp |
 | POST | `/fs/office` | `{ path, texts[] }` atau `{ path, cells[] }` | simpan hasil edit + cadangan otomatis |
-| GET | `/fs/grep` | `path`, `q`, `limit` | `{ results: [{ path, line, text }], truncated }` |
-| GET | `/fs/search` | `path`, `q`, `all=1` | `{ results[], truncated }` |
+| GET | `/fs/grep` | `path`, `q`, `limit`, `exclude` | `{ results: [{ path, line, text }], truncated, warning? }` |
+| GET | `/fs/search` | `path`, `q`, `all=1`, `exclude` | `{ results[], truncated }` |
+
+`exclude` = pola berkas yang dilewati, dipisah koma (contoh `*.log,*.map`). Berlaku untuk pencarian isi (diteruskan sebagai `--exclude` ke grep) maupun pencarian nama. Pencarian isi memakai `grep` streaming: bila browser memutus request (tombol **Batal**), proses grep langsung dihentikan dan hasil parsial dikirim sebelum koneksi ditutup. Exit code 2 (misal ada folder tanpa izin) tidak lagi dianggap gagal selama ada hasil.
 | GET | `/fs/du` | `path` | `{ bytes, files, truncated }` |
 | PUT | `/fs/write` | `{ path, content }` | `{ ok, size }` |
 | POST | `/fs/mkdir` | `{ path }` | `{ ok, path }` |
@@ -230,7 +232,7 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`) |
 | GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
 | GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
-| GET | `/dev/git` | `path` | `{ branch, ahead, behind, staged[], changed[], untracked[], commits[], diffstat, tags[] }` |
+| GET | `/dev/git` | `path`, `ref` (opsional) | `{ branch, ahead, behind, staged[], changed[], untracked[], commits[], diffstat, tags[], branches[], graph, ref }` |
 | GET | `/dev/cron` | – | `{ entries: [{ index, line }], raw }` |
 | POST | `/dev/cron` | `{ line }` | daftar terbaru |
 | DELETE | `/dev/cron` | `index` | daftar terbaru |
@@ -239,6 +241,8 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 `algo`: `md5`, `sha1`, `sha256`, `sha512`, `sha3-256`, `sha3-512`. Bila `hmacKey` diisi, dipakai HMAC. Regex tester dan encode/decode dasar jalan di browser, tidak butuh endpoint.
 
 `/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB.
+
+`/dev/git`: `graph` adalah keluaran `git log --graph --oneline --decorate` (semua branch, 40 baris) atau untuk `ref` tertentu kalau parameternya diisi; `branches` = daftar branch lokal (maks 30).
 
 ## SQLite Viewer
 

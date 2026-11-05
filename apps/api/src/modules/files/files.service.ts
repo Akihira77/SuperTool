@@ -12,6 +12,15 @@ const TEXT_LIMIT = 2 * 1024 * 1024;
 const MAX_ENTRIES = 2000;
 const SEARCH_MAX = 200;
 const GREP_MAX = 300;
+
+/** Pencocokan glob sederhana: '*' -> apa saja, '?' -> satu karakter. */
+function globMatch(glob: string, name: string): boolean {
+  const escaped = glob
+    .replace(/[.+^$${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp('^' + escaped + '$', 'i').test(name);
+}
 const exec = promisify(execFile);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.cache', '__pycache__', 'dist', '.next']);
 
@@ -146,7 +155,7 @@ export class FilesService {
    * waktu lama di folder besar, dan exit code 2 (misal ada subfolder tanpa izin)
    * tidak boleh membuang hasil yang sudah didapat.
    */
-  async grepText(root: string, query: string, limit = GREP_MAX) {
+  async grepText(root: string, query: string, limit = GREP_MAX, exclude: string[] = [], signal?: AbortSignal) {
     const start = await jailPath(root);
     const needle = String(query ?? '');
     if (needle.trim().length < 2) throw new BadRequestException('Kata kunci minimal 2 karakter');
@@ -160,6 +169,8 @@ export class FilesService {
       '--exclude-dir=dist',
       '--exclude-dir=.cache',
       '--exclude-dir=.pnpm-store',
+      // Pola exclude dari UI, contoh: *.log, *.map, *.min.js
+      ...exclude.filter(Boolean).map((glob) => '--exclude=' + glob),
       '-m',
       '20',
       '-F',
@@ -236,6 +247,11 @@ export class FilesService {
         reject(new BadRequestException('Perintah grep tidak tersedia: ' + (err as Error).message.slice(0, 120)));
       });
 
+      if (signal) {
+        signal.addEventListener('abort', () => child.kill('SIGKILL'), { once: true });
+        if (signal.aborted) child.kill('SIGKILL');
+      }
+
       child.on('close', (code) => {
         if (buffer.trim()) parse(buffer);
         const noisy = stderr
@@ -254,7 +270,7 @@ export class FilesService {
     });
   }
 
-  async search(root: string, query: string, includeAll: boolean) {
+  async search(root: string, query: string, includeAll: boolean, exclude: string[] = []) {
     if (!query || query.length < 2) throw new BadRequestException('Query minimal 2 karakter');
     const start = await jailPath(root);
     const needle = query.toLowerCase();
@@ -270,6 +286,7 @@ export class FilesService {
       }
       for (const dirent of dirents) {
         const full = join(dir, dirent.name);
+        if (exclude.some((glob) => globMatch(glob, dirent.name))) continue;
         if (dirent.name.toLowerCase().includes(needle)) {
           let size = 0;
           let mtime = 0;

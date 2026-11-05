@@ -110,5 +110,6 @@ Tanda-tanda desain ini mulai kurang, beserta jalannya:
 - **Butuh pencarian isi catatan** → tambah FTS5 di tabel `notes` (`node:sqlite` sudah mendukung).
 - **Butuh multi-user / role** → tambah tabel user + `userId` di catatan, guard membaca user dari sesi.
 - **Butuh iframe SPA penuh** → pasang reverse proxy per tool (subdomain), bukan memperbesar `proxy.controller.ts`.
-- **Iframe jangan reload saat pindah menu** → UrlTool tetap ter-mount di App (`display: none` saat tidak aktif), dan tiap view punya iframe sendiri yang tidak dilepas; hanya tab aktif yang ditampilkan.
+- **Iframe jangan reload saat pindah menu** → UrlTool tetap ter-mount di App dan hanya disembunyikan dengan `visibility: hidden` + `pointer-events: none` (bukan `display: none`, karena viewport 0×0 membuat SPA macet di loading). Tiap view punya iframe sendiri yang tidak dilepas; iframe non-aktif ditumpuk `absolute` dengan `opacity: 0`.
+- **Navigasi cepat** → `components/CommandPalette.tsx` mendengarkan Ctrl/Cmd+K di window, memfilter daftar menu + aksi dengan `includes`, dan memanggil `navigate` saat Enter. Tanpa dependensi tambahan.
 - **Database bersama antar mesin** → pindah ke Postgres; skema tabel sekarang sudah relasional.

@@ -310,8 +310,9 @@ export class DevService {
     }
   }
 
-  async git(path: string) {
+  async git(path: string, ref?: string) {
     const abs = await jailPath(path);
+    const wanted = String(ref ?? '').trim();
     const run = async (args: string[]) => {
       const { stdout } = await exec('git', ['-C', abs, ...args], { timeout: 15_000, maxBuffer: 8 * 1024 * 1024 });
       return stdout;
@@ -322,12 +323,18 @@ export class DevService {
       throw new BadRequestException('Folder ini bukan repositori git');
     }
 
-    const [branch, status, log, diffstat, tags] = await Promise.all([
+    const [branch, status, log, diffstat, tags, branches, graph] = await Promise.all([
       run(['branch', '--show-current']).catch(() => ''),
       run(['status', '--porcelain=v1', '-uall']).catch(() => ''),
-      run(['log', '-10', '--pretty=%h|%s|%an|%ar']).catch(() => ''),
+      (wanted ? run(['log', '-10', '--pretty=%h|%s|%an|%ar', wanted]) : run(['log', '-10', '--pretty=%h|%s|%an|%ar'])).catch(() => ''),
       run(['diff', '--stat=100']).catch(() => ''),
       run(['tag', '--sort=-creatordate']).catch(() => ''),
+      run(['branch', '--format=%(refname:short)']).catch(() => ''),
+      // Grafik commit: semua branch (atau satu ref kalau dipilih).
+      (wanted
+        ? run(['log', '--graph', '--oneline', '--decorate', '-40', wanted])
+        : run(['log', '--graph', '--oneline', '--decorate', '--all', '-40'])
+      ).catch(() => ''),
     ]);
 
     let ahead = 0;
@@ -368,6 +375,9 @@ export class DevService {
         }),
       diffstat: diffstat.trim(),
       tags: tags.split('\n').filter(Boolean).slice(0, 5),
+      ref: wanted || null,
+      branches: branches.split('\n').filter(Boolean).slice(0, 30),
+      graph: graph.replace(/\s+$/g, ''),
     };
   }
 }

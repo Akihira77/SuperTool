@@ -65,10 +65,13 @@ export default function UrlTool() {
   const [nonces, setNonces] = useState<Record<string, number>>({});
   const [opened, setOpened] = useState<string[]>([]);
 
-  const bump = (id: string) => setNonces((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  const bump = (id: string) => {
+    setNonces((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    setLoaded((prev) => ({ ...prev, [id]: false }));
+  };
   const [status, setStatus] = useState<Status | null>(null);
   const [checking, setChecking] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'sub' | 'path'>(() => (localStorage.getItem('st:urls:mode') === 'path' ? 'path' : 'sub'));
 
@@ -135,9 +138,7 @@ export default function UrlTool() {
     void probe(active);
   }, [active?.id, probe]);
 
-  useEffect(() => {
-    setLoading(true);
-  }, [active?.id, active?.proxy]);
+
 
   // Tiap view yang pernah dibuka tetap hidup (iframe-nya tidak dilepas).
   useEffect(() => {
@@ -343,19 +344,26 @@ export default function UrlTool() {
         </div>
 
         <div className="relative min-w-0 flex-1 bg-[#0b1118]">
-          {loading && active ? (
+          {active && !loaded[active.id] ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0b1118]/70">
               <Spinner />
             </div>
           ) : null}
+          {/*
+            Iframe non-aktif sengaja tidak di-display:none: viewport 0x0 membuat SPA
+            macet di layar loading saat tab kembali dibuka.
+          */}
           {openViews.length ? (
             openViews.map((view) => (
               <iframe
                 key={view.id + ':' + (nonces[view.id] ?? 0)}
                 src={srcFor(view)}
                 title={view.name}
-                onLoad={() => setLoading(false)}
-                className={cn('h-full w-full border-0', view.id !== active?.id && 'hidden')}
+                onLoad={() => setLoaded((prev) => ({ ...prev, [view.id]: true }))}
+                className={cn(
+                  'absolute inset-0 h-full w-full border-0',
+                  view.id !== active?.id && 'pointer-events-none opacity-0',
+                )}
                 allow="clipboard-read; clipboard-write; fullscreen; microphone; camera"
               />
             ))

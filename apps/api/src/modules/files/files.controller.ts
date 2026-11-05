@@ -22,6 +22,15 @@ import { mimeOf } from './mime';
 
 type Uploaded = { originalname: string; buffer: Buffer };
 
+/** "*.log, *.map" -> ['*.log', '*.map'] */
+function parseExclude(raw?: string): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0 && item.length < 64)
+    .slice(0, 20);
+}
+
 @Controller('fs')
 export class FilesController {
   constructor(private readonly files: FilesService) {}
@@ -54,13 +63,22 @@ export class FilesController {
   }
 
   @Get('grep')
-  grep(@Query('path') path: string, @Query('q') q: string, @Query('limit') limit: string) {
-    return this.files.grepText(path, q, Number(limit) || undefined);
+  grep(
+    @Query('path') path: string,
+    @Query('q') q: string,
+    @Query('limit') limit: string,
+    @Query('exclude') exclude: string,
+    @Req() req: Request,
+  ) {
+    // Request dibatalkan browser (tombol Batal) -> hentikan proses grep.
+    const controller = new AbortController();
+    req.on('close', () => controller.abort());
+    return this.files.grepText(path, q, Number(limit) || undefined, parseExclude(exclude), controller.signal);
   }
 
   @Get('search')
-  search(@Query('path') path: string, @Query('q') q: string, @Query('all') all: string) {
-    return this.files.search(path, q, all === '1');
+  search(@Query('path') path: string, @Query('q') q: string, @Query('all') all: string, @Query('exclude') exclude: string) {
+    return this.files.search(path, q, all === '1', parseExclude(exclude));
   }
 
   @Get('du')

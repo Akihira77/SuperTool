@@ -57,7 +57,7 @@ export class DevController {
   }
 
   @Get('git')
-  git(@Query('path') path: string) {
-    return this.dev.git(path);
+  git(@Query('path') path: string, @Query('ref') ref?: string) {
+    return this.dev.git(path, ref);
   }
 }

@@ -93,6 +93,9 @@ export default function FilesTool() {
   const [deep, setDeep] = useState(false);
   const [hits, setHits] = useState<GrepHit[] | null>(null);
   const [grepWarning, setGrepWarning] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [exclude, setExclude] = useState(() => localStorage.getItem('st:files:exclude') ?? '*.log, *.map');
+  const searchAbort = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
@@ -264,30 +267,51 @@ export default function FilesTool() {
 
   const search = async () => {
     if (!listing || query.trim().length < 2) return;
+    searchAbort.current?.abort();
+    const controller = new AbortController();
+    searchAbort.current = controller;
     setBusy(true);
+    setSearching(true);
     setError('');
     try {
       setGrepWarning('');
+      const params = { path: listing.path, q: query, exclude: exclude.trim() || undefined };
       if (deep) {
         const result = await api.get<{ results: GrepHit[]; truncated: boolean; warning?: string }>(
-          '/fs/grep' + qs({ path: listing.path, q: query }),
+          '/fs/grep' + qs(params),
+          { signal: controller.signal },
         );
         setHits(result.results);
         setResults(null);
         if (result.warning) setGrepWarning(result.warning);
         else if (result.truncated) setGrepWarning('Hasil dipotong pada 300 baris pertama.');
       } else {
-        const result = await api.get<{ results: Entry[] }>('/fs/search' + qs({ path: listing.path, q: query }));
+        const result = await api.get<{ results: Entry[] }>('/fs/search' + qs(params), { signal: controller.signal });
         setResults(result.results);
         setHits(null);
       }
       setFile(null);
       setOffice(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Pencarian gagal');
+      if ((err as Error)?.name === 'AbortError') {
+        setHits(null);
+        setResults(null);
+        setError('Pencarian dibatalkan.');
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Pencarian gagal');
+      }
     } finally {
+      if (searchAbort.current === controller) searchAbort.current = null;
       setBusy(false);
+      setSearching(false);
     }
+  };
+
+  const cancelSearch = () => {
+    searchAbort.current?.abort();
+    searchAbort.current = null;
+    setSearching(false);
+    setBusy(false);
   };
 
   const upload = async (files: FileList | null) => {
@@ -389,9 +413,28 @@ export default function FilesTool() {
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
-        <button type="button" className="btn cursor-pointer" onClick={() => void search()} title="Cari">
-          <Icon name="search" size={13} />
-        </button>
+        <div className="relative hidden lg:block">
+          <input
+            value={exclude}
+            onChange={(e) => {
+              setExclude(e.target.value);
+              localStorage.setItem('st:files:exclude', e.target.value);
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && void search()}
+            placeholder="kecualikan: *.log, *.map"
+            title="Pola berkas yang dilewati saat mencari (pisahkan dengan koma)"
+            className="input w-44 py-1.5 pl-2 text-[11.5px]"
+          />
+        </div>
+        {searching ? (
+          <button type="button" className="btn cursor-pointer text-bad" onClick={cancelSearch} title="Hentikan pencarian">
+            <Icon name="x" size={13} /> Batal
+          </button>
+        ) : (
+          <button type="button" className="btn cursor-pointer" onClick={() => void search()} title="Cari">
+            <Icon name="search" size={13} />
+          </button>
+        )}
         <button type="button" className="btn" onClick={makeFolder} disabled={!listing} title="Folder baru">
           <Icon name="folderPlus" />
         </button>

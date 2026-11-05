@@ -15,9 +15,9 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
-| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian isi berkas (grep), upload, rename, hapus |
+| 8 | File Explorer | Tree, ukuran, viewer teks/kode/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video, pencarian nama/isi berkas (grep, bisa dibatalkan, dengan pola exclude), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status, cron manager, DNS/IP lookup, SQLite viewer |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik commit + branch), cron manager, DNS/IP lookup, SQLite viewer |
 
 ## Tech stack
 
@@ -167,6 +167,8 @@ File Explorer memutar mp3, wav, ogg, m4a, aac, flac, opus, mp4, webm, mkv, mov l
 - Berkas dipilih lewat kotak drop (klik untuk membuka dialog file) atau ditarik ke sana; hasil unggahan masuk ke `<root>/.super-tool-drop`.
 - Berkas rusak atau terkunci password menghasilkan pesan seperti "Berkas terkunci password, tidak bisa diproses", bukan halaman kosong.
 
+Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil di kanan, masing-masing dengan pratinjau besar (gambar tampil penuh, klik untuk ukuran asli), ukuran berkas, dan tombol unduh. Konversi yang melibatkan PDF tidak menampilkan isi, hanya info berkas.
+
 ## Dev Space
 
 | Tab | Endpoint | Catatan |
@@ -201,7 +203,11 @@ Yang perlu diketahui:
 - Proxy ini hanya menerima alamat loopback/privat (kecuali `ST_PROXY_ALLOW_PUBLIC=1`) dan hanya binding ke `127.0.0.1`, sama seperti mode path.
 - Kalau browser menolak cookie pihak ketiga (beberapa pengaturan privasi ketat), buka tool tersebut di tab baru lewat tombol ↗ — origin subdomain yang sama tetap dipakai.
 - Bundel JS/JSON yang memuat alamat API absolut (misalnya Chroma UI yang menyimpan `http://localhost:8000`) ditulis ulang ke origin proxy, jadi panggilan API-nya tidak lagi diblokir sebagai lintas origin.
-- Tab yang sudah dibuka **tetap hidup** saat pindah menu: iframe tidak di-unmount, jadi sesi ssh, `pm2 log`, atau terminal panjang di dalam Termix terus berjalan. Tiap tab punya iframe sendiri dan hanya yang aktif ditampilkan.
+- Tab yang sudah dibuka **tetap hidup** saat pindah menu: iframe tidak di-unmount dan tidak di-`display:none` (hanya disembunyikan lewat `visibility`/`opacity`), jadi sesi ssh, `pm2 log`, atau terminal panjang di dalam Termix terus berjalan dan tidak macet di layar loading. Tiap tab punya iframe sendiri dan hanya yang aktif yang bisa diklik.
+
+## Command Palette
+
+Tekan **Ctrl + K** (atau **Cmd + K** di macOS) di mana saja untuk membuka palette: ketik nama menu (misal `json`, `file`, `git`), pilih dengan ↑↓, lalu **Enter** untuk pindah halaman. Selain menu, palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). **Esc** menutup.
 
 ## Bahasa (ID / EN)
 

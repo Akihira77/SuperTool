@@ -15,22 +15,29 @@ type Job = { id: string; state: 'running' | 'done' | 'error'; result?: Result; e
 
 const IMAGE = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'tif', 'tiff']);
 
-/** Kartu berkas: thumbnail untuk gambar, ikon untuk sisanya. */
+/**
+ * Kartu berkas dengan pratinjau besar: gambar tampil penuh supaya perbandingan
+ * ukuran/ketajaman terlihat. Berkas non-gambar (PDF dsb) cukup info saja.
+ */
 function FileCard({
   label,
   path,
   size,
   highlight,
   download,
+  noPreview,
 }: {
   label: string;
   path: string;
   size: number;
   highlight?: boolean;
   download?: boolean;
+  noPreview?: boolean;
 }) {
   const ext = (path.split('.').pop() ?? '').toLowerCase();
   const isImage = IMAGE.has(ext);
+  const show = isImage && !noPreview;
+  const src = RAW + encodeURIComponent(path) + '&v=' + size;
   return (
     <div
       className={cn(
@@ -41,21 +48,30 @@ function FileCard({
       <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
         {label}
         {highlight ? <span className="rounded bg-accent/15 px-1 text-[10px] text-accent normal-case">baru</span> : null}
+        <span className="ml-auto text-[10.5px] normal-case">{ext || 'berkas'}</span>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel2">
-          {isImage ? (
-            <img src={RAW + encodeURIComponent(path) + '&v=' + size} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Icon name={ext === 'pdf' ? 'files' : 'markdown'} size={20} className="text-muted" />
-          )}
+      {show ? (
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          title="Buka ukuran penuh"
+          className="block overflow-hidden rounded-md border border-line bg-[#0b1118]"
+        >
+          <img src={src} alt={path} className="h-56 w-full object-contain" loading="lazy" />
+        </a>
+      ) : (
+        <div className="flex h-28 flex-col items-center justify-center gap-1 rounded-md border border-line bg-panel2 text-muted">
+          <Icon name={ext === 'pdf' ? 'files' : 'markdown'} size={26} />
+          <span className="text-[11px] uppercase">.{ext || 'berkas'}</span>
+          {isImage && noPreview ? <span className="text-[10.5px]">pratinjau tidak ditampilkan</span> : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] text-ink">{path.split('/').pop()}</div>
-          {size > 0 ? <div className="mono text-[11px] text-muted">{bytes(size)}</div> : null}
-          <div className="mono truncate text-[10.5px] text-muted/70" title={path}>
-            {path}
-          </div>
+      )}
+      <div className="min-w-0">
+        <div className="truncate text-[12.5px] text-ink">{path.split('/').pop()}</div>
+        {size > 0 ? <div className="mono text-[11px] text-muted">{bytes(size)}</div> : null}
+        <div className="mono truncate text-[10.5px] text-muted/70" title={path}>
+          {path}
         </div>
       </div>
       {download ? (
@@ -194,6 +210,9 @@ export default function CompressTool() {
   };
 
   const canRun = tab === 'compress' ? isImage || isPdf : convertTargets.includes(target);
+  // Konversi yang menyentuh PDF tidak perlu pratinjau isi, cukup info berkas.
+  const involvesPdf =
+    !!result && [result.input.path, result.output.path].some((item) => item.toLowerCase().endsWith('.pdf'));
 
   return (
     <div className="flex h-full flex-col">
@@ -379,8 +398,21 @@ export default function CompressTool() {
                 </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <FileCard label={t('compress.original')} path={result.input.path} size={result.input.size} download />
-                <FileCard label={t('compress.result')} path={result.output.path} size={result.output.size} highlight download />
+                <FileCard
+                  label={t('compress.original')}
+                  path={result.input.path}
+                  size={result.input.size}
+                  download
+                  noPreview={involvesPdf}
+                />
+                <FileCard
+                  label={t('compress.result')}
+                  path={result.output.path}
+                  size={result.output.size}
+                  highlight
+                  download
+                  noPreview={involvesPdf}
+                />
               </div>
               {result.note ? <div className="text-[11.5px] text-muted">{result.note}</div> : null}
             </div>

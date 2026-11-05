@@ -13,6 +13,9 @@ type GitState = {
   commits: Array<{ hash: string; subject: string; author: string; when: string }>;
   diffstat: string;
   tags: string[];
+  ref: string | null;
+  branches: string[];
+  graph: string;
 };
 
 type Dir = { name: string; path: string };
@@ -23,6 +26,7 @@ export default function GitTab() {
   const [parent, setParent] = useState<string | null>(null);
   const [dirs, setDirs] = useState<Dir[]>([]);
   const [picked, setPicked] = useState('');
+  const [ref, setRef] = useState<string | null>(null);
   const [state, setState] = useState<GitState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -45,12 +49,12 @@ export default function GitTab() {
     }
   }, []);
 
-  const load = useCallback(async (target: string) => {
+  const load = useCallback(async (target: string, branch?: string | null) => {
     if (!target.trim()) return;
     setBusy(true);
     setError('');
     try {
-      setState(await api.get<GitState>('/dev/git' + qs({ path: target })));
+      setState(await api.get<GitState>('/dev/git' + qs({ path: target, ref: branch ?? undefined })));
     } catch (err) {
       setState(null);
       setError(err instanceof ApiError ? err.message : 'Gagal membaca git');
@@ -237,6 +241,60 @@ export default function GitTab() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="card flex flex-col gap-2 p-3">
+            <div className="flex flex-wrap items-center gap-1 text-[11px] tracking-wide text-muted uppercase">
+              Branch
+              <span className="rounded bg-panel2 px-1 text-ink normal-case">{state.branches.length}</span>
+              <span className="ml-2 text-[10.5px] normal-case">klik untuk lihat log branch itu</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setRef(null);
+                  void load(browse, null);
+                }}
+                className={cn(
+                  'cursor-pointer rounded px-2 py-0.5 text-[11.5px]',
+                  !ref ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+                )}
+              >
+                semua branch
+              </button>
+              {state.branches.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => {
+                    setRef(name);
+                    void load(browse, name);
+                  }}
+                  className={cn(
+                    'mono cursor-pointer rounded px-2 py-0.5 text-[11.5px]',
+                    ref === name
+                      ? 'bg-accent/15 text-accent'
+                      : name === state.branch
+                        ? 'text-ink hover:bg-panel2'
+                        : 'text-muted hover:bg-panel2 hover:text-ink',
+                  )}
+                >
+                  {name === state.branch ? '● ' : ''}
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card flex max-h-80 flex-col gap-1 overflow-auto p-3">
+            <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
+              Grafik commit
+              <span className="normal-case">{ref ? ref : 'semua branch'}</span>
+            </div>
+            <pre className="mono text-[11.5px] leading-[1.45] whitespace-pre text-ink/85">
+              {state.graph || 'tidak ada commit'}
+            </pre>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
