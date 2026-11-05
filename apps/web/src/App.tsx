@@ -23,6 +23,8 @@ const TOOLS: Tool[] = [
   { id: 'nginx', label: 'Nginx', desc: 'Edit konfigurasi', icon: 'nginx', component: lazy(() => import('./tools/NginxTool')) },
   { id: 'ports', label: 'Port', desc: 'App yang sedang jalan', icon: 'ports', component: lazy(() => import('./tools/PortsTool')) },
   { id: 'files', label: 'File Explorer', desc: 'Jelajah & lihat file', icon: 'files', component: lazy(() => import('./tools/FilesTool')) },
+  { id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', component: lazy(() => import('./tools/CompressTool')) },
+  { id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', component: lazy(() => import('./tools/DevSpaceTool')) },
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';

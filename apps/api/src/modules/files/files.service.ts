@@ -3,11 +3,16 @@ import { readdir, readFile, stat, mkdir, rename, rm, writeFile } from 'node:fs/p
 import { basename, dirname, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { touchPath } from '../../common/db';
+import { isOffice, previewOffice, saveOfficeEdits } from './office';
 
 const TEXT_LIMIT = 2 * 1024 * 1024;
 const MAX_ENTRIES = 2000;
 const SEARCH_MAX = 200;
+const GREP_MAX = 300;
+const exec = promisify(execFile);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.cache', '__pycache__', 'dist', '.next']);
 
 export type Entry = {
@@ -80,6 +85,27 @@ export class FilesService {
     };
   }
 
+  /** Pratinjau docx/xlsx/pptx/odt/ods/odp tanpa library. */
+  async office(input: string) {
+    const path = await jailPath(input);
+    const info = await stat(path);
+    if (!info.isFile()) throw new BadRequestException('Bukan file');
+    if (!isOffice(path)) throw new BadRequestException('Bukan berkas office yang didukung');
+    touchPath('file', path);
+    return { path, size: info.size, mtime: info.mtimeMs, ...(await previewOffice(path)) };
+  }
+
+  /** Simpan edit teks (docx) atau sel (xlsx). */
+  async saveOffice(input: string, patch: { texts?: string[]; cells?: Array<{ sheet: number; ref: string; value: string }> }) {
+    const path = await jailPath(input);
+    const info = await stat(path);
+    if (!info.isFile()) throw new BadRequestException('Bukan file');
+    const result = await saveOfficeEdits(path, patch ?? {});
+    touchPath('file', path);
+    const after = await stat(path);
+    return { ...result, path, size: after.size };
+  }
+
   async writeText(input: string, content: string): Promise<{ ok: true; size: number }> {
     if (typeof content !== 'string') throw new BadRequestException('content harus string');
     const path = await jailPath(input);
@@ -110,6 +136,54 @@ export class FilesService {
     if (cfg.fsRoots.includes(path)) throw new BadRequestException('Root tidak boleh dihapus');
     await rm(path, { recursive: true });
     return { ok: true };
+  }
+
+  /**
+   * Cari kata di dalam berkas (bukan nama berkas) memakai grep rekursif.
+   * Binary file dilewati, hasil dibatasi GREP_MAX baris.
+   */
+  async grepText(root: string, query: string, limit = GREP_MAX) {
+    const start = await jailPath(root);
+    const needle = String(query ?? '');
+    if (needle.trim().length < 2) throw new BadRequestException('Kata kunci minimal 2 karakter');
+    const max = Math.min(GREP_MAX, Math.max(1, Number(limit) || GREP_MAX));
+    const results: Array<{ path: string; line: number; text: string }> = [];
+    try {
+      const { stdout } = await exec(
+        'grep',
+        [
+          '-rIn',
+          '--binary-files=without-match',
+          '--exclude-dir=node_modules',
+          '--exclude-dir=.git',
+          '--exclude-dir=dist',
+          '--exclude-dir=.cache',
+          '--exclude-dir=.pnpm-store',
+          '-m',
+          '20',
+          '-F',
+          needle,
+          start,
+        ],
+        { timeout: 25_000, maxBuffer: 16 * 1024 * 1024 },
+      );
+      for (const row of stdout.split('\n')) {
+        if (!row) continue;
+        const first = row.indexOf(':');
+        const second = row.indexOf(':', first + 1);
+        if (first < 0 || second < 0) continue;
+        results.push({
+          path: row.slice(0, first),
+          line: Number(row.slice(first + 1, second)) || 0,
+          text: row.slice(second + 1).slice(0, 300),
+        });
+        if (results.length >= max) break;
+      }
+    } catch (err) {
+      const code = (err as { code?: number }).code;
+      if (code !== 1) throw new BadRequestException('Pencarian gagal: ' + (err as Error).message.slice(0, 120));
+    }
+    return { results, truncated: results.length >= max };
   }
 
   async search(root: string, query: string, includeAll: boolean) {

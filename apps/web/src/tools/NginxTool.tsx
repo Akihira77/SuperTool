@@ -26,6 +26,18 @@ function pickText(source: string, start: number, end: number): string {
   return source.slice(lineStart, lineEnd < 0 ? source.length : lineEnd).trim();
 }
 
+/** Ambil sekitar 15 baris sebelum/sesudah potongan, supaya LLM paham konteks blok. */
+function contextAround(full: string, picked: string): string {
+  const at = full.indexOf(picked);
+  if (at < 0) return '';
+  const lines = full.split('\n');
+  const startLine = full.slice(0, at).split('\n').length - 1;
+  const span = picked.split('\n').length;
+  const from = Math.max(0, startLine - 15);
+  const to = Math.min(lines.length, startLine + span + 15);
+  return lines.slice(from, to).join('\n').slice(0, 12_000);
+}
+
 export default function NginxTool() {
   const [panelOpen, togglePanel] = useSidebar('nginx', true);
   const [dir, setDir] = useState('');
@@ -190,7 +202,13 @@ export default function NginxTool() {
     }
     setExplain({ loading: true, text: '', error: '', model });
     try {
-      const result = await api.post<{ text: string; model: string }>('/llm/explain', { code, model, apiKey });
+      const result = await api.post<{ text: string; model: string }>('/llm/explain', {
+        code,
+        model,
+        apiKey,
+        path: activePath,
+        context: contextAround(text, code),
+      });
       setExplain({ loading: false, text: result.text, error: '', model: result.model });
     } catch (err) {
       setExplain({ loading: false, text: '', error: err instanceof ApiError ? err.message : 'LLM gagal dihubungi', model });

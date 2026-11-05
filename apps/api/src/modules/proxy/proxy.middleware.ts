@@ -63,14 +63,18 @@ function rewriteHtml(html: string, origin: string, token: string): string {
   return HTML_HEAD.test(out) ? out.replace(HTML_HEAD, '<head$1>' + inject) : inject + out;
 }
 
-function rewriteCookies(cookies: string[], token: string): string[] {
+function rewriteCookies(cookies: string[], token: string, targetOrigin: string): string[] {
   const path = PROXY_PREFIX + token + '/';
-  return cookies.map((cookie) =>
-    cookie
+  const insecure = targetOrigin.startsWith('http:');
+  return cookies.map((cookie) => {
+    let out = cookie
       .replace(/;\s*domain=[^;]*/gi, '')
-      .replace(/;\s*path=[^;]*/gi, '; Path=' + path)
-      .concat(/;\s*path=/i.test(cookie) ? '' : '; Path=' + path),
-  );
+      .replace(/;\s*path=[^;]*/gi, '; Path=' + path);
+    if (!/;\s*path=/i.test(cookie)) out += '; Path=' + path;
+    // Target http yang menandai cookie Secure akan dibuang browser karena kita di http.
+    if (insecure) out = out.replace(/;\s*secure/gi, '');
+    return out;
+  });
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
@@ -171,7 +175,7 @@ export async function handleProxyRequest(
     outHeaders[key] = value;
   });
   const cookies = upstream.headers.getSetCookie?.() ?? [];
-  if (cookies.length) outHeaders['set-cookie'] = rewriteCookies(cookies, token);
+  if (cookies.length) outHeaders['set-cookie'] = rewriteCookies(cookies, token, origin);
 
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
   const buffer = Buffer.from(await upstream.arrayBuffer());

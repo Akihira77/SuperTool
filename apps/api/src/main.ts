@@ -9,9 +9,9 @@ import { AuthService } from './modules/auth/auth.service';
 import { handleProxyRequest, handleProxyUpgrade } from './modules/proxy/proxy.middleware';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Body parser dimatikan dulu: proxy harus menerima body mentah sebelum di-parse.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   app.setGlobalPrefix('api');
-  app.useBodyParser('json', { limit: '25mb' });
   app.enableCors({ origin: cfg.devOrigin, credentials: true });
 
   // Proxy path-prefix (/api/proxy/b/<token>/...) untuk tool yang memblokir iframe.
@@ -27,6 +27,9 @@ async function bootstrap() {
         res.end();
       });
   });
+
+  // Setelah proxy: baru parse JSON untuk endpoint sendiri.
+  app.useBodyParser('json', { limit: '25mb' });
 
   const indexFile = join(cfg.webDist, 'index.html');
   if (existsSync(indexFile)) {

@@ -9,9 +9,22 @@ import { NotesModule } from './modules/notes/notes.module';
 import { PortsModule } from './modules/ports/ports.module';
 import { ProxyModule } from './modules/proxy/proxy.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { CompressModule } from './modules/tools/compress.module';
+import { DevModule } from './modules/dev/dev.module';
 
 @Module({
-  imports: [AuthModule, NotesModule, FilesModule, PortsModule, NginxModule, ProxyModule, LlmModule, StorageModule],
+  imports: [
+    AuthModule,
+    NotesModule,
+    FilesModule,
+    PortsModule,
+    NginxModule,
+    ProxyModule,
+    LlmModule,
+    StorageModule,
+    CompressModule,
+    DevModule,
+  ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

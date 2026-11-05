@@ -63,12 +63,14 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 |-------|--------------|-----|
 | auth | `auth.service.ts`, `auth.guard.ts` | login, ganti password, verifikasi sesi |
 | notes | `notes.service.ts` | CRUD catatan + serialisasi tulis |
-| files | `files.service.ts`, `mime.ts` | list, read, write, mkdir, rename, delete, upload, search, du |
+| files | `files.service.ts`, `mime.ts`, `office.ts`, `zip.ts` | list, read, write, mkdir, rename, delete, upload, search, du, grep isi berkas, pratinjau + edit OOXML/ODF, kirim berkas dengan HTTP Range |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
 | proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
 | proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`): aset, cookie, POST body, WebSocket |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
+| tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |
+| dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker read-only, git ringkas, crontab, DNS + geo |
 
 ## Peta frontend
 
@@ -81,6 +83,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
 | `tools/*.tsx` | Satu tool = satu file, di-`lazy` load |
+| `tools/devspace/*.tsx` | Satu tab Dev Space = satu file, di-`lazy` load saat tab pertama dibuka |
 
 ## Keputusan dan trade-off
 
@@ -92,6 +95,10 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `ss` + `ps` | Library port-scanner | Perintah sistem sudah akurat, hasilnya mudah diparse |
 | Tailwind tanpa file config | CSS manual | `@theme` di satu file CSS sudah cukup |
 | Satu port saat produksi | Nginx/Caddy terpisah | Satu proses, satu URL, tanpa konfigurasi tambahan |
+| Baca/tulis OOXML sendiri (`zip.ts`) | `mammoth`, `xlsx`, `docx` | Hanya butuh teks & nilai sel, bukan rendering; hemat 3 dependency besar |
+| Job in-memory untuk kompresi | Worker thread / queue eksternal | Satu pengguna, job pendek; hasil tidak perlu tahan restart |
+| sharp untuk gambar | ImageMagick lewat subprocess | native, cepat, tanpa proses tambahan; pdf-lib untuk PDF |
+| Tidak memakai OnlyOffice | Document Server (Docker) | Butuh ~2 GB RAM untuk satu pengguna; pratinjau + edit teks sudah cukup |
 
 ## Kapan harus upgrade
 

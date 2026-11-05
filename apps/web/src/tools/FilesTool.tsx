@@ -9,9 +9,25 @@ import { useSidebar } from '../lib/useSidebar';
 type Entry = { name: string; path: string; dir: boolean; size: number; mtime: number; ext: string; hidden: boolean };
 type Listing = { path: string; parent: string | null; entries: Entry[]; truncated: boolean };
 type FileData = { path: string; binary: boolean; size: number; mtime: number; ext: string; text: string; truncated: boolean };
+type OfficeBlock =
+  | { type: 'text'; lines: string[] }
+  | { type: 'table'; name?: string; rows: string[][]; refs?: string[][] };
+type Office = { path: string; kind: string; blocks: OfficeBlock[]; editable: 'text' | 'sheet' | 'none'; size: number; mtime: number; truncated: boolean };
 type Root = { path: string; label: string };
+type GrepHit = { path: string; line: number; text: string };
 
-const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp']);
+const OFFICE = new Set(['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp']);
+
+function officeText(blocks: OfficeBlock[]): string {
+  return blocks
+    .filter((block): block is { type: 'text'; lines: string[] } => block.type === 'text')
+    .flatMap((block) => block.lines)
+    .join('\n');
+}
+
+const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif']);
+const AUDIO = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus']);
+const VIDEO = new Set(['mp4', 'm4v', 'webm', 'mkv', 'mov', 'ogv']);
 const RAW = '/api/fs/raw?path=';
 
 function TreeNode({ entry, depth, selected, onPick }: { entry: Entry; depth: number; selected: string; onPick: (path: string) => void }) {
@@ -65,10 +81,15 @@ export default function FilesTool() {
   const [rootPath, setRootPath] = useState('');
   const [listing, setListing] = useState<Listing | null>(null);
   const [file, setFile] = useState<FileData | null>(null);
+  const [office, setOffice] = useState<Office | null>(null);
+  const [officeBody, setOfficeBody] = useState('');
+  const [sheetDraft, setSheetDraft] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Entry[] | null>(null);
+  const [deep, setDeep] = useState(false);
+  const [hits, setHits] = useState<GrepHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
@@ -82,8 +103,10 @@ export default function FilesTool() {
       const result = await api.get<Listing>('/fs/list' + qs({ path }));
       setListing(result);
       setFile(null);
+      setOffice(null);
       setEditing(false);
       setResults(null);
+      setHits(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal membaca folder');
     } finally {
@@ -117,10 +140,62 @@ export default function FilesTool() {
     }
   };
 
+  const loadOffice = useCallback(async (path: string) => {
+    const data = await api.get<Office>('/fs/office' + qs({ path }));
+    setOffice(data);
+    setOfficeBody(officeText(data.blocks));
+    setSheetDraft({});
+    setFile(null);
+    return data;
+  }, []);
+
+  const saveOffice = async () => {
+    if (!office) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (office.editable === 'text') {
+        await api.post('/fs/office', { path: office.path, texts: officeBody.split('\n') });
+      } else if (office.editable === 'sheet') {
+        const cells: Array<{ sheet: number; ref: string; value: string }> = [];
+        office.blocks.forEach((block, blockIndex) => {
+          if (block.type !== 'table') return;
+          block.rows.forEach((row, rowIndex) => {
+            row.forEach((value, colIndex) => {
+              const ref = block.refs?.[rowIndex]?.[colIndex];
+              if (!ref) return;
+              const next = sheetDraft[blockIndex + ':' + ref];
+              if (next !== undefined && next !== value) cells.push({ sheet: blockIndex, ref, value: next });
+            });
+          });
+        });
+        if (!cells.length) {
+          setEditing(false);
+          return;
+        }
+        await api.post('/fs/office', { path: office.path, cells });
+      }
+      await loadOffice(office.path);
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openFile = async (entry: Entry) => {
     setBusy(true);
     setError('');
     try {
+      setOffice(null);
+      const ext = entry.ext || (entry.path.split('.').pop() ?? '').toLowerCase();
+      if (OFFICE.has(ext)) {
+        await loadOffice(entry.path);
+        setEditing(false);
+        void loadRecents();
+        return;
+      }
       const data = await api.get<FileData>('/fs/read' + qs({ path: entry.path }));
       setFile(data);
       setDraft(data.text);
@@ -153,6 +228,7 @@ export default function FilesTool() {
     try {
       await api.del('/fs' + qs({ path }));
       if (file?.path === path) setFile(null);
+      if (office?.path === path) setOffice(null);
       if (listing) await loadListing(listing.path);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal menghapus');
@@ -186,10 +262,21 @@ export default function FilesTool() {
   const search = async () => {
     if (!listing || query.trim().length < 2) return;
     setBusy(true);
+    setError('');
     try {
-      const result = await api.get<{ results: Entry[] }>('/fs/search' + qs({ path: listing.path, q: query }));
-      setResults(result.results);
+      if (deep) {
+        const result = await api.get<{ results: GrepHit[]; truncated: boolean }>(
+          '/fs/grep' + qs({ path: listing.path, q: query }),
+        );
+        setHits(result.results);
+        setResults(null);
+      } else {
+        const result = await api.get<{ results: Entry[] }>('/fs/search' + qs({ path: listing.path, q: query }));
+        setResults(result.results);
+        setHits(null);
+      }
       setFile(null);
+      setOffice(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Pencarian gagal');
     } finally {
@@ -234,7 +321,7 @@ export default function FilesTool() {
     return out;
   })();
 
-  const rows = results ?? listing?.entries ?? [];
+  const rows = results ?? (hits ? [] : (listing?.entries ?? []));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -255,10 +342,18 @@ export default function FilesTool() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void search()}
-            placeholder="Cari nama file"
+            placeholder={deep ? 'Cari isi file' : 'Cari nama file'}
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setDeep(!deep)}
+          className={cn('btn px-1.5', deep && 'border-accent/50 text-accent')}
+          title={deep ? 'Mencari di dalam isi file' : 'Mencari nama file saja'}
+        >
+          <Icon name="search" size={13} /> isi
+        </button>
         <button type="button" className="btn" onClick={makeFolder} disabled={!listing} title="Folder baru">
           <Icon name="folderPlus" />
         </button>
@@ -281,7 +376,7 @@ export default function FilesTool() {
                 <button
                   key={item.path}
                   type="button"
-                  onClick={() => void openFile({ path: item.path } as Entry)}
+                  onClick={() => void openFile({ path: item.path, ext: (item.path.split('.').pop() ?? '').toLowerCase() } as Entry)}
                   title={item.path}
                   className="block w-full truncate rounded px-1 py-0.5 text-left text-[11.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
                 >
@@ -326,7 +421,105 @@ export default function FilesTool() {
 
           {error ? <div className="border-b border-line px-3 py-2 text-xs text-bad">{error}</div> : null}
 
-          {file ? (
+          {office ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+                <button type="button" className="btn px-1.5 py-1" onClick={() => { setOffice(null); setEditing(false); }} title="Kembali ke daftar">
+                  <Icon name="back" />
+                </button>
+                <Icon name="files" size={14} className="text-accent" />
+                <span className="mono truncate text-[12.5px] font-medium">{office.path.split('/').pop()}</span>
+                <span className="text-[11px] text-muted">
+                  {office.kind.toUpperCase()} · {bytes(office.size)} · {timeAgo(office.mtime)}
+                </span>
+                <div className="ml-auto flex items-center gap-1.5">
+                  {office.editable !== 'none' && !editing ? (
+                    <button type="button" className="btn" onClick={() => setEditing(true)}>
+                      <Icon name="edit" /> Edit
+                    </button>
+                  ) : null}
+                  {editing ? (
+                    <>
+                      <button type="button" className="btn btn-primary" onClick={() => void saveOffice()}>
+                        <Icon name="save" /> Simpan
+                      </button>
+                      <button type="button" className="btn" onClick={() => { setEditing(false); void loadOffice(office.path); }}>
+                        Batal
+                      </button>
+                    </>
+                  ) : null}
+                  <a className="btn" href={RAW + encodeURIComponent(office.path) + '&download=1'} download>
+                    <Icon name="download" />
+                  </a>
+                </div>
+              </div>
+
+              {office.editable === 'none' ? (
+                <div className="border-b border-line px-3 py-1.5 text-[11px] text-muted">
+                  Format ini hanya bisa dibaca. Edit langsung tersedia untuk docx dan xlsx.
+                </div>
+              ) : null}
+
+              <div className="min-h-0 flex-1 space-y-4 overflow-auto p-3">
+                {office.editable === 'text' ? (
+                  editing ? (
+                    <textarea
+                      value={officeBody}
+                      onChange={(event) => setOfficeBody(event.target.value)}
+                      spellCheck={false}
+                      className="mono h-full min-h-[60vh] w-full resize-none rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink outline-none focus:border-accent/50"
+                    />
+                  ) : (
+                    <pre className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink/90">
+                      {officeBody || '(dokumen kosong)'}
+                    </pre>
+                  )
+                ) : (
+                  office.blocks.map((block, blockIndex) => {
+                    if (block.type === 'text') {
+                      return (
+                        <pre key={blockIndex} className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink/90">
+                          {block.lines.join(String.fromCharCode(10))}
+                        </pre>
+                      );
+                    }
+                    return (
+                      <div key={blockIndex}>
+                        <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{block.name ?? 'Sheet'}</div>
+                        <div className="overflow-auto rounded-lg border border-line">
+                          <table className="w-full border-collapse text-[12px]">
+                            <tbody>
+                              {block.rows.map((row, rowIndex) => (
+                                <tr key={rowIndex}>
+                                  {row.map((value, colIndex) => {
+                                    const ref = block.refs?.[rowIndex]?.[colIndex] ?? '';
+                                    const key = blockIndex + ':' + ref;
+                                    return (
+                                      <td key={colIndex} className="border-b border-r border-line/60 p-0 align-top">
+                                        {editing && ref ? (
+                                          <input
+                                            value={sheetDraft[key] ?? value}
+                                            onChange={(event) => setSheetDraft({ ...sheetDraft, [key]: event.target.value })}
+                                            className="w-full min-w-24 bg-transparent px-2 py-1 text-[12px] text-ink outline-none focus:bg-panel2"
+                                          />
+                                        ) : (
+                                          <span className="block min-w-24 px-2 py-1 text-ink/90">{value}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ) : file ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
                 <button type="button" className="btn px-1.5 py-1" onClick={() => setFile(null)} title="Kembali ke daftar">
@@ -370,7 +563,28 @@ export default function FilesTool() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-hidden p-3">
-                {file.binary ? (
+                {AUDIO.has(file.ext) || VIDEO.has(file.ext) ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-4 rounded-lg border border-line bg-[#0b1118] p-6">
+                    {VIDEO.has(file.ext) ? (
+                      <video
+                        key={file.path}
+                        controls
+                        autoPlay={false}
+                        preload="metadata"
+                        src={RAW + encodeURIComponent(file.path)}
+                        className="max-h-full w-full max-w-3xl rounded-lg border border-line bg-black"
+                      />
+                    ) : (
+                      <audio key={file.path} controls preload="metadata" src={RAW + encodeURIComponent(file.path)} className="w-full max-w-xl" />
+                    )}
+                    <div className="text-[11.5px] text-muted">
+                      {file.ext.toUpperCase()} · {bytes(file.size)} ·{' '}
+                      <a className="text-accent underline" href={RAW + encodeURIComponent(file.path) + '&download=1'} download>
+                        unduh
+                      </a>
+                    </div>
+                  </div>
+                ) : file.binary ? (
                   IMAGE.has(file.ext) ? (
                     <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-line bg-[#0b1118] p-4">
                       <img src={RAW + encodeURIComponent(file.path)} alt={file.path} className="max-h-full max-w-full object-contain" />
@@ -392,6 +606,31 @@ export default function FilesTool() {
                   <CodeEditor value={editing ? draft : file.text} onChange={setDraft} readOnly={!editing} onSave={save} wrap />
                 )}
               </div>
+            </div>
+          ) : hits ? (
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="border-b border-line px-3 py-1.5 text-[11.5px] text-muted">
+                {hits.length} baris cocok untuk &quot;{query}&quot; · klik untuk membuka berkas
+              </div>
+              <table className="w-full border-collapse text-[12px]">
+                <tbody>
+                  {hits.map((hit, index) => (
+                    <tr
+                      key={hit.path + ':' + hit.line + ':' + index}
+                      onClick={() =>
+                        void openFile({ path: hit.path, ext: (hit.path.split('.').pop() ?? '').toLowerCase() } as Entry)
+                      }
+                      className="cursor-pointer border-b border-line/50 hover:bg-panel2/60"
+                    >
+                      <td className="mono px-3 py-1 whitespace-nowrap text-muted">
+                        {hit.path.split('/').pop()}:{hit.line}
+                      </td>
+                      <td className="mono truncate px-2 py-1 text-ink/90">{hit.text}</td>
+                      <td className="px-3 py-1 text-right text-[11px] text-muted">{hit.path.replace(listing?.path ?? '', '')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto">

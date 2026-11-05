@@ -35,6 +35,8 @@ const PATHS: Record<string, string> = {
   panel: 'M3 4h18v16H3z M15 4v16',
   sort: 'M4 7h10 M4 12h7 M4 17h4 M17 5v14 M14 16l3 3 3-3',
   minify: 'M4 12h16 M8 6h8 M8 18h8',
+  compress: 'M9 9H4V4 M15 15h5v5 M4 4l7 7 M20 20l-7-7',
+  dev: 'M3 4h18v16H3z M7 9l3 3-3 3 M13 15h4',
 };
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {

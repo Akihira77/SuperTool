@@ -2,11 +2,17 @@ import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs
 import { cfg } from '../../config';
 
 const SYSTEM_PROMPT = [
-  'Kamu asisten konfigurasi nginx dan Linux untuk developer.',
-  'Jelaskan dengan bahasa Indonesia yang ringkas dan teknis.',
-  'Format jawaban: 1) fungsi potongan tersebut, 2) efeknya kalau diubah/dihapus,',
-  '3) jebakan umum. Maksimal 8 baris. Tanpa basa-basi.',
-].join(' ');
+  'Kamu senior DevOps yang menjelaskan konfigurasi nginx dan Linux ke developer berpengalaman.',
+  'Jawab dalam bahasa Indonesia, markdown sederhana, tanpa pembuka atau penutup.',
+  '',
+  'Aturan:',
+  '- Sebut direktif/parameter yang disorot dan nilai efektifnya.',
+  '- Jelaskan efek konkret saat request berjalan: siapa yang menangani, apa yang berubah pada request/response/upstream.',
+  '- Sebut akibatnya kalau baris itu diubah atau dihapus.',
+  '- Jebakan hanya kalau relevan (urutan direktif, konteks server/location, default tersembunyi, konflik antar blok).',
+  '- Maksimal 8 baris, poin pendek. Jangan mengulang kode kalimat demi kalimat.',
+  '- Kalau sintaks potongan itu salah, sebut apa yang salah lebih dulu.',
+].join('\n');
 
 type Chunk = {
   choices?: Array<{ message?: { content?: string }; delta?: { content?: string }; text?: string }>;
@@ -104,13 +110,22 @@ export class LlmController {
   }
 
   @Post('explain')
-  async explain(@Body() body: { code?: string; model?: string; question?: string; apiKey?: string }) {
+  async explain(
+    @Body()
+    body: { code?: string; model?: string; question?: string; apiKey?: string; context?: string; path?: string },
+  ) {
     const code = String(body?.code ?? '').slice(0, 20_000).trim();
     if (!code) throw new BadRequestException('Tidak ada teks yang dipilih');
     const model = String(body?.model ?? cfg.llm.model ?? '').trim();
     if (!model) throw new BadRequestException('Model LLM belum dipilih');
+    const context = String(body?.context ?? '').slice(0, 12_000).trim();
+    const path = String(body?.path ?? '').slice(0, 200).trim();
 
-    const question = String(body?.question ?? '').trim() || 'Jelaskan bagian konfigurasi ini.';
+    const picked = '### SOROTAN\n' + code + (context ? '\n\n### SEKITARNYA\n' + context : '');
+    const question =
+      String(body?.question ?? '').trim() ||
+      'Jelaskan baris yang disorot: apa fungsinya di konteks ini, dan apa akibatnya kalau diubah atau dihapus.' +
+        (path ? ' Berkas: ' + path + '.' : '');
     const response = await callLlm(
       '/chat/completions',
       {
@@ -118,10 +133,10 @@ export class LlmController {
         body: JSON.stringify({
           model,
           stream: false,
-          temperature: 0.2,
+          temperature: 0.3,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: question + '\n\n' + '~~~\n' + code + '\n~~~' },
+            { role: 'user', content: question + '\n\n' + picked },
           ],
         }),
       },

@@ -70,7 +70,10 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | GET | `/fs/roots` | – | `[{ path, label }]` |
 | GET | `/fs/list` | `path` | `{ path, parent, entries[], truncated }` |
 | GET | `/fs/read` | `path` | `{ text, binary, size, mtime, ext, truncated }` |
-| GET | `/fs/raw` | `path`, `download=1` | isi file mentah |
+| GET | `/fs/raw` | `path`, `download=1` | isi file mentah, mendukung HTTP Range (206) |
+| GET | `/fs/office` | `path` | pratinjau docx/xlsx/pptx/odt/ods/odp |
+| POST | `/fs/office` | `{ path, texts[] }` atau `{ path, cells[] }` | simpan hasil edit + cadangan otomatis |
+| GET | `/fs/grep` | `path`, `q`, `limit` | `{ results: [{ path, line, text }], truncated }` |
 | GET | `/fs/search` | `path`, `q`, `all=1` | `{ results[], truncated }` |
 | GET | `/fs/du` | `path` | `{ bytes, files, truncated }` |
 | PUT | `/fs/write` | `{ path, content }` | `{ ok, size }` |
@@ -80,6 +83,24 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | DELETE | `/fs` | `path` | `{ ok }` |
 
 Entri berisi `{ name, path, dir, size, mtime, ext, hidden }`. File > 2 MB dipotong (`truncated: true`), file biner mengembalikan `binary: true` tanpa isi.
+
+**Pratinjau Office** mengembalikan `{ kind, blocks[], editable, size, mtime }`. `blocks` berisi `{ type: "text", lines[] }` atau `{ type: "table", name, rows[][], refs[][] }` (`refs` = alamat sel seperti `B3`). `editable`: `text` untuk docx, `sheet` untuk xlsx, `none` untuk sisanya.
+
+Menyimpan hasil edit:
+
+~~~bash
+# docx: ganti teks paragraf, jumlah paragraf harus sama
+curl -b cookies.txt -X POST http://127.0.0.1:3001/api/fs/office \
+  -H 'content-type: application/json' -H 'x-st-csrf: 1' \
+  -d '{"path":"/home/akihira17/laporan.docx","texts":["Judul baru","Isi paragraf"]}'
+
+# xlsx: ganti nilai sel
+curl -b cookies.txt -X POST http://127.0.0.1:3001/api/fs/office \
+  -H 'content-type: application/json' -H 'x-st-csrf: 1' \
+  -d '{"path":"/home/akihira17/data.xlsx","cells":[{"sheet":0,"ref":"B2","value":"123"}]}'
+~~~
+
+Respons: `{ ok: true, path, size, backup }`. `backup` adalah salinan `<nama>_backup_<YYYYMMDD-HHMMSS>.<ext>`; lima cadangan terbaru disimpan per berkas, sisanya dihapus.
 
 Contoh:
 
@@ -162,6 +183,46 @@ curl -b cookies.txt -X POST http://127.0.0.1:3001/api/llm/explain \
   -H 'content-type: application/json' -H 'x-st-csrf: 1' \
   -d '{"code":"proxy_set_header Host $host;","model":"ocg/deepseek-flash"}'
 ```
+
+## Kompresor
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/compress/info` | – | `{ image, pdf, pdfToImage, convert }` |
+| GET | `/compress/job` | `id` | `{ id, state, result?, error? }` |
+| POST | `/compress/image` | `{ path, quality?, maxWidth?, format? }` | `{ jobId }` |
+| POST | `/compress/pdf` | `{ path, mode? }` | `{ jobId }` |
+| POST | `/compress/convert` | `{ path, target, quality?, dpi? }` | `{ jobId }` |
+
+Proses berjalan di latar belakang: `state` bergerak `running` lalu `done` (ada `result`) atau `error` (ada `error`).
+
+~~~bash
+JOB=$(curl -s -b cookies.txt -X POST http://127.0.0.1:3001/api/compress/image \
+  -H 'content-type: application/json' -H 'x-st-csrf: 1' \
+  -d '{"path":"/home/akihira17/foto.jpg","quality":70}' | jq -r .jobId)
+curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
+~~~
+
+`result`: `{ input: { path, size }, output: { path, size }, saved, percent, note }`. Target konversi: `pdf` (dari gambar), `png`/`jpg`/`webp` (dari PDF atau gambar).
+
+## Dev Space
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| POST | `/dev/hash` | `{ text, algo, hmacKey? }` | `{ algo, hex }` |
+| POST | `/dev/http` | `{ method, url, headers[], body, timeoutMs }` | `{ status, ms, size, headers, body, truncated }` |
+| GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` |
+| GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
+| GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
+| GET | `/dev/git` | `path` | `{ branch, ahead, behind, staged[], changed[], untracked[], commits[], diffstat, tags[] }` |
+| GET | `/dev/cron` | – | `{ entries: [{ index, line }], raw }` |
+| POST | `/dev/cron` | `{ line }` | daftar terbaru |
+| DELETE | `/dev/cron` | `index` | daftar terbaru |
+| GET | `/dev/dns` | `host` | `{ host, a[], aaaa[], mx[], cname[], ns[], txt[], geo }` |
+
+`algo`: `md5`, `sha1`, `sha256`, `sha512`, `sha3-256`, `sha3-512`. Bila `hmacKey` diisi, dipakai HMAC. Regex tester dan encode/decode dasar jalan di browser, tidak butuh endpoint.
+
+`/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB.
 
 ## Kode error
 
