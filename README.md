@@ -180,6 +180,7 @@ Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas dipu
 
 - State pemutaran (path, posisi playhead, play/pause, durasi, mode besar/mini) ada di React Context `apps/web/src/lib/player.tsx`; elemen media tidak di-unmount saat ganti route, jadi suara tidak terputus.
 - Video dibuka dalam tampilan besar (default), bukan langsung mini. Tombol **Kecilkan** mengubahnya jadi pemutar floating 320px; **Perbesar** mengembalikannya. Playback tetap berjalan saat pindah menu, baik dalam mode besar maupun mini.
+- Pemutar floating bisa **digeser** dengan menyeret header (audio maupun video). Posisi bertahan saat pindah menu dan otomatis dijepit agar tetap di dalam viewport.
 - Tombol **Layar penuh** memakai Fullscreen API native pada panel pemutar; video mengisi layar dan kontrol play/pause/seek/volume tetap terlihat. Tekan **Esc** atau klik ikon keluar untuk kembali ke mode sebelumnya.
 - Kontrol: play/pause, seek, volume, kecilkan/perbesar (video), layar penuh (video), tutup. Volume disimpan di `localStorage` (`st:media:volume`).
 - Berkas yang sama diklik lagi → lanjut dari posisi terakhir. Berkas baru → mulai dari awal.

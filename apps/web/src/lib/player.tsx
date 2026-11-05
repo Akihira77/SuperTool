@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Icon, cn } from '../components/ui';
 
 const RAW = '/api/fs/raw?path=';
@@ -38,6 +38,8 @@ const Ctx = createContext<PlayerApi>({
   close: () => undefined,
 });
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 const clock = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const total = Math.floor(seconds);
@@ -53,6 +55,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [playing, setPlaying] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const drag = useRef<{ id: number; startX: number; startY: number; x: number; y: number; w: number; h: number } | null>(null);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState('');
@@ -89,6 +93,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const play = useCallback((next: Track) => {
+    setPosition(null);
     setExpanded(next.kind === 'video');
     setTrack(next);
     // Berkas yang sama dan sedang tampil (mis. dijeda) → lanjutkan tanpa reset.
@@ -97,8 +102,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const expand = useCallback(() => setExpanded(true), []);
-  const minimize = useCallback(() => setExpanded(false), []);
+  const expand = useCallback(() => {
+    setPosition(null);
+    setExpanded(true);
+  }, []);
+  const minimize = useCallback(() => {
+    setPosition(null);
+    setExpanded(false);
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     const panel = playerRef.current;
@@ -141,10 +152,58 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setTrack(null);
     setPlaying(false);
     setExpanded(false);
+    setPosition(null);
     setTime(0);
     setDuration(0);
     setError('');
   }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      setPosition((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          x: clamp(current.x, 8, Math.max(8, window.innerWidth - current.w - 8)),
+          y: clamp(current.y, 8, Math.max(8, window.innerHeight - current.h - 8)),
+        };
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (fullscreen || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('button, a, input, select, textarea')) return;
+    const panel = playerRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const w = Math.min(rect.width, window.innerWidth - 16);
+    const h = rect.height;
+    const x = clamp(rect.left, 8, Math.max(8, window.innerWidth - w - 8));
+    const y = clamp(rect.top, 8, Math.max(8, window.innerHeight - h - 8));
+    drag.current = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x, y, w, h };
+    setPosition({ x, y, w, h });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (!current || current.id !== event.pointerId) return;
+    const x = clamp(current.x + event.clientX - current.startX, 8, Math.max(8, window.innerWidth - current.w - 8));
+    const y = clamp(current.y + event.clientY - current.startY, 8, Math.max(8, window.innerHeight - current.h - 8));
+    setPosition({ x, y, w: current.w, h: current.h });
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (drag.current?.id !== event.pointerId) return;
+    drag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   const value = useMemo(
     () => ({ track, playing, expanded, time, duration, volume, play, toggle, seek, setVolume, expand, minimize, close }),
@@ -161,6 +220,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           data-mode={expanded ? 'full' : 'mini'}
           role="region"
           aria-label="Pemutar media"
+          style={position && !fullscreen ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto', width: position.w, margin: 0 } : undefined}
           className={cn(
             'fixed bottom-4 z-50 overflow-hidden border border-line bg-panel/95 shadow-2xl backdrop-blur',
             expanded
@@ -168,7 +228,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
               : 'right-4 z-40 w-[320px] rounded-xl',
           )}
         >
-          <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+          <div
+            className="flex touch-none items-center gap-2 border-b border-line px-3 py-2 select-none active:cursor-grabbing cursor-grab"
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
             <Icon name={track.kind === 'video' ? 'play' : 'music'} size={14} className="shrink-0 text-accent" />
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium" title={track.path}>
               {track.name}
