@@ -30,7 +30,7 @@ Urutan middleware di `main.ts`: body parser (limit 25 MB untuk menyimpan file be
 
 | Bagian | Implementasi |
 |--------|--------------|
-| Penyimpanan | `data/auth.json`: `{ salt, hash, pv, mustChange, secret }` |
+| Penyimpanan | `~/.local/share/super-tool/` (di luar repo): `auth.json`, `notes.json`, plus `*.bak` |
 | Hash | `scrypt` 64 byte + salt acak 16 byte |
 | Sesi | `base64url(payload).hmacSHA256` — payload `{ exp, pv }`, umur 30 hari |
 | Invalidasi | `pv` naik setiap ganti password; token lama otomatis ditolak |
@@ -66,7 +66,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | files | `files.service.ts`, `mime.ts` | list, read, write, mkdir, rename, delete, upload, search, du |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
-| proxy | `proxy.controller.ts` | fetch target, lepas `X-Frame-Options`/CSP, suntik `<base>`, probe koneksi |
+| proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
+| proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`): aset, cookie, POST body, WebSocket |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 
 ## Peta frontend

@@ -30,6 +30,7 @@ const PATHS: Record<string, string> = {
   lock: 'M6 11h12v9H6z M9 11V8a3 3 0 016 0v3',
   logout: 'M15 4h4v16h-4 M11 12H3 M7 8l-4 4 4 4',
   eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M12 9a3 3 0 100 6 3 3 0 000-6z',
+  eyeOff: 'M3 3l18 18 M10.6 10.6a3 3 0 004.2 4.2 M6.5 6.7C4.3 8.1 2.8 10.2 2 12c1.5 2.6 5 7 10 7 1.5 0 2.9-.4 4.1-1 M17.9 17.1C20 15.7 21.4 13.6 22 12c-1.5-2.6-5-7-10-7-.8 0-1.6.1-2.3.3',
   play: 'M7 4l13 8-13 8z',
   panel: 'M3 4h18v16H3z M15 4v16',
   sort: 'M4 7h10 M4 12h7 M4 17h4 M17 5v14 M14 16l3 3 3-3',
@@ -52,6 +53,47 @@ export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS 
     >
       <path d={PATHS[name] ?? PATHS.files} />
     </svg>
+  );
+}
+
+export function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  autoFocus,
+  label,
+  invalid,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  autoFocus?: boolean;
+  label?: string;
+  invalid?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        className={cn('input pr-10', invalid && 'border-bad')}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        aria-label={show ? 'Sembunyikan password' : 'Tampilkan password'}
+        title={show ? 'Sembunyikan' : 'Tampilkan'}
+        className="absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-1.5 text-muted transition-colors hover:bg-panel2 hover:text-ink"
+      >
+        <Icon name={show ? 'eyeOff' : 'eye'} size={15} />
+      </button>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { Icon, Spinner } from './ui';
+import { Icon, PasswordInput, Spinner } from './ui';
 
 export default function ChangePassword({ onDone, forced }: { onDone: () => void; forced: boolean }) {
   const [current, setCurrent] = useState('');
@@ -9,9 +9,17 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const mismatch = confirm.length > 0 && next !== confirm;
+  const tooShort = next.length > 0 && next.length < 8;
+  const ready = Boolean(current) && Boolean(next) && Boolean(confirm) && !mismatch && !tooShort;
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (next !== confirm) {
+    if (!confirm) {
+      setError('Ulangi password baru dulu');
+      return;
+    }
+    if (mismatch) {
       setError('Konfirmasi password tidak sama');
       return;
     }
@@ -47,21 +55,23 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
         <div className="space-y-3">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted">Password lama</label>
-            <input type="password" autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} className="input" />
+            <PasswordInput autoFocus value={current} onChange={setCurrent} label="Password lama" />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted">Password baru</label>
-            <input type="password" value={next} onChange={(e) => setNext(e.target.value)} className="input" placeholder="minimal 8 karakter" />
+            <PasswordInput value={next} onChange={setNext} placeholder="minimal 8 karakter" invalid={tooShort} label="Password baru" />
+            {tooShort ? <p className="mt-1 text-[11px] text-bad">Minimal 8 karakter</p> : null}
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted">Ulangi password baru</label>
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="input" />
+            <PasswordInput value={confirm} onChange={setConfirm} invalid={mismatch} label="Ulangi password baru" />
+            {mismatch ? <p className="mt-1 text-[11px] text-bad">Belum sama dengan password baru</p> : null}
           </div>
         </div>
 
         {error ? <p className="mt-3 text-xs text-bad">{error}</p> : null}
 
-        <button type="submit" disabled={busy || !current || !next} className="btn btn-primary mt-5 w-full justify-center py-2">
+        <button type="submit" disabled={busy || !ready} className="btn btn-primary mt-5 w-full justify-center py-2">
           {busy ? <Spinner /> : <Icon name="check" />}
           Simpan password
         </button>

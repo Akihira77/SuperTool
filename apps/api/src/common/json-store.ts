@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export async function readJson<T>(file: string, fallback: T): Promise<T> {
@@ -13,6 +13,8 @@ export async function readJson<T>(file: string, fallback: T): Promise<T> {
 /** Tulis atomik: file sementara lalu rename, supaya data tidak korup saat proses mati. */
 export async function writeJson(file: string, value: unknown): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
+  // Simpan versi sebelumnya sekali lagi, jaga-jaga kalau isi baru bermasalah.
+  await copyFile(file, file + '.bak').catch(() => undefined);
   const tmp = file + '.tmp';
   await writeFile(tmp, JSON.stringify(value, null, 2), 'utf8');
   await rename(tmp, file);

@@ -18,10 +18,13 @@ function roots(raw: string | undefined): string[] {
     .map((path) => resolve(path));
 }
 
+const xdgData = env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+
 export const cfg = {
   port: Number(env.ST_PORT ?? 3001),
   host: env.ST_HOST ?? '127.0.0.1',
-  dataDir: resolve(env.ST_DATA_DIR ?? join(process.cwd(), 'data')),
+  // Data pengguna di luar folder project: aman dari git clean / reinstall.
+  dataDir: resolve(env.ST_DATA_DIR ?? join(xdgData, 'super-tool')),
   fsRoots: roots(env.ST_FS_ROOTS),
   nginxDir: resolve(env.ST_NGINX_DIR ?? '/etc/nginx'),
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',

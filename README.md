@@ -61,7 +61,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 |----------|---------|------|
 | `ST_PORT` | `3001` | Port server |
 | `ST_HOST` | `127.0.0.1` | Alamat bind. Pakai `0.0.0.0` kalau mau diakses dari LAN |
-| `ST_DATA_DIR` | `./data` (relatif cwd) | Lokasi `auth.json` dan `notes.json` |
+| `ST_DATA_DIR` | `~/.local/share/super-tool` | Lokasi `auth.json`, `notes.json`, dan cadangannya |
 | `ST_FS_ROOTS` | home user | Folder yang boleh diakses File Explorer, dipisah `:` |
 | `ST_NGINX_DIR` | `/etc/nginx` | Folder konfigurasi nginx |
 | `ST_PROXY_ALLOW_PUBLIC` | `0` | `1` = proxy boleh ke host publik (default hanya localhost/jaringan privat) |
@@ -79,9 +79,21 @@ ST_FS_ROOTS=/home/akihira17:/srv/data pnpm start
 
 Membaca `/etc/nginx` butuh izin baca. Kalau server jalan sebagai user biasa dan file tidak terbaca, arahkan `ST_NGINX_DIR` ke salinan konfigurasi, atau jalankan lewat `systemd` dengan user yang sesuai.
 
+## Data dan cadangan
+
+Semua data pengguna disimpan di **luar folder project**:
+
+- `~/.local/share/super-tool/auth.json` — hash password
+- `~/.local/share/super-tool/notes.json` — catatan
+- `*.bak` — salinan versi sebelumnya, ditulis ulang setiap penyimpanan
+
+Jadi `git clean`, `rm -rf node_modules`, atau hapus folder project tidak menyentuh data. Pindahkan dengan env `ST_DATA_DIR` bila perlu.
+
+Catatan disimpan sebagai file JSON (bukan database). Kalau nanti butuh pencarian/riwayat lebih serius, jalur upgrade-nya `node:sqlite` — bawaan Node, tanpa dependensi baru.
+
 ## Fitur "jelaskan ke LLM"
 
-Di menu Nginx, **klik kanan** di editor → *Jelaskan ke LLM*. Kalau ada teks terseleksi, teks itu yang dikirim; kalau tidak, kata di posisi kursor (atau barisnya) yang dipakai.
+Di menu Nginx, **klik kanan** di editor → *Jelaskan ke LLM*. Kalau ada teks terseleksi, teks itu yang dikirim; kalau tidak, kata di posisi kursor (atau barisnya) yang dipakai. Hasilnya muncul di panel samping kanan editor.
 
 Butuh endpoint kompatibel OpenAI:
 
@@ -143,7 +155,9 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` melepas header tersebut dan menyuntik `<base>`, cukup untuk halaman statis; aplikasi SPA yang memanggil API ke origin aslinya tetap butuh reverse proxy sungguhan (nginx/caddy). Untuk pemakaian penuh, arahkan subdomain ke tool tersebut.
 - **Catatan**: disimpan sebagai satu file JSON. Cukup untuk satu pengguna; pindahkan ke SQLite kalau butuh penulis bersamaan atau ribuan catatan.
 - **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas. Aksi *kill* mengirim SIGTERM (bukan SIGKILL) dan menolak PID 1 serta proses server ini sendiri.
-- **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". Tombol **Cek** memanggil server untuk memastikan port benar-benar terbuka.
+- **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". URL lama di browser otomatis dibenahi saat dibuka.
+- **Mode Proxy**: membuka target lewat `/api/proxy/b/<token>/...` — header `X-Frame-Options`/CSP dilepas, aset relatif ikut di-proxy, cookie & WebSocket diteruskan. Ini yang membuat Termix (`X-Frame-Options: DENY`) bisa tampil di iframe. Aplikasi yang memanggil API dengan path absolut `/api/...` tetap perlu reverse proxy sungguhan.
+- **Jaringan proxy**: hostname di-resolve dulu; hanya alamat loopback/privat/CGNAT yang diizinkan (misal `theAkihira:4096`). Host publik tetap diblokir kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
 - **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
 - **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif.
 

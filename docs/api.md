@@ -107,6 +107,19 @@ Meneruskan status dan header target, melepas `X-Frame-Options`, `CSP`, dan `Set-
 curl -b cookies.txt "http://127.0.0.1:3001/api/proxy?u=http%3A%2F%2Flocalhost%3A8080%2F"
 ~~~
 
+### Mode path (aplikasi penuh)
+
+```
+GET /api/proxy/b/<token>/<path...>
+```
+
+`token` = base64url dari origin target, contoh `http://127.0.0.1:8080`. Middleware ini:
+
+- melepas `X-Frame-Options`, CSP, dan `Set-Cookie` milik target
+- menyuntik `<base href>` dan menulis ulang URL absolut supaya aset relatif tetap termuat
+- meneruskan POST/PUT/DELETE beserta body, cookie, dan upgrade WebSocket
+- menolak host publik (kecuali `ST_PROXY_ALLOW_PUBLIC=1`)
+
 Cek cepat tanpa memuat konten:
 
 | Metode | Path | Query | Hasil |

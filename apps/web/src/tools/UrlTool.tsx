@@ -1,25 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Icon, PageHeader, cn } from '../components/ui';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, qs } from '../lib/api';
 
 type View = { id: string; name: string; url: string; proxy: boolean };
 type Status = { ok: boolean; status?: number; error?: string };
 
 const KEY = 'st:urls';
+const ACTIVE_KEY = 'st:urls:active';
 
 // localhost bisa resolve ke ::1 sementara service sering hanya bind IPv4 → pakai 127.0.0.1.
 const PRESETS: View[] = [
   { id: 'p1', name: '9router', url: 'http://127.0.0.1:20128', proxy: false },
-  { id: 'p2', name: 'Termix', url: 'http://127.0.0.1:8080', proxy: false },
+  { id: 'p2', name: 'Termix', url: 'http://127.0.0.1:8080', proxy: true },
   { id: 'p3', name: 'Docmost', url: 'http://127.0.0.1:3000', proxy: false },
 ];
+
+const fixHost = (value: string) => value.replace(/\/\/localhost(?=[/:]|$)/gi, '//127.0.0.1');
 
 function load(): View[] {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return PRESETS;
     const parsed = JSON.parse(raw) as View[];
-    return Array.isArray(parsed) && parsed.length ? parsed : PRESETS;
+    if (!Array.isArray(parsed) || !parsed.length) return PRESETS;
+    // data lama masih menyimpan localhost → benahi sekali di sini
+    return parsed.map((view) => ({ ...view, url: fixHost(view.url) }));
   } catch {
     return PRESETS;
   }
@@ -30,48 +35,72 @@ function normalize(input: string): string | null {
   if (!trimmed) return null;
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : 'http://' + trimmed;
   try {
-    const url = new URL(withScheme);
-    if (url.hostname === 'localhost') url.hostname = '127.0.0.1';
-    return url.toString().replace(/\/$/, '');
+    const url = new URL(fixHost(withScheme));
+    return (url.origin + url.pathname).replace(/\/$/, '');
   } catch {
     return null;
   }
 }
 
+/** Token yang dipakai backend: base64url dari origin target. */
+function proxySrc(url: string): string {
+  try {
+    const origin = new URL(url).origin;
+    const token = btoa(origin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return '/api/proxy/b/' + token + '/';
+  } catch {
+    return url;
+  }
+}
+
 export default function UrlTool() {
   const [views, setViews] = useState<View[]>(load);
-  const [activeId, setActiveId] = useState<string>(() => load()[0]?.id ?? '');
+  const [activeId, setActiveId] = useState<string>(() => {
+    const saved = localStorage.getItem(ACTIVE_KEY);
+    const list = load();
+    return saved && list.some((view) => view.id === saved) ? saved : list[0]?.id ?? '';
+  });
   const [draft, setDraft] = useState({ name: '', url: '' });
   const [editingId, setEditingId] = useState('');
   const [nonce, setNonce] = useState(0);
-  const [status, setStatus] = useState<Record<string, Status>>({});
+  const [status, setStatus] = useState<Status | null>(null);
   const [checking, setChecking] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(views));
   }, [views]);
 
+  useEffect(() => {
+    if (activeId) localStorage.setItem(ACTIVE_KEY, activeId);
+  }, [activeId]);
+
   const active = views.find((view) => view.id === activeId) ?? null;
 
   const probe = useCallback(async (view: View) => {
+    setChecking(true);
     try {
-      const result = await api.get<Status>('/proxy/probe' + qs({ u: view.url }));
-      setStatus((prev) => ({ ...prev, [view.id]: result }));
+      setStatus(await api.get<Status>('/proxy/probe' + qs({ u: view.url })));
     } catch (err) {
-      setStatus((prev) => ({ ...prev, [view.id]: { ok: false, error: (err as Error).message } }));
+      setStatus({ ok: false, error: (err as Error).message });
+    } finally {
+      setChecking(false);
     }
   }, []);
 
-  const checkAll = useCallback(async () => {
-    setChecking(true);
-    await Promise.all(views.map((view) => probe(view)));
-    setChecking(false);
-  }, [probe, views]);
+  // probe hanya untuk view aktif, supaya tidak ada request beruntun tiap buka tool
+  useEffect(() => {
+    if (!active) {
+      setStatus(null);
+      return;
+    }
+    setStatus(null);
+    void probe(active);
+  }, [active?.id, probe]);
 
   useEffect(() => {
-    void checkAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setLoading(true);
+  }, [active?.id, nonce, active?.proxy]);
 
   const submit = () => {
     const url = normalize(draft.url);
@@ -84,8 +113,6 @@ export default function UrlTool() {
       const view: View = { id: crypto.randomUUID(), name, url, proxy: false };
       setViews((prev) => [...prev, view]);
       setActiveId(view.id);
-      setNonce((n) => n + 1);
-      void probe(view);
     }
     setDraft({ name: '', url: '' });
   };
@@ -105,8 +132,8 @@ export default function UrlTool() {
     setViews((prev) => prev.map((view) => (view.id === id ? { ...view, ...partial } : view)));
   };
 
-  const src = active ? (active.proxy ? '/api/proxy?u=' + encodeURIComponent(active.url) : active.url) : '';
-  const activeStatus = active ? status[active.id] : undefined;
+  const src = useMemo(() => (active ? (active.proxy ? proxySrc(active.url) : active.url) : ''), [active?.url, active?.proxy]);
+  const openUrl = active ? (active.proxy ? proxySrc(active.url) : active.url) : '#';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -115,61 +142,65 @@ export default function UrlTool() {
           <Icon name="refresh" /> Muat ulang
         </button>
         <button type="button" className="btn" onClick={() => active && void probe(active)} disabled={!active || checking} title="Cek koneksi">
-          <Icon name="play" /> Cek
+          {checking ? <Spinner /> : <Icon name="play" />} Cek
         </button>
         {active ? (
           <button
             type="button"
             className={cn('btn', active.proxy && 'btn-primary')}
             onClick={() => patch(active.id, { proxy: !active.proxy })}
-            title="Lewat proxy server untuk melepas X-Frame-Options"
+            title="Lewat server ini: melepas X-Frame-Options/CSP dan mem-proxy aset + WebSocket"
           >
             Proxy
           </button>
         ) : null}
         {active ? (
-          <a className="btn" href={active.url} target="_blank" rel="noreferrer" title="Buka tab baru">
+          <a className="btn" href={openUrl} target="_blank" rel="noreferrer" title={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'}>
             <Icon name="external" />
           </a>
         ) : null}
       </PageHeader>
 
-      {active && activeStatus && !activeStatus.ok ? (
+      {active && status && !status.ok ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">
           <Icon name="x" size={13} />
-          Tidak bisa terhubung ke {active.url}. {activeStatus.error ?? 'Status ' + activeStatus.status}
-          <button type="button" className="btn btn-ghost ml-auto px-2 py-0.5 text-[11px]" onClick={() => void probe(active)}>
-            Coba lagi
-          </button>
+          <span className="min-w-0 flex-1 truncate">
+            Tidak bisa terhubung ke {active.url}. {status.error ?? 'Status ' + status.status}
+          </span>
+          {!active.proxy ? (
+            <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" onClick={() => patch(active.id, { proxy: true })}>
+              Coba mode proxy
+            </button>
+          ) : null}
         </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-60 shrink-0 flex-col border-r border-line">
+        <div className="flex w-56 shrink-0 flex-col border-r border-line">
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {views.map((view) => {
-              const state = status[view.id];
-              return (
-                <div key={view.id} className={cn('group mb-0.5 flex items-center rounded-lg pr-1', activeId === view.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
-                  <button type="button" onClick={() => setActiveId(view.id)} className="min-w-0 flex-1 px-2.5 py-2 text-left">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={cn('h-1.5 w-1.5 shrink-0 rounded-full', !state ? 'bg-muted/40' : state.ok ? 'bg-ok' : 'bg-bad')}
-                        title={state ? (state.ok ? 'terhubung' : state.error ?? 'status ' + state.status) : 'belum dicek'}
-                      />
-                      <span className="truncate text-[13px] font-medium">{view.name}</span>
-                    </div>
-                    <div className="truncate text-[11px] text-muted">{view.url}</div>
-                  </button>
-                  <button type="button" onClick={() => startEdit(view)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Ubah">
-                    <Icon name="edit" size={13} />
-                  </button>
-                  <button type="button" onClick={() => remove(view.id)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Hapus">
-                    <Icon name="x" size={13} />
-                  </button>
-                </div>
-              );
-            })}
+            {views.map((view) => (
+              <div key={view.id} className={cn('group mb-0.5 flex items-center rounded-lg pr-1', activeId === view.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
+                <button type="button" onClick={() => setActiveId(view.id)} className="min-w-0 flex-1 px-2.5 py-2 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        'h-1.5 w-1.5 shrink-0 rounded-full',
+                        activeId !== view.id ? 'bg-muted/40' : !status ? 'bg-muted/40' : status.ok ? 'bg-ok' : 'bg-bad',
+                      )}
+                    />
+                    <span className="truncate text-[13px] font-medium">{view.name}</span>
+                    {view.proxy ? <span className="rounded bg-accent/15 px-1 text-[9px] text-accent">proxy</span> : null}
+                  </div>
+                  <div className="truncate text-[11px] text-muted">{view.url}</div>
+                </button>
+                <button type="button" onClick={() => startEdit(view)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Ubah">
+                  <Icon name="edit" size={13} />
+                </button>
+                <button type="button" onClick={() => remove(view.id)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Hapus">
+                  <Icon name="x" size={13} />
+                </button>
+              </div>
+            ))}
           </div>
 
           <form
@@ -195,12 +226,18 @@ export default function UrlTool() {
           </form>
         </div>
 
-        <div className="min-w-0 flex-1 bg-[#0b1118]">
+        <div className="relative min-w-0 flex-1 bg-[#0b1118]">
+          {loading && active ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0b1118]/70">
+              <Spinner />
+            </div>
+          ) : null}
           {active ? (
             <iframe
-              key={active.id + ':' + nonce + ':' + (active.proxy ? 'p' : 'd')}
+              key={active.id + ':' + nonce}
               src={src}
               title={active.name}
+              onLoad={() => setLoading(false)}
               className="h-full w-full border-0"
               allow="clipboard-read; clipboard-write; fullscreen; microphone; camera"
             />

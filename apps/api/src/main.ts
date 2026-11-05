@@ -5,6 +5,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { cfg } from './config';
+import { AuthService } from './modules/auth/auth.service';
+import { handleProxyRequest, handleProxyUpgrade } from './modules/proxy/proxy.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -12,15 +14,32 @@ async function bootstrap() {
   app.useBodyParser('json', { limit: '25mb' });
   app.enableCors({ origin: cfg.devOrigin, credentials: true });
 
+  // Proxy path-prefix (/api/proxy/b/<token>/...) untuk tool yang memblokir iframe.
+  const auth = app.get(AuthService);
+  const instance = app.getHttpAdapter().getInstance();
+  instance.use((req: any, res: any, next: () => void) => {
+    handleProxyRequest(req, res, auth)
+      .then((handled) => {
+        if (!handled) next();
+      })
+      .catch(() => {
+        if (!res.headersSent) res.statusCode = 502;
+        res.end();
+      });
+  });
+
   const indexFile = join(cfg.webDist, 'index.html');
   if (existsSync(indexFile)) {
     app.useStaticAssets(cfg.webDist, { index: false });
-    const instance = app.getHttpAdapter().getInstance();
     instance.use((req: any, res: any, next: () => void) => {
       if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
       res.sendFile(indexFile);
     });
   }
+
+  app.getHttpServer().on('upgrade', (req: any, socket: any, head: Buffer) => {
+    if (!handleProxyUpgrade(req, socket, head, auth)) socket.destroy();
+  });
 
   await app.listen(cfg.port, cfg.host);
   const url = 'http://' + cfg.host + ':' + cfg.port;

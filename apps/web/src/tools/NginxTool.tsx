@@ -308,28 +308,30 @@ export default function NginxTool() {
             <div className="flex flex-1 items-center justify-center text-sm text-muted">Pilih file konfigurasi</div>
           )}
         </div>
-      </div>
 
-      {explain ? (
-        <div className="max-h-72 shrink-0 overflow-y-auto border-t border-line bg-panel/70 p-3">
-          <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted">
-            <Icon name="eye" size={13} />
-            <span>Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
-            <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
-              <Icon name="x" size={13} />
-            </button>
-          </div>
-          {explain.loading ? (
-            <div className="flex items-center gap-2 p-2 text-sm text-muted">
-              <Spinner /> Meminta penjelasan...
+        {explain ? (
+          <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel/40 xl:w-96">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2 text-[11px] text-muted">
+              <Icon name="eye" size={13} />
+              <span className="min-w-0 flex-1 truncate">Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
+              <button type="button" className="btn btn-ghost px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
+                <Icon name="x" size={13} />
+              </button>
             </div>
-          ) : explain.error ? (
-            <p className="p-2 text-sm text-bad">{explain.error}</p>
-          ) : (
-            <div className="md text-[13.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
-          )}
-        </div>
-      ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {explain.loading ? (
+                <div className="flex items-center gap-2 p-2 text-sm text-muted">
+                  <Spinner /> Meminta penjelasan...
+                </div>
+              ) : explain.error ? (
+                <p className="p-2 text-sm text-bad">{explain.error}</p>
+              ) : (
+                <div className="md text-[13.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
+              )}
+            </div>
+          </aside>
+        ) : null}
+      </div>
 
       {menu ? (
         <div

@@ -27,6 +27,41 @@ type Proc = {
 };
 
 type System = { load: number[]; cpus: number; memTotal: number; memFree: number; uptime: number };
+type SortKey = 'pid' | 'user' | 'cpu' | 'mem' | 'rssKb' | 'elapsed';
+
+const elapsedSeconds = (value: string) => {
+  const parts = value.split(':').map((part) => Number(part.replace(/[^0-9.]/g, '')) || 0);
+  return parts.reduce((total, part) => total * 60 + part, 0);
+};
+
+function SortTh({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  right,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: 1 | -1 };
+  onSort: (key: SortKey) => void;
+  right?: boolean;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={cn('border-b border-line px-3 py-2 font-medium', right ? 'text-right' : 'text-left')}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn('inline-flex items-center gap-1 hover:text-ink', active ? 'text-ink' : 'text-muted')}
+        title={'Urutkan ' + label}
+      >
+        {label}
+        <span className="text-[9px] opacity-70">{active ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>
+  );
+}
 
 export default function PortsTool() {
   const [tab, setTab] = useState<'ports' | 'procs'>('ports');
@@ -38,6 +73,7 @@ export default function PortsTool() {
   const [auto, setAuto] = useState(true);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState(0);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'cpu', dir: -1 });
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +128,18 @@ export default function PortsTool() {
   const filteredProcs = procs.filter(
     (row) => !needle || String(row.pid).includes(needle) || row.command.toLowerCase().includes(needle) || row.args.toLowerCase().includes(needle),
   );
+
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => ({ key, dir: prev.key === key ? (prev.dir === 1 ? -1 : 1) : key === 'user' ? 1 : -1 }));
+  const valueOf = (row: Proc, key: SortKey) => (key === 'elapsed' ? elapsedSeconds(row.elapsed) : row[key]);
+  const sortedProcs = [...filteredProcs].sort((a, b) => {
+    const left = valueOf(a, sort.key);
+    const right = valueOf(b, sort.key);
+    if (typeof left === 'string' || typeof right === 'string') {
+      return String(left).localeCompare(String(right)) * sort.dir;
+    }
+    return (Number(left) - Number(right)) * sort.dir;
+  });
 
   const memUsed = system ? system.memTotal - system.memFree : 0;
 
@@ -222,18 +270,18 @@ export default function PortsTool() {
           <table className="w-full border-collapse text-[12.5px]">
             <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
               <tr>
-                <th className="border-b border-line px-3 py-2 font-medium">PID</th>
-                <th className="border-b border-line px-3 py-2 font-medium">User</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium">CPU%</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium">MEM%</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium">RSS</th>
-                <th className="border-b border-line px-3 py-2 font-medium">Waktu</th>
-                <th className="border-b border-line px-3 py-2 font-medium">Perintah</th>
-                <th className="border-b border-line px-3 py-2 text-right font-medium">Aksi</th>
+                <SortTh label="PID" sortKey="pid" sort={sort} onSort={toggleSort} />
+                <SortTh label="User" sortKey="user" sort={sort} onSort={toggleSort} />
+                <SortTh label="CPU%" sortKey="cpu" sort={sort} onSort={toggleSort} right />
+                <SortTh label="MEM%" sortKey="mem" sort={sort} onSort={toggleSort} right />
+                <SortTh label="RSS" sortKey="rssKb" sort={sort} onSort={toggleSort} right />
+                <SortTh label="Waktu" sortKey="elapsed" sort={sort} onSort={toggleSort} />
+                <th className="border-b border-line px-3 py-2 text-left font-medium text-muted">Perintah</th>
+                <th className="border-b border-line px-3 py-2 text-right font-medium text-muted">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProcs.map((row) => (
+              {sortedProcs.map((row) => (
                 <tr key={row.pid} className="group hover:bg-panel2/60">
                   <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.pid}</td>
                   <td className="border-b border-line/60 px-3 py-1.5 text-muted">{row.user}</td>

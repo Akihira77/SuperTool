@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { Icon, Spinner } from './ui';
+import { Icon, PasswordInput, Spinner } from './ui';
 
 export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) => void }) {
   const [password, setPassword] = useState('');
@@ -35,14 +35,7 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
         </div>
 
         <label className="mb-1.5 block text-xs font-medium text-muted">Password</label>
-        <input
-          type="password"
-          autoFocus
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          className="input"
-        />
+        <PasswordInput autoFocus value={password} onChange={setPassword} placeholder="••••••••" label="Password" />
 
         {error ? <p className="mt-3 text-xs text-bad">{error}</p> : null}
 
