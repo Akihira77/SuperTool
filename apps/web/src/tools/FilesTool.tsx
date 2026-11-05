@@ -4,6 +4,7 @@ import { CopyButton, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
+import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
 
@@ -94,6 +95,8 @@ export default function FilesTool() {
   const [hits, setHits] = useState<GrepHit[] | null>(null);
   const [grepWarning, setGrepWarning] = useState('');
   const [searching, setSearching] = useState(false);
+  const [include, setInclude] = useState('');
+  const [paletteQuery, setPaletteQuery] = useState<FilesSearchPayload | null>(null);
   const [exclude, setExclude] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('st:files:exclude') ?? '["*.log"]');
@@ -283,7 +286,12 @@ export default function FilesTool() {
     setError('');
     try {
       setGrepWarning('');
-      const params = { path: listing.path, q: query, exclude: exclude.join(',') || undefined };
+      const params = {
+        path: listing.path,
+        q: query,
+        exclude: exclude.join(',') || undefined,
+        include: include.trim() || undefined,
+      };
       if (deep) {
         const result = await api.get<{ results: GrepHit[]; truncated: boolean; warning?: string }>(
           '/fs/grep' + qs(params),
@@ -292,7 +300,7 @@ export default function FilesTool() {
         setHits(result.results);
         setResults(null);
         if (result.warning) setGrepWarning(result.warning);
-        else if (result.truncated) setGrepWarning('Hasil dipotong pada 300 baris pertama.');
+        else if (result.truncated) setGrepWarning(t('files.truncated'));
       } else {
         const result = await api.get<{ results: Entry[] }>('/fs/search' + qs(params), { signal: controller.signal });
         setResults(result.results);
@@ -304,9 +312,9 @@ export default function FilesTool() {
       if ((err as Error)?.name === 'AbortError') {
         setHits(null);
         setResults(null);
-        setError('Pencarian dibatalkan.');
+        setError(t('files.cancelled'));
       } else {
-        setError(err instanceof ApiError ? err.message : 'Pencarian gagal');
+        setError(err instanceof ApiError ? err.message : t('files.searchError'));
       }
     } finally {
       if (searchAbort.current === controller) searchAbort.current = null;
@@ -314,6 +322,26 @@ export default function FilesTool() {
       setSearching(false);
     }
   };
+
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
+  // Perintah dari command palette: isi field lalu jalankan setelah listing siap.
+  usePaletteIntent('files', (_action, payload) => {
+    const data = payload as FilesSearchPayload | undefined;
+    if (!data) return;
+    setQuery(data.query);
+    setDeep(data.mode === 'content');
+    setInclude(data.include);
+    setExclude(data.exclude.split(',').map((item) => item.trim()).filter(Boolean));
+    setPaletteQuery(data);
+  });
+
+  useEffect(() => {
+    if (!paletteQuery || !listing) return;
+    setPaletteQuery(null);
+    void searchRef.current();
+  }, [paletteQuery, listing]);
 
   const cancelSearch = () => {
     searchAbort.current?.abort();
@@ -421,6 +449,16 @@ export default function FilesTool() {
             className="input w-44 py-1.5 pl-7 text-[12px]"
           />
         </div>
+        <div className="relative hidden xl:block">
+          <input
+            value={include}
+            onChange={(e) => setInclude(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void search()}
+            placeholder={t('files.includeHint')}
+            title={t('files.includeHint')}
+            className={cn('input w-40 py-1.5 pl-2 text-[11.5px]', include && 'border-accent/40')}
+          />
+        </div>
         <button
           type="button"
           className={cn('btn hidden cursor-pointer lg:inline-flex', exclude.length > 0 && 'border-accent/40 text-accent')}
@@ -432,8 +470,8 @@ export default function FilesTool() {
           {exclude.length ? <span className="rounded bg-accent/20 px-1 text-[10px]">{exclude.length}</span> : null}
         </button>
         {searching ? (
-          <button type="button" className="btn cursor-pointer text-bad" onClick={cancelSearch} title="Hentikan pencarian">
-            <Icon name="x" size={13} /> Batal
+          <button type="button" className="btn cursor-pointer text-bad" onClick={cancelSearch} title={t('files.cancelSearch')}>
+            <Icon name="x" size={13} /> {t('common.cancel')}
           </button>
         ) : (
           <button type="button" className="btn cursor-pointer" onClick={() => void search()} title={t("common.search")}>

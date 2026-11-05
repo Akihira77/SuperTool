@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, PageHeader, cn } from '../components/ui';
+import { CopyButton, Icon, PageHeader, cn } from '../components/ui';
+import { useI18n } from '../lib/i18n';
 import { renderMarkdown } from '../lib/markdown';
 
 const KEY = 'st:markdown';
@@ -30,9 +31,30 @@ const SAMPLE = [
 type View = 'split' | 'edit' | 'preview';
 
 export default function MarkdownTool() {
+  const { t } = useI18n();
   const [text, setText] = useState(() => localStorage.getItem(KEY) ?? SAMPLE);
   const [view, setView] = useState<View>('split');
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Penanda untuk command palette (data-action) tanpa mengubah CodeEditor.
+  useEffect(() => {
+    areaRef.current?.setAttribute('data-action', 'markdown:editor');
+  }, [view]);
+
+  const download = () => {
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = 'catatan.md';
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  };
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setText(await file.text());
+  };
 
   useEffect(() => {
     const id = setTimeout(() => localStorage.setItem(KEY, text), 250);
@@ -109,6 +131,19 @@ export default function MarkdownTool() {
           ))}
         </div>
         <CopyButton text={html} label="HTML" />
+        <button type="button" className="btn" data-action="markdown:upload" onClick={() => fileRef.current?.click()} title={t('common.upload')}>
+          <Icon name="folderPlus" size={13} />
+        </button>
+        <button type="button" className="btn" data-action="markdown:export" onClick={download} title={t('palette.act.export')}>
+          <Icon name="download" size={13} />
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".md,.markdown,text/plain,text/markdown"
+          hidden
+          onChange={(event) => void upload(event.target.files?.[0])}
+        />
       </PageHeader>
 
       {view !== 'preview' ? (
@@ -119,10 +154,10 @@ export default function MarkdownTool() {
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1">
-            <button type="button" className="btn btn-ghost px-2 py-1 text-[12px]" onClick={() => setText(SAMPLE)}>
+            <button type="button" className="btn btn-ghost px-2 py-1 text-[12px]" data-action="markdown:sample" onClick={() => setText(SAMPLE)}>
               Contoh
             </button>
-            <button type="button" className="btn btn-ghost px-2 py-1 text-[12px]" onClick={() => setText('')}>
+            <button type="button" className="btn btn-ghost px-2 py-1 text-[12px]" data-action="markdown:clear" onClick={() => setText('')}>
               Kosongkan
             </button>
           </div>

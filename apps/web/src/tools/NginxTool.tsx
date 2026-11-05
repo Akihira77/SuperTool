@@ -226,13 +226,13 @@ export default function NginxTool() {
         <button type="button" className="btn" onClick={test} disabled={busy} title="nginx -t">
           <Icon name="play" /> Test
         </button>
-        <button type="button" className="btn btn-primary" onClick={save} disabled={!dirty || busy} title="Ctrl+S">
+        <button type="button" className="btn btn-primary" data-action="nginx:save" onClick={save} disabled={!dirty || busy} title="Ctrl+S">
           {busy ? <Spinner /> : <Icon name="save" />} {t("common.save")}
         </button>
       </PageHeader>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
-        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={create}>
+        <button type="button" className="btn px-2 py-1 text-[12px]" data-action="nginx:new" onClick={create}>
           <Icon name="plus" /> {t('nginx.new')}
         </button>
         <button type="button" className="btn px-2 py-1 text-[12px]" onClick={remove} disabled={!activePath}>

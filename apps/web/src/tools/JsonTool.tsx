@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
 import { CopyButton, Icon, PageHeader } from '../components/ui';
 import { bytes } from '../lib/format';
@@ -31,6 +31,16 @@ function positionOf(message: string): string {
 
 export default function JsonTool() {
   const [text, setText] = useState(() => localStorage.getItem(KEY) ?? SAMPLE);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    areaRef.current?.setAttribute('data-action', 'json:editor');
+  }, []);
+
+  const upload = async (file: File | undefined) => {
+    if (file) setText(await file.text());
+  };
 
   useEffect(() => {
     const id = setTimeout(() => localStorage.setItem(KEY, text), 250);
@@ -76,24 +86,28 @@ export default function JsonTool() {
               : 'Tempel JSON di kiri'
         }
       >
-        <button type="button" className="btn" onClick={() => apply((v) => JSON.stringify(v, null, 2))} disabled={!parsed.ok}>
+        <button type="button" className="btn" data-action="json:format" onClick={() => apply((v) => JSON.stringify(v, null, 2))} disabled={!parsed.ok}>
           <Icon name="sort" /> Rapikan
         </button>
-        <button type="button" className="btn" onClick={() => apply((v) => JSON.stringify(v))} disabled={!parsed.ok}>
+        <button type="button" className="btn" data-action="json:minify" onClick={() => apply((v) => JSON.stringify(v))} disabled={!parsed.ok}>
           <Icon name="minify" /> Minify
         </button>
-        <button type="button" className="btn" onClick={() => apply((v) => JSON.stringify(sortDeep(v), null, 2))} disabled={!parsed.ok}>
+        <button type="button" className="btn" data-action="json:sort" onClick={() => apply((v) => JSON.stringify(sortDeep(v), null, 2))} disabled={!parsed.ok}>
           Urutkan kunci
         </button>
         <CopyButton text={pretty} />
-        <button type="button" className="btn" onClick={download} disabled={!parsed.ok} title="Unduh JSON">
+        <button type="button" className="btn" data-action="json:upload" onClick={() => fileRef.current?.click()} title="Unggah berkas JSON">
+          <Icon name="folderPlus" />
+        </button>
+        <button type="button" className="btn" data-action="json:download" onClick={download} disabled={!parsed.ok} title="Unduh JSON">
           <Icon name="download" />
         </button>
+        <input ref={fileRef} type="file" accept=".json,application/json,text/plain" hidden onChange={(event) => void upload(event.target.files?.[0])} />
       </PageHeader>
 
       <div className="flex min-h-0 flex-1 divide-x divide-line">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
-          <CodeEditor value={text} onChange={setText} placeholder='{"hello": "world"}' />
+          <CodeEditor value={text} onChange={setText} areaRef={areaRef} placeholder='{"hello": "world"}' />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
           {parsed.ok ? (
@@ -112,10 +126,10 @@ export default function JsonTool() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-1.5 text-[11px] text-muted">
-        <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" onClick={() => setText(SAMPLE)}>
+        <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" data-action="json:sample" onClick={() => setText(SAMPLE)}>
           Contoh
         </button>
-        <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" onClick={() => setText('')}>
+        <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" data-action="json:clear" onClick={() => setText('')}>
           Kosongkan
         </button>
         <span className="ml-auto">{parsed.ok ? 'JSON valid' : 'menunggu JSON valid'}</span>

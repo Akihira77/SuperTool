@@ -83,10 +83,10 @@ export default function NotesTool() {
           status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : status === 'saved' ? t('notes.saved') : notes.length + ' ' + t('notes.count')
         }
       >
-        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
+        <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
           <Icon name="panel" />
         </button>
-        <button type="button" className="btn btn-primary" onClick={create}>
+        <button type="button" className="btn btn-primary" data-action="notes:new" onClick={create}>
           <Icon name="plus" /> {t('notes.new')}
         </button>
       </PageHeader>
@@ -97,7 +97,7 @@ export default function NotesTool() {
           <div className="p-2">
             <div className="relative">
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} className="input py-1.5 pl-8 text-[13px]" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13px]" />
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -138,7 +138,7 @@ export default function NotesTool() {
                   placeholder={t('notes.titlePlaceholder')}
                 />
                 <span className="text-[11px] text-muted">{active.body.length} karakter</span>
-                <button type="button" className="btn btn-danger" onClick={() => remove(active.id)} title={t("common.delete")}>
+                <button type="button" className="btn btn-danger" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>
               </div>

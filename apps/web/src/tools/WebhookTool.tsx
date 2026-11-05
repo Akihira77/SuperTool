@@ -92,10 +92,10 @@ export default function WebhookTool() {
           <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-ok' : 'bg-muted')} />
           {live ? t('webhook.live') : t('webhook.paused')}
         </span>
-        <button type="button" className="btn cursor-pointer" onClick={() => setLive((prev) => !prev)}>
+        <button type="button" className="btn cursor-pointer" data-action="webhook:pause" onClick={() => setLive((prev) => !prev)}>
           <Icon name={live ? 'x' : 'play'} size={13} /> {live ? t('webhook.pause') : t('webhook.resume')}
         </button>
-        <button type="button" className="btn cursor-pointer" onClick={() => void clear()} disabled={!info?.items.length}>
+        <button type="button" className="btn cursor-pointer" data-action="webhook:clear" onClick={() => void clear()} disabled={!info?.items.length}>
           <Icon name="trash" size={13} /> {t('webhook.clear')}
         </button>
       </PageHeader>

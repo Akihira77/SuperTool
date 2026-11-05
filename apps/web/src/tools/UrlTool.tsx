@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { usePaletteIntent } from '../lib/palette';
 
 type View = { id: string; name: string; url: string; proxy: boolean; createdAt?: number };
 type Status = { ok: boolean; status?: number; error?: string };
@@ -177,6 +178,17 @@ export default function UrlTool() {
     setDraft({ name: view.name, url: view.url });
   };
 
+  // Perintah dari command palette: buka/edit URL tersimpan.
+  usePaletteIntent('viewer', (action, payload) => {
+    const view = views.find((item) => item.id === String(payload ?? ''));
+    if (!view) return;
+    if (action === 'edit') startEdit(view);
+    else {
+      setActiveId(view.id);
+      bump(view.id);
+    }
+  });
+
   const remove = async (id: string) => {
     if (!window.confirm(t('viewer.confirmDelete'))) return;
     try {
@@ -330,7 +342,7 @@ export default function UrlTool() {
             {editingId ? (
               <div className="flex items-center justify-between text-[11px] text-accent">
                 <span>Ubah URL</span>
-                <button type="button" className="btn btn-ghost px-1 py-0 text-[11px]" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
+                <button type="button" className="btn btn-ghost px-1 py-0 text-[11px]" data-action="viewer:add" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
                   batal
                 </button>
               </div>

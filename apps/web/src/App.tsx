@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
-import CommandPalette, { type CommandItem } from './components/CommandPalette';
+import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
@@ -8,6 +8,7 @@ import { api } from './lib/api';
 import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
+import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
 
 type Tool = {
   id: string;
@@ -63,18 +64,87 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const paletteItems = [
-    ...TOOLS.map<CommandItem>((tool) => ({
-      id: 'tool:' + tool.id,
-      label: t(tool.key as 'nav.markdown', tool.label),
-      desc: tool.desc,
-      icon: tool.icon,
-      group: 'menu',
-    })),
-    { id: 'action:lang', label: lang === 'id' ? 'Bahasa: English' : 'Bahasa: Indonesia', desc: 'Ganti bahasa antarmuka', icon: 'dev', group: 'aksi' },
-    { id: 'action:password', label: t('nav.password'), desc: 'Ganti password', icon: 'lock', group: 'aksi' },
-    { id: 'action:logout', label: t('nav.logout'), desc: 'Keluar dari sesi ini', icon: 'logout', group: 'aksi' },
+  // Aksi per tool untuk submenu palette. Tombolnya di tool ditandai
+  // data-action="tool:aksi" supaya palette tinggal mengklik.
+  const act = (tool: string, action: string, icon = 'chevronRight'): PaletteNode => ({
+    id: tool + ':' + action,
+    label: t(('palette.act.' + action) as 'palette.act.write'),
+    icon,
+  });
+
+  const toolActions: Record<string, PaletteNode[]> = {
+    markdown: [act('markdown', 'write', 'markdown'), act('markdown', 'upload', 'download'), act('markdown', 'export', 'download'), act('markdown', 'sample', 'notes'), act('markdown', 'clear', 'trash')],
+    json: [act('json', 'write', 'json'), act('json', 'format', 'check'), act('json', 'minify', 'compress'), act('json', 'sort', 'types'), act('json', 'upload', 'download'), act('json', 'download', 'download')],
+    types: [act('types', 'download', 'download')],
+    notes: [act('notes', 'new', 'plus'), act('notes', 'search', 'search'), act('notes', 'delete', 'trash'), act('notes', 'list', 'notes')],
+    nginx: [act('nginx', 'save', 'save'), act('nginx', 'new', 'plus')],
+    ports: [act('ports', 'refresh', 'refresh'), act('ports', 'tabPorts', 'ports'), act('ports', 'tabProcs', 'dev'), act('ports', 'auto', 'play')],
+    compress: [act('compress', 'pick', 'files'), act('compress', 'run', 'play'), act('compress', 'download', 'download')],
+    devspace: ['regex', 'encode', 'http', 'log', 'docker', 'git', 'cron', 'dns', 'sqlite'].map((tab) =>
+      act('devspace', tab, 'chevronRight'),
+    ),
+    webhook: [act('webhook', 'pause', 'play'), act('webhook', 'clear', 'trash')],
+  };
+
+  const loadUrls = async (): Promise<PaletteNode[]> => {
+    const data = await api.get<{ urls: Array<{ id: string; name: string; url: string }> }>('/urls').catch(() => ({ urls: [] }));
+    const list = data.urls ?? [];
+    return list.map((item) => ({ id: 'viewer:open:' + item.id, label: item.name || item.url, desc: item.url, icon: 'url' }));
+  };
+
+  const paletteTree: PaletteNode[] = [
+    ...TOOLS.map<PaletteNode>((tool) => {
+      const id = tool.id;
+      const base: PaletteNode = { id: 'tool:' + id, label: t(tool.key as 'nav.markdown', tool.label), desc: tool.desc, icon: tool.icon };
+      if (id === 'files') {
+        return { ...base, children: [{ id: 'files:search', label: t('palette.searchFiles'), desc: t('palette.searchFilesDesc'), icon: 'search', form: 'files-search' }] };
+      }
+      if (id === 'viewer') {
+        return {
+          ...base,
+          children: [
+            act('viewer', 'add', 'plus'),
+            { id: 'viewer:access', label: t('palette.act.access'), desc: t('palette.act.accessDesc'), icon: 'url', children: loadUrls },
+            { id: 'viewer:edit', label: t('palette.act.edit'), desc: t('palette.act.editDesc'), icon: 'edit', children: async () => (await loadUrls()).map((node) => ({ ...node, id: node.id.replace('viewer:open:', 'viewer:edit:') })) },
+          ],
+        };
+      }
+      return { ...base, children: toolActions[id] };
+    }),
+    { id: 'action:lang', label: lang === 'id' ? 'Bahasa: English' : 'Bahasa: Indonesia', desc: t('palette.act.langDesc'), icon: 'dev' },
+    { id: 'action:password', label: t('nav.password'), desc: t('palette.act.passwordDesc'), icon: 'lock' },
+    { id: 'action:logout', label: t('nav.logout'), desc: t('palette.act.logoutDesc'), icon: 'logout' },
   ];
+
+  const runPalette = (path: PaletteNode[], node: PaletteNode, payload?: FilesSearchPayload) => {
+    if (node.id === 'files:search-run' && payload) {
+      navigate('files');
+      dispatchIntent({ tool: 'files', action: 'search', payload });
+      return;
+    }
+    if (node.id.startsWith('viewer:open:') || node.id.startsWith('viewer:edit:')) {
+      const [, action, target] = node.id.split(':');
+      navigate('viewer');
+      dispatchIntent({ tool: 'viewer', action: action === 'edit' ? 'edit' : 'open', payload: target });
+      return;
+    }
+    if (node.id.startsWith('tool:')) {
+      navigate(node.id.slice(5));
+      return;
+    }
+    if (node.id.startsWith('action:')) {
+      if (node.id === 'action:lang') setLang(lang === 'id' ? 'en' : 'id');
+      else if (node.id === 'action:password') navigate('password');
+      else if (node.id === 'action:logout') void logout();
+      return;
+    }
+    const [tool, action] = node.id.split(':');
+    navigate(tool);
+    const focusTarget: Record<string, string> = { 'markdown:write': 'editor', 'json:write': 'editor', 'notes:search': 'search' };
+    if (focusTarget[node.id]) void runFocus(tool, focusTarget[node.id]);
+    else void runClick(tool, action);
+    void path;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -206,17 +276,7 @@ function Shell() {
         )}
       </main>
 
-      <CommandPalette
-        open={paletteOpen}
-        items={paletteItems}
-        onClose={() => setPaletteOpen(false)}
-        onSelect={(id) => {
-          if (id.startsWith('tool:')) navigate(id.slice(5));
-          else if (id === 'action:lang') setLang(lang === 'id' ? 'en' : 'id');
-          else if (id === 'action:password') navigate('password');
-          else if (id === 'action:logout') void logout();
-        }}
-      />
+      <CommandPalette open={paletteOpen} root={paletteTree} onClose={() => setPaletteOpen(false)} onRun={runPalette} />
     </div>
   );
 }

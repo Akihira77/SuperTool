@@ -197,6 +197,7 @@ export default function PortsTool() {
               key={item}
               type="button"
               onClick={() => setTab(item)}
+              data-action={item === 'ports' ? 'ports:tabPorts' : 'ports:tabProcs'}
               className={cn(
                 'px-2.5 py-1.5 text-[12px] transition-colors',
                 tab === item ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
@@ -210,10 +211,10 @@ export default function PortsTool() {
           <Icon name="search" className="absolute top-2 left-2 text-muted" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('ports.filter')} className="input w-44 py-1.5 pl-7 text-[13px]" />
         </div>
-        <button type="button" className={cn('btn', auto && 'btn-primary')} onClick={() => setAuto(!auto)} title={t('ports.autoHint')}>
+        <button type="button" className={cn('btn', auto && 'btn-primary')} data-action="ports:auto" onClick={() => setAuto(!auto)} title={t('ports.autoHint')}>
           {t('ports.auto')}
         </button>
-        <button type="button" className="btn" onClick={() => void load()}>
+        <button type="button" className="btn" data-action="ports:refresh" onClick={() => void load()}>
           <Icon name="refresh" /> {t('ports.refresh')}
         </button>
       </PageHeader>

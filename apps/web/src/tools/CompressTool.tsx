@@ -75,7 +75,7 @@ function FileCard({
         </div>
       </div>
       {download ? (
-        <a className="btn cursor-pointer justify-center" href={RAW + encodeURIComponent(path) + '&download=1'} download>
+        <a className="btn cursor-pointer justify-center" data-action="compress:download" href={RAW + encodeURIComponent(path) + '&download=1'} download>
           <Icon name="download" size={13} /> Unduh
         </a>
       ) : null}
@@ -265,7 +265,7 @@ export default function CompressTool() {
               event.preventDefault();
               void upload(event.dataTransfer.files?.[0]);
             }}
-            onClick={() => fileRef.current?.click()}
+            data-action="compress:pick" onClick={() => fileRef.current?.click()}
             className={cn(
               'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-6 text-center transition-colors',
               dragging ? 'border-accent bg-accent/10' : 'border-line hover:border-accent/50',
@@ -366,7 +366,7 @@ export default function CompressTool() {
               ) : null}
 
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void run()} disabled={busy || !canRun}>
+                <button type="button" className="btn btn-primary cursor-pointer" data-action="compress:run" onClick={() => void run()} disabled={busy || !canRun}>
                   {busy ? <Spinner /> : <Icon name="compress" />}
                   {tab === 'convert' ? t('compress.convert') : t('compress.compress')}
                 </button>

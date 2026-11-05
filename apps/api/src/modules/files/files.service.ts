@@ -155,7 +155,7 @@ export class FilesService {
    * waktu lama di folder besar, dan exit code 2 (misal ada subfolder tanpa izin)
    * tidak boleh membuang hasil yang sudah didapat.
    */
-  async grepText(root: string, query: string, limit = GREP_MAX, exclude: string[] = [], signal?: AbortSignal) {
+  async grepText(root: string, query: string, limit = GREP_MAX, exclude: string[] = [], include: string[] = [], signal?: AbortSignal) {
     const start = await jailPath(root);
     const needle = String(query ?? '');
     if (needle.trim().length < 2) throw new BadRequestException('Kata kunci minimal 2 karakter');
@@ -182,6 +182,8 @@ export class FilesService {
 
     const results: Array<{ path: string; line: number; text: string }> = [];
     const warnings: string[] = [];
+    // include = batasi hasil ke path yang memuat salah satu potongan ini.
+    const keep = (path: string) => !include.length || include.some((prefix) => path.includes(prefix));
 
     return new Promise<{ results: typeof results; truncated: boolean; warning?: string }>((resolve, reject) => {
       const child = spawn('grep', args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -214,8 +216,10 @@ export class FilesService {
         const first = line.indexOf(':');
         const second = line.indexOf(':', first + 1);
         if (first < 0 || second < 0) return;
+        const filePath = line.slice(0, first);
+        if (!keep(filePath)) return;
         results.push({
-          path: line.slice(0, first),
+          path: filePath,
           line: Number(line.slice(first + 1, second)) || 0,
           text: line.slice(second + 1).slice(0, 300),
         });
@@ -271,7 +275,7 @@ export class FilesService {
     });
   }
 
-  async search(root: string, query: string, includeAll: boolean, exclude: string[] = []) {
+  async search(root: string, query: string, includeAll: boolean, exclude: string[] = [], include: string[] = []) {
     if (!query || query.length < 2) throw new BadRequestException('Query minimal 2 karakter');
     const start = await jailPath(root);
     const needle = query.toLowerCase();
@@ -316,7 +320,8 @@ export class FilesService {
         }
       }
     }
-    return { results, truncated: results.length >= SEARCH_MAX };
+    const filtered = include.length ? results.filter((entry) => include.some((prefix) => entry.path.includes(prefix))) : results;
+    return { results: filtered, truncated: results.length >= SEARCH_MAX };
   }
 
   async dirSize(input: string) {

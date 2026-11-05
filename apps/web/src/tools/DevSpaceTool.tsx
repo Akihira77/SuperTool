@@ -31,7 +31,8 @@ export default function DevSpaceTool() {
           <button
             key={item.id}
             type="button"
-            onClick={() => setTab(item.id)}
+            data-action={'devspace:' + item.id}
+              onClick={() => setTab(item.id)}
             className={cn(
               'shrink-0 cursor-pointer rounded-md px-2.5 py-1 text-[12px] transition-colors',
               active.id === item.id ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',

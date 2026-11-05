@@ -23,6 +23,14 @@ import { mimeOf } from './mime';
 type Uploaded = { originalname: string; buffer: Buffer };
 
 /** "*.log, *.map" -> ['*.log', '*.map'] */
+function parseInclude(raw?: string): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
 function parseExclude(raw?: string): string[] {
   return String(raw ?? '')
     .split(',')
@@ -68,17 +76,24 @@ export class FilesController {
     @Query('q') q: string,
     @Query('limit') limit: string,
     @Query('exclude') exclude: string,
+    @Query('include') include: string,
     @Req() req: Request,
   ) {
     // Request dibatalkan browser (tombol Batal) -> hentikan proses grep.
     const controller = new AbortController();
     req.on('close', () => controller.abort());
-    return this.files.grepText(path, q, Number(limit) || undefined, parseExclude(exclude), controller.signal);
+    return this.files.grepText(path, q, Number(limit) || undefined, parseExclude(exclude), parseInclude(include), controller.signal);
   }
 
   @Get('search')
-  search(@Query('path') path: string, @Query('q') q: string, @Query('all') all: string, @Query('exclude') exclude: string) {
-    return this.files.search(path, q, all === '1', parseExclude(exclude));
+  search(
+    @Query('path') path: string,
+    @Query('q') q: string,
+    @Query('all') all: string,
+    @Query('exclude') exclude: string,
+    @Query('include') include: string,
+  ) {
+    return this.files.search(path, q, all === '1', parseExclude(exclude), parseInclude(include));
   }
 
   @Get('du')

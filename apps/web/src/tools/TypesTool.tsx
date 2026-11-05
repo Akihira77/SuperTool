@@ -67,7 +67,7 @@ export default function TypesTool() {
           aria-label="Nama root"
         />
         <CopyButton text={result.output} label={t('common.copy') + ' TS'} />
-        <button type="button" className="btn" onClick={download} disabled={!result.ok} title="Unduh .ts">
+        <button type="button" className="btn" data-action="types:download" onClick={download} disabled={!result.ok} title="Unduh .ts">
           <Icon name="download" />
         </button>
       </PageHeader>

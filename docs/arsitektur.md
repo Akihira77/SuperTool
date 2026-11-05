@@ -83,6 +83,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `App.tsx` | Gate auth (loading/anonymous/wajib-ganti/siap), sidebar, routing hash |
 | `lib/router.ts` | Router hash 15 baris — tanpa react-router |
 | `lib/api.ts` | `fetch` wrapper: JSON, cookie, header CSRF, `ApiError` |
+| `lib/palette.ts` | Jembatan command palette → tool: intent tertunda (`usePaletteIntent`) + klik `data-action="tool:aksi"` setelah halaman tampil |
+| `components/CommandPalette.tsx` | Palette dua tingkat: submenu statis/async (daftar URL), form pencarian File Explorer, Esc/Backspace kembali |
 | `lib/json2ts.ts` | Inferensi tipe: nama dari key, gabung bentuk array, penanda `?` untuk field yang tidak selalu ada |
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |

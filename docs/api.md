@@ -73,10 +73,10 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | GET | `/fs/raw` | `path`, `download=1` | isi file mentah, mendukung HTTP Range (206) |
 | GET | `/fs/office` | `path` | pratinjau docx/xlsx/pptx/odt/ods/odp |
 | POST | `/fs/office` | `{ path, texts[] }` atau `{ path, cells[] }` | simpan hasil edit + cadangan otomatis |
-| GET | `/fs/grep` | `path`, `q`, `limit`, `exclude` | `{ results: [{ path, line, text }], truncated, warning? }` |
-| GET | `/fs/search` | `path`, `q`, `all=1`, `exclude` | `{ results[], truncated }` |
+| GET | `/fs/grep` | `path`, `q`, `limit`, `exclude`, `include` | `{ results: [{ path, line, text }], truncated, warning? }` |
+| GET | `/fs/search` | `path`, `q`, `all=1`, `exclude`, `include` | `{ results[], truncated }` |
 
-`exclude` = pola berkas yang dilewati, dipisah koma (contoh `*.log,*.map`). Berlaku untuk pencarian isi (diteruskan sebagai `--exclude` ke grep) maupun pencarian nama. Pencarian isi memakai `grep` streaming: bila browser memutus request (tombol **Batal**), proses grep langsung dihentikan dan hasil parsial dikirim sebelum koneksi ditutup. Exit code 2 (misal ada folder tanpa izin) tidak lagi dianggap gagal selama ada hasil.
+`exclude` = pola berkas yang dilewati, dipisah koma (contoh `*.log,*.map`); entri berakhiran `/` dianggap folder (`node_modules/` → `--exclude-dir`). `include` = batasi hasil ke path yang memuat salah satu potongan, juga dipisah koma (contoh `apps/api,src`). Berlaku untuk pencarian isi (diteruskan sebagai `--exclude` ke grep) maupun pencarian nama. Pencarian isi memakai `grep` streaming: bila browser memutus request (tombol **Batal**), proses grep langsung dihentikan dan hasil parsial dikirim sebelum koneksi ditutup. Exit code 2 (misal ada folder tanpa izin) tidak lagi dianggap gagal selama ada hasil.
 | GET | `/fs/du` | `path` | `{ bytes, files, truncated }` |
 | PUT | `/fs/write` | `{ path, content }` | `{ ok, size }` |
 | POST | `/fs/mkdir` | `{ path }` | `{ ok, path }` |

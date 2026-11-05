@@ -223,7 +223,26 @@ Aksi yang berhasil/gagal menampilkan toast di kanan bawah (`components/toast.tsx
 
 ## Command Palette
 
-Tekan **Ctrl + K** (atau **Cmd + K** di macOS) di mana saja untuk membuka palette: ketik nama menu (misal `json`, `file`, `git`), pilih dengan ↑↓, lalu **Enter** untuk pindah halaman. Selain menu, palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). **Esc** menutup.
+Tekan **Ctrl + K** (atau **Cmd + K** di macOS) di mana saja untuk membuka palette. Dua tingkat:
+
+1. **Pilih menu** — ketik nama menu (misal `json`, `file`, `git`), **Enter** membuka daftar aksi menu itu.
+2. **Pilih aksi** — Enter menjalankan aksinya; **Esc** (atau Backspace saat kolom kosong) kembali ke daftar menu.
+
+Aksi yang tersedia mengikuti isi tiap tool, misalnya:
+
+| Menu | Submenu |
+|------|---------|
+| Markdown | tulis/fokus editor, unggah berkas, ekspor .md, muat contoh, bersihkan |
+| JSON | tulis, format, minify, urutkan kunci, unggah, unduh hasil |
+| Catatan | baru, cari, hapus, tampilkan daftar |
+| URL Viewer | tambah, akses (daftar URL tersimpan → langsung terbuka), edit (daftar URL → form edit) |
+| Kompresor | pilih berkas, jalankan, unduh hasil |
+| Dev Space | semua tab: regex, encode/hash, HTTP, log, docker, git, cron, DNS, database |
+| File Explorer | **Cari berkas** — form di palette: toggle nama/isi, kata kunci, "hanya di dalam" (include), "kecualikan" (exclude); Enter membuka File Explorer dengan pencarian itu langsung berjalan |
+| Port | refresh, tab port, tab proses, auto refresh |
+| Webhook | jeda/lanjut live, bersihkan |
+
+Palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). Aksi yang butuh tool aktif dijalankan setelah halaman tujuan muncul (`data-action`), jadi tidak ada state yang hilang saat pindah menu.
 
 ## Bahasa (ID / EN)
 
