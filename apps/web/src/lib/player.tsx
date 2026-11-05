@@ -9,6 +9,7 @@ export type Track = { path: string; name: string; ext: string; kind: 'audio' | '
 type PlayerApi = {
   track: Track | null;
   playing: boolean;
+  expanded: boolean;
   time: number;
   duration: number;
   volume: number;
@@ -16,12 +17,15 @@ type PlayerApi = {
   toggle: () => void;
   seek: (seconds: number) => void;
   setVolume: (value: number) => void;
+  expand: () => void;
+  minimize: () => void;
   close: () => void;
 };
 
 const Ctx = createContext<PlayerApi>({
   track: null,
   playing: false,
+  expanded: false,
   time: 0,
   duration: 0,
   volume: 1,
@@ -29,6 +33,8 @@ const Ctx = createContext<PlayerApi>({
   toggle: () => undefined,
   seek: () => undefined,
   setVolume: () => undefined,
+  expand: () => undefined,
+  minimize: () => undefined,
   close: () => undefined,
 });
 
@@ -40,10 +46,13 @@ const clock = (seconds: number) => {
 
 /** Pemutar media global: elemen tetap hidup saat pindah menu, volume disimpan. */
 export function PlayerProvider({ children }: { children: ReactNode }) {
+  const playerRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLVideoElement>(null);
   const lastPath = useRef<string | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState('');
@@ -73,11 +82,31 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (mediaRef.current) mediaRef.current.volume = volume;
   }, [volume, track]);
 
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === playerRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
   const play = useCallback((next: Track) => {
+    setExpanded(next.kind === 'video');
     setTrack(next);
     // Berkas yang sama dan sedang tampil (mis. dijeda) → lanjutkan tanpa reset.
     if (mediaRef.current && lastPath.current === next.path) {
       void mediaRef.current.play().catch(() => setPlaying(false));
+    }
+  }, []);
+
+  const expand = useCallback(() => setExpanded(true), []);
+  const minimize = useCallback(() => setExpanded(false), []);
+
+  const toggleFullscreen = useCallback(() => {
+    const panel = playerRef.current;
+    if (!panel) return;
+    if (document.fullscreenElement === panel) {
+      void document.exitFullscreen();
+    } else {
+      void panel.requestFullscreen?.().catch(() => undefined);
     }
   }, []);
 
@@ -106,18 +135,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback(() => {
+    if (document.fullscreenElement === playerRef.current) void document.exitFullscreen();
     mediaRef.current?.pause();
     lastPath.current = null;
     setTrack(null);
     setPlaying(false);
+    setExpanded(false);
     setTime(0);
     setDuration(0);
     setError('');
   }, []);
 
   const value = useMemo(
-    () => ({ track, playing, time, duration, volume, play, toggle, seek, setVolume, close }),
-    [track, playing, time, duration, volume, play, toggle, seek, setVolume, close],
+    () => ({ track, playing, expanded, time, duration, volume, play, toggle, seek, setVolume, expand, minimize, close }),
+    [track, playing, expanded, time, duration, volume, play, toggle, seek, setVolume, expand, minimize, close],
   );
 
   return (
@@ -125,16 +156,45 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       {children}
       {track ? (
         <div
+          ref={playerRef}
           data-player="dock"
+          data-mode={expanded ? 'full' : 'mini'}
           role="region"
           aria-label="Pemutar media"
-          className="fixed right-4 bottom-4 z-40 w-[320px] overflow-hidden rounded-xl border border-line bg-panel/95 shadow-2xl backdrop-blur"
+          className={cn(
+            'fixed bottom-4 z-50 overflow-hidden border border-line bg-panel/95 shadow-2xl backdrop-blur',
+            expanded
+              ? 'inset-x-4 mx-auto max-w-5xl rounded-2xl'
+              : 'right-4 z-40 w-[320px] rounded-xl',
+          )}
         >
           <div className="flex items-center gap-2 border-b border-line px-3 py-2">
             <Icon name={track.kind === 'video' ? 'play' : 'music'} size={14} className="shrink-0 text-accent" />
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium" title={track.path}>
               {track.name}
             </span>
+            {track.kind === 'video' ? (
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 px-1.5 py-0.5"
+                onClick={toggleFullscreen}
+                title={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+                aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+              >
+                <Icon name={fullscreen ? 'fullscreenExit' : 'fullscreen'} size={13} />
+              </button>
+            ) : null}
+            {track.kind === 'video' ? (
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 px-1.5 py-0.5"
+                onClick={expanded ? minimize : expand}
+                title={expanded ? 'Kecilkan' : 'Perbesar'}
+                aria-label={expanded ? 'Kecilkan' : 'Perbesar'}
+              >
+                <Icon name={expanded ? 'minimize' : 'maximize'} size={13} />
+              </button>
+            ) : null}
             <button type="button" className="btn btn-ghost shrink-0 px-1.5 py-0.5" onClick={close} title="Tutup" aria-label="Tutup">
               <Icon name="x" size={13} />
             </button>
@@ -154,18 +214,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
               setPlaying(false);
               setError('Tidak bisa memutar berkas ini (codec tidak didukung?)');
             }}
-            className={cn(track.kind === 'video' ? 'max-h-44 w-full bg-black object-contain' : 'hidden')}
+            className={cn(
+              track.kind === 'video'
+                ? expanded
+                  ? 'max-h-[62vh] w-full bg-black object-contain'
+                  : 'max-h-44 w-full bg-black object-contain'
+                : 'hidden',
+            )}
           />
           <div className="space-y-2 px-3 py-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="btn btn-primary h-8 w-8 shrink-0 rounded-full p-0"
+                className={cn(
+                  'btn btn-primary shrink-0 justify-center rounded-full p-0',
+                  expanded ? 'h-10 w-10' : 'h-8 w-8',
+                )}
                 onClick={toggle}
                 title={playing ? 'Jeda' : 'Putar'}
                 aria-label={playing ? 'Jeda' : 'Putar'}
               >
-                <Icon name={playing ? 'pause' : 'play'} size={14} />
+                <Icon name={playing ? 'pause' : 'play'} size={expanded ? 16 : 14} />
               </button>
               <input
                 type="range"

@@ -178,8 +178,10 @@ Saat menyimpan, isi lama disalin dulu ke `<nama>_backup_<YYYYMMDD-HHMMSS>.<ext>`
 
 Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas diputar di pemutar global yang menempel di pojok kanan bawah dan tetap berjalan saat pindah menu (Markdown, Dev Space, dst). Sumbernya `GET /api/fs/raw` yang mendukung HTTP Range, jadi video bisa di-seek tanpa mengunduh seluruh berkas.
 
-- State pemutaran (path, posisi playhead, play/pause, durasi) ada di React Context `apps/web/src/lib/player.tsx`; elemen media tidak di-unmount saat ganti route, jadi suara tidak terputus.
-- Kontrol: play/pause, seek, volume, tutup. Volume disimpan di `localStorage` (`st:media:volume`).
+- State pemutaran (path, posisi playhead, play/pause, durasi, mode besar/mini) ada di React Context `apps/web/src/lib/player.tsx`; elemen media tidak di-unmount saat ganti route, jadi suara tidak terputus.
+- Video dibuka dalam tampilan besar (default), bukan langsung mini. Tombol **Kecilkan** mengubahnya jadi pemutar floating 320px; **Perbesar** mengembalikannya. Playback tetap berjalan saat pindah menu, baik dalam mode besar maupun mini.
+- Tombol **Layar penuh** memakai Fullscreen API native pada panel pemutar; video mengisi layar dan kontrol play/pause/seek/volume tetap terlihat. Tekan **Esc** atau klik ikon keluar untuk kembali ke mode sebelumnya.
+- Kontrol: play/pause, seek, volume, kecilkan/perbesar (video), layar penuh (video), tutup. Volume disimpan di `localStorage` (`st:media:volume`).
 - Berkas yang sama diklik lagi → lanjut dari posisi terakhir. Berkas baru → mulai dari awal.
 - Codec tidak didukung (mis. MKV/H.265) → pesan error di dalam pemutar; berkas tetap bisa diunduh dari daftar.
 - Ekstensi dinormalkan ke huruf kecil di server, jadi `VIDEO.MP4` tetap terbuka sebagai video.
