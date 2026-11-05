@@ -5,6 +5,8 @@ import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
+import { projectName, useProject } from '../lib/project';
+import { dispatchIntent } from '../lib/palette';
 import { bytes, timeAgo } from '../lib/format';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
@@ -45,6 +47,7 @@ export default function NginxTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
   const toast = useToast();
+  const { projectPath } = useProject();
   const [panelOpen, togglePanel] = useSidebar('nginx', true);
   const [dir, setDir] = useState('');
   const [files, setFiles] = useState<ConfFile[]>([]);
@@ -57,6 +60,7 @@ export default function NginxTool() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [explain, setExplain] = useState<Explain | null>(null);
   const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
+  const [projectConfs, setProjectConfs] = useState<Array<{ name: string; path: string }>>([]);
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState(() => localStorage.getItem('st:llm:model') ?? '');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('st:llm:key') ?? '');
@@ -119,6 +123,27 @@ export default function NginxTool() {
     void loadModels(localStorage.getItem('st:llm:key') ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cari file konfigurasi nginx di folder proyek aktif (dibuka lewat File Explorer).
+  useEffect(() => {
+    if (!projectPath) {
+      setProjectConfs([]);
+      return;
+    }
+    let alive = true;
+    api
+      .get<{ results: Array<{ name: string; path: string; dir: boolean }> }>(
+        '/fs/search' + qs({ path: projectPath, q: 'conf', include: projectPath }),
+      )
+      .then((result) => {
+        if (!alive) return;
+        setProjectConfs(result.results.filter((item) => !item.dir && /\.conf$/.test(item.name)).slice(0, 8));
+      })
+      .catch(() => alive && setProjectConfs([]));
+    return () => {
+      alive = false;
+    };
+  }, [projectPath]);
 
   useEffect(() => {
     if (!menu) return;
@@ -282,6 +307,30 @@ export default function NginxTool() {
           <span className="hidden text-[11px] text-muted md:inline">{t('nginx.hintExplain')}</span>
         </div>
       </div>
+
+      {projectPath ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
+          <span className="label">{t('nginx.projectConfs')} · {projectName(projectPath)}</span>
+          {projectConfs.length ? (
+            projectConfs.map((conf) => (
+              <button
+                key={conf.path}
+                type="button"
+                className="chip cursor-pointer hover:border-accent/60 hover:text-accent"
+                title={t('nginx.openInExplorer') + ': ' + conf.path}
+                onClick={() => {
+                  dispatchIntent({ tool: 'files', action: 'open', payload: conf.path });
+                  location.hash = '/files';
+                }}
+              >
+                <Icon name="files" size={11} /> {conf.name}
+              </button>
+            ))
+          ) : (
+            <span className="text-[11px] text-muted">{t('nginx.noProjectConfs')}</span>
+          )}
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (

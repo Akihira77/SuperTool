@@ -3,6 +3,7 @@ import { Empty, Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { useToast } from '../../components/toast';
+import { useProject } from '../../lib/project';
 
 type Change = { status: string; path: string };
 type Commit = {
@@ -182,6 +183,7 @@ function DiffView({ text, loading }: { text: string; loading: boolean }) {
 export default function GitTab() {
   const { t } = useI18n();
   const toast = useToast();
+  const { projectPath } = useProject();
   const [roots, setRoots] = useState<Array<{ path: string; label: string }>>([]);
   const [browse, setBrowse] = useState('');
   const [parent, setParent] = useState<string | null>(null);
@@ -243,10 +245,20 @@ export default function GitTab() {
       .get<Array<{ path: string; label: string }>>('/fs/roots')
       .then((list) => {
         setRoots(list);
-        if (list.length) void loadDirs(list[0].path);
+        if (!projectPath && list.length) void loadDirs(list[0].path);
       })
       .catch(() => undefined);
-  }, [loadDirs]);
+  }, [loadDirs, projectPath]);
+
+  // Proyek global berubah → langsung buka repo-nya.
+  useEffect(() => {
+    if (!projectPath) return;
+    setSelection(null);
+    setDiff('');
+    setRef(null);
+    void loadDirs(projectPath);
+    void load(projectPath, null);
+  }, [projectPath, loadDirs, load]);
 
   const openDiff = useCallback(async (next: Selection) => {
     if (!state) return;

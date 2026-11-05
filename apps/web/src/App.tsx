@@ -3,6 +3,8 @@ import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
 import { ConfirmProvider } from './components/confirm';
+import { ProjectProvider } from './lib/project';
+import { ProjectPicker } from './components/ProjectPicker';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -40,7 +42,9 @@ export default function App() {
     <I18nProvider>
       <ToastProvider>
         <ConfirmProvider>
-          <Shell />
+          <ProjectProvider>
+            <Shell />
+          </ProjectProvider>
         </ConfirmProvider>
       </ToastProvider>
     </I18nProvider>
@@ -249,6 +253,7 @@ function Shell() {
       </aside>
 
       <main className="relative flex min-w-0 flex-1 flex-col">
+        <ProjectPicker />
         {route === 'password' ? (
           <div className="flex-1 overflow-y-auto">
             <ChangePassword forced={false} onDone={() => navigate('markdown')} />

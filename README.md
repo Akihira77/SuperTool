@@ -235,6 +235,17 @@ Semua konfirmasi destruktif memakai modal sendiri (`components/confirm.tsx` → 
 - Utility `.label`, `.hint`, `.kbd` untuk label kecil, teks bantuan, dan petunjuk tombol.
 - Animasi toast dihormati `prefers-reduced-motion`; checkbox/radio memakai warna aksen.
 
+## Konteks proyek global (opsional)
+
+Bar tipis di atas tiap halaman punya pemilih **Proyek** di kanan atas. Pilih folder lewat penjelajah folder (`/fs/list`), dan pilihan itu dipakai semua tool yang berhubungan dengan berkas:
+
+- **File Explorer** langsung membuka folder proyek; chip proyek di toolbar untuk kembali ke situ.
+- **Git Status** langsung membuka repo di folder proyek (tanpa klik folder lagi).
+- **Nginx** menampilkan daftar `.conf` di folder proyek ("Konfigurasi proyek"); klik satu file untuk membukanya di File Explorer karena editor nginx tetap dibatasi ke folder nginx sistem.
+- Tool lain (Markdown/JSON/Notes/URL/Port/Dev Space) tidak terpengaruh.
+
+Pilihan disimpan di `localStorage`: `st:project` (folder aktif) dan `st:project:recent` (8 folder terakhir; bisa dihapus satu per satu dari dropdown). Tombol **Tanpa proyek** mengembalikan perilaku default (folder pertama dari `ST_FS_ROOTS`), jadi fitur ini murni mempercepat dan tidak wajib dipakai.
+
 ## Command Palette
 
 Tekan **Ctrl + K** (atau **Cmd + K** di macOS) di mana saja untuk membuka palette. Dua tingkat:

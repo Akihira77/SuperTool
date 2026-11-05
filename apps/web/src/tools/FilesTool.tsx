@@ -5,6 +5,7 @@ import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
+import { projectName, useProject } from '../lib/project';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { renderMarkdown } from '../lib/markdown';
@@ -83,6 +84,7 @@ export default function FilesTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
   const toast = useToast();
+  const { projectPath } = useProject();
   const [panelOpen, togglePanel] = useSidebar('files', true);
   const [roots, setRoots] = useState<Root[]>([]);
   const [rootPath, setRootPath] = useState('');
@@ -101,6 +103,7 @@ export default function FilesTool() {
   const [searching, setSearching] = useState(false);
   const [include, setInclude] = useState('');
   const [paletteQuery, setPaletteQuery] = useState<FilesSearchPayload | null>(null);
+  const [openTarget, setOpenTarget] = useState('');
   const [exclude, setExclude] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('st:files:exclude') ?? '["*.log"]');
@@ -128,6 +131,7 @@ export default function FilesTool() {
       setEditing(false);
       setResults(null);
       setHits(null);
+      return result;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('err.readFolder'));
     } finally {
@@ -139,14 +143,24 @@ export default function FilesTool() {
     void loadRecents();
   }, []);
 
+  // Folder proyek global berubah (dipilih dari header) → buka langsung.
+  useEffect(() => {
+    if (!projectPath || !roots.length) return;
+    if (!roots.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/'))) return;
+    setRootPath(projectPath);
+    void loadListing(projectPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectPath, roots]);
+
   useEffect(() => {
     api
       .get<Root[]>('/fs/roots')
       .then((list) => {
         setRoots(list);
-        if (list.length) {
-          setRootPath(list[0].path);
-          void loadListing(list[0].path);
+        const start = projectPath && list.some((root) => projectPath === root.path || projectPath.startsWith(root.path + '/')) ? projectPath : list[0]?.path;
+        if (start) {
+          setRootPath(start);
+          void loadListing(start);
         }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : t('err.loadRoots')));
@@ -335,8 +349,12 @@ export default function FilesTool() {
   const searchRef = useRef(search);
   searchRef.current = search;
 
-  // Perintah dari command palette: isi field lalu jalankan setelah listing siap.
-  usePaletteIntent('files', (_action, payload) => {
+  // Perintah dari command palette / tool lain: cari, atau buka satu berkas.
+  usePaletteIntent('files', (action, payload) => {
+    if (action === 'open' && typeof payload === 'string') {
+      setOpenTarget(payload);
+      return;
+    }
     const data = payload as FilesSearchPayload | undefined;
     if (!data) return;
     setQuery(data.query);
@@ -345,6 +363,20 @@ export default function FilesTool() {
     setExclude(data.exclude.split(',').map((item) => item.trim()).filter(Boolean));
     setPaletteQuery(data);
   });
+
+  useEffect(() => {
+    if (!openTarget) return;
+    const target = openTarget;
+    setOpenTarget('');
+    const dir = target.slice(0, target.lastIndexOf('/'));
+    const run = async () => {
+      const result = listing?.path === dir ? listing : await loadListing(dir);
+      const entry = result?.entries.find((item) => item.path === target);
+      if (entry) await openFile(entry);
+      else setError(t('files.notFound'));
+    };
+    void run();
+  }, [openTarget]);
 
   useEffect(() => {
     if (!paletteQuery || !listing) return;
@@ -418,6 +450,11 @@ export default function FilesTool() {
         <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan tree' : 'Tampilkan tree'}>
           <Icon name="panel" />
         </button>
+        {projectPath ? (
+          <button type="button" className="btn border-accent/40 px-2 py-1.5 text-[11.5px] text-accent" onClick={() => void loadListing(projectPath)} title={projectPath}>
+            <Icon name="folderPlus" size={13} /> {projectName(projectPath)}
+          </button>
+        ) : null}
         <select value={rootPath} onChange={(e) => { setRootPath(e.target.value); void loadListing(e.target.value); }} className="input w-40 py-1.5 text-[12px]">
           {roots.map((root) => (
             <option key={root.path} value={root.path}>
