@@ -4,6 +4,7 @@ import { copyFile, readdir, readFile, rm, stat, writeFile } from 'node:fs/promis
 import { basename, join, relative } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
+import { touchPath } from '../../common/db';
 
 type ConfFile = { name: string; path: string; size: number; mtime: number; hasBackup: boolean };
 
@@ -66,6 +67,7 @@ export class NginxService {
     const abs = await jailPath(path, this.roots());
     const info = await stat(abs);
     if (info.size > 2 * 1024 * 1024) throw new BadRequestException('File terlalu besar');
+    touchPath('nginx', abs);
     return { path: abs, text: await readFile(abs, 'utf8'), mtime: info.mtimeMs };
   }
 
@@ -74,6 +76,7 @@ export class NginxService {
     const abs = await jailPath(path, this.roots());
     await copyFile(abs, abs + '.bak').catch(() => undefined);
     await writeFile(abs, content, 'utf8');
+    touchPath('nginx', abs);
     return { ok: true, path: abs, hasBackup: true };
   }
 

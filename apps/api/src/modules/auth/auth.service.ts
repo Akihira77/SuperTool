@@ -5,9 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes, scrypt } from 'node:crypto';
-import { join } from 'node:path';
-import { cfg } from '../../config';
-import { readJson, writeJson } from '../../common/json-store';
+import { one, run } from '../../common/db';
 import { signToken, verifyToken } from '../../common/token';
 
 export const COOKIE_NAME = 'st_session';
@@ -16,13 +14,7 @@ const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 6;
 const WINDOW_MS = 10 * 60 * 1000;
 
-type AuthFile = {
-  salt: string;
-  hash: string;
-  pv: number;
-  mustChange: boolean;
-  secret: string;
-};
+type Account = { salt: string; hash: string; pv: number; must_change: number; secret: string };
 
 export type Session = { mustChange: boolean; exp: number };
 
@@ -37,31 +29,39 @@ function hashPassword(password: string, salt: string): Promise<string> {
 
 @Injectable()
 export class AuthService {
-  private readonly file = join(cfg.dataDir, 'auth.json');
-  private cache: AuthFile | null = null;
+  private cache: Account | null = null;
   private attempts = new Map<string, { count: number; until: number }>();
 
-  private async state(): Promise<AuthFile> {
+  /** Akun (hash password + secret sesi) tersimpan di tabel account, bukan file. */
+  private async state(): Promise<Account> {
     if (this.cache) return this.cache;
-    const saved = await readJson<AuthFile | null>(this.file, null);
+    const saved = one<Account>('SELECT salt, hash, pv, must_change, secret FROM account WHERE id = 1');
     if (saved) {
       this.cache = saved;
       return saved;
     }
     const salt = randomBytes(16).toString('hex');
-    const created: AuthFile = {
+    const created: Account = {
       salt,
       hash: await hashPassword(DEFAULT_PASSWORD, salt),
       pv: 1,
-      mustChange: true,
+      must_change: 1,
       secret: randomBytes(32).toString('hex'),
     };
-    await writeJson(this.file, created);
+    run(
+      'INSERT INTO account (id, salt, hash, pv, must_change, secret, created_at) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      created.salt,
+      created.hash,
+      created.pv,
+      created.must_change,
+      created.secret,
+      Date.now(),
+    );
     this.cache = created;
     return created;
   }
 
-  private issue(state: AuthFile): string {
+  private issue(state: Account): string {
     return signToken({ exp: Date.now() + SESSION_MS, pv: state.pv }, state.secret);
   }
 
@@ -71,7 +71,7 @@ export class AuthService {
     const state = await this.state();
     const payload = verifyToken(token, state.secret);
     if (!payload || payload.pv !== state.pv) return null;
-    return { mustChange: state.mustChange, exp: payload.exp };
+    return { mustChange: state.must_change === 1, exp: payload.exp };
   }
 
   async login(password: string, ip: string): Promise<{ token: string; mustChange: boolean }> {
@@ -83,7 +83,7 @@ export class AuthService {
       throw new UnauthorizedException('Password salah');
     }
     this.attempts.delete(ip);
-    return { token: this.issue(state), mustChange: state.mustChange };
+    return { token: this.issue(state), mustChange: state.must_change === 1 };
   }
 
   async changePassword(current: string, next: string): Promise<{ token: string; mustChange: boolean }> {
@@ -97,14 +97,19 @@ export class AuthService {
       throw new BadRequestException('Password tidak boleh sama dengan password default');
     }
     const salt = randomBytes(16).toString('hex');
-    const updated: AuthFile = {
+    const updated: Account = {
       ...state,
       salt,
       hash: await hashPassword(next, salt),
       pv: state.pv + 1,
-      mustChange: false,
+      must_change: 0,
     };
-    await writeJson(this.file, updated);
+    run(
+      'UPDATE account SET salt = ?, hash = ?, pv = ?, must_change = 0 WHERE id = 1',
+      updated.salt,
+      updated.hash,
+      updated.pv,
+    );
     this.cache = updated;
     return { token: this.issue(updated), mustChange: false };
   }

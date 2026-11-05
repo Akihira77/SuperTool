@@ -24,7 +24,7 @@ Semua berjalan di mesin sendiri. Tanpa database, tanpa layanan eksternal.
 | Backend | NestJS 11 + TypeScript | Modul jelas per domain, dependency injection tipis |
 | Frontend | React 19 + Vite + Tailwind CSS 4 | Bundel kecil, HMR cepat, styling tanpa file konfigurasi |
 | Auth | Cookie HttpOnly + token HMAC (`node:crypto`) | Tanpa JWT lib, tanpa session store |
-| Data | File JSON atomik | Tanpa database untuk single user |
+| Data | SQLite (`node:sqlite`) | Bawaan Node, tanpa dependensi tambahan |
 | Markdown | `marked` + `DOMPurify` | Dua dependency ini wajib: parsing + sanitasi XSS |
 
 Dependency runtime sengaja minim: backend hanya paket inti Nest, frontend hanya React, `marked`, dan `DOMPurify`.
@@ -61,7 +61,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 |----------|---------|------|
 | `ST_PORT` | `3001` | Port server |
 | `ST_HOST` | `127.0.0.1` | Alamat bind. Pakai `0.0.0.0` kalau mau diakses dari LAN |
-| `ST_DATA_DIR` | `~/.local/share/super-tool` | Lokasi `auth.json`, `notes.json`, dan cadangannya |
+| `ST_DATA_DIR` | `~/.local/share/super-tool` | Lokasi `super-tool.db` (SQLite) dan cadangannya |
 | `ST_FS_ROOTS` | home user | Folder yang boleh diakses File Explorer, dipisah `:` |
 | `ST_NGINX_DIR` | `/etc/nginx` | Folder konfigurasi nginx |
 | `ST_PROXY_ALLOW_PUBLIC` | `0` | `1` = proxy boleh ke host publik (default hanya localhost/jaringan privat) |
@@ -81,15 +81,23 @@ Membaca `/etc/nginx` butuh izin baca. Kalau server jalan sebagai user biasa dan 
 
 ## Data dan cadangan
 
-Semua data pengguna disimpan di **luar folder project**:
+Semua data pengguna disimpan di **satu database SQLite** di luar folder project:
 
-- `~/.local/share/super-tool/auth.json` — hash password
-- `~/.local/share/super-tool/notes.json` — catatan
-- `*.bak` — salinan versi sebelumnya, ditulis ulang setiap penyimpanan
+- `~/.local/share/super-tool/super-tool.db`
+- `super-tool.db.bak` — salinan utuh yang dibuat setiap aplikasi start (`VACUUM INTO`)
 
-Jadi `git clean`, `rm -rf node_modules`, atau hapus folder project tidak menyentuh data. Pindahkan dengan env `ST_DATA_DIR` bila perlu.
+Tabelnya:
 
-Catatan disimpan sebagai file JSON (bukan database). Kalau nanti butuh pencarian/riwayat lebih serius, jalur upgrade-nya `node:sqlite` — bawaan Node, tanpa dependensi baru.
+| Tabel | Isi |
+|-------|-----|
+| `account` | salt, hash password (scrypt), versi sesi, wajib-ganti, secret HMAC |
+| `notes` | catatan |
+| `urls` | daftar URL di URL Viewer |
+| `recent_paths` | path yang pernah dibuka per tool (nginx, file explorer) |
+
+Yang **tidak** masuk database: isi file itu sendiri. Konfigurasi nginx dan isi file explorer tetap di disk — database hanya mencatat path-nya.
+
+`git clean`, `rm -rf node_modules`, atau hapus folder project tidak menyentuh data. Pindahkan dengan env `ST_DATA_DIR` bila perlu.
 
 ## Fitur "jelaskan ke LLM"
 
@@ -125,7 +133,7 @@ super-tool/
 │   │       ├── main.ts      # bootstrap, static SPA, body limit
 │   │       ├── config.ts    # semua env di satu tempat
 │   │       ├── app.module.ts
-│   │       ├── common/      # json-store, token, fs-jail, decorator
+│   │       ├── common/      # db (sqlite), token, fs-jail, net-guard
 │   │       └── modules/     # auth, notes, files, ports, nginx, proxy
 │   └── web/                 # React + Vite + Tailwind
 │       └── src/
@@ -153,7 +161,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 ## Batasan yang diketahui
 
 - **URL Viewer**: iframe biasa bekerja untuk tool yang tidak mengirim `X-Frame-Options`. Mode `Proxy` melepas header tersebut dan menyuntik `<base>`, cukup untuk halaman statis; aplikasi SPA yang memanggil API ke origin aslinya tetap butuh reverse proxy sungguhan (nginx/caddy). Untuk pemakaian penuh, arahkan subdomain ke tool tersebut.
-- **Catatan**: disimpan sebagai satu file JSON. Cukup untuk satu pengguna; pindahkan ke SQLite kalau butuh penulis bersamaan atau ribuan catatan.
+- **Catatan**: sudah di SQLite, tapi belum ada pencarian penuh (FTS5) di dalam isi catatan.
 - **Port viewer**: memakai perintah `ss` (paket `iproute2`). Di sistem tanpa `ss`, endpoint mengembalikan pesan error yang jelas. Aksi *kill* mengirim SIGTERM (bukan SIGKILL) dan menolak PID 1 serta proses server ini sendiri.
 - **URL Viewer**: preset memakai `127.0.0.1`, bukan `localhost`. Service yang hanya bind IPv4 akan gagal kalau browser memilih `::1` — ini penyebab error "localhost refused to connect". URL lama di browser otomatis dibenahi saat dibuka.
 - **Mode Proxy**: membuka target lewat `/api/proxy/b/<token>/...` — header `X-Frame-Options`/CSP dilepas, aset relatif ikut di-proxy, cookie & WebSocket diteruskan. Ini yang membuat Termix (`X-Frame-Options: DENY`) bisa tampil di iframe. Aplikasi yang memanggil API dengan path absolut `/api/...` tetap perlu reverse proxy sungguhan.

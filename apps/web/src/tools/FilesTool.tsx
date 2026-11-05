@@ -72,6 +72,7 @@ export default function FilesTool() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
+  const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const loadListing = useCallback(async (path: string) => {
@@ -91,6 +92,10 @@ export default function FilesTool() {
   }, []);
 
   useEffect(() => {
+    void loadRecents();
+  }, []);
+
+  useEffect(() => {
     api
       .get<Root[]>('/fs/roots')
       .then((list) => {
@@ -103,6 +108,15 @@ export default function FilesTool() {
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Gagal memuat root'));
   }, [loadListing]);
 
+  const loadRecents = async () => {
+    try {
+      const result = await api.get<{ paths: Array<{ path: string; openedAt: number }> }>('/recent?kind=file');
+      setRecents(result.paths);
+    } catch {
+      // opsional
+    }
+  };
+
   const openFile = async (entry: Entry) => {
     setBusy(true);
     setError('');
@@ -112,6 +126,7 @@ export default function FilesTool() {
       setDraft(data.text);
       setEditing(false);
       setPreview(false);
+      void loadRecents();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal membuka file');
     } finally {
@@ -259,6 +274,22 @@ export default function FilesTool() {
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2">
+          {recents.length ? (
+            <div className="mb-1 border-b border-line pb-1">
+              <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">Terakhir dibuka</div>
+              {recents.slice(0, 5).map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => void openFile({ path: item.path } as Entry)}
+                  title={item.path}
+                  className="block w-full truncate rounded px-1 py-0.5 text-left text-[11.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                >
+                  {item.path.split('/').pop()}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {roots.map((root) => (
             <TreeNode
               key={root.path}

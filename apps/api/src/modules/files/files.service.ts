@@ -3,6 +3,7 @@ import { readdir, readFile, stat, mkdir, rename, rm, writeFile } from 'node:fs/p
 import { basename, dirname, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
+import { touchPath } from '../../common/db';
 
 const TEXT_LIMIT = 2 * 1024 * 1024;
 const MAX_ENTRIES = 2000;
@@ -60,6 +61,7 @@ export class FilesService {
     const path = await jailPath(input);
     const info = await stat(path);
     if (!info.isFile()) throw new BadRequestException('Bukan file');
+    touchPath('file', path);
     const buffer = await readFile(path);
     const head = buffer.subarray(0, 8192);
     const binary = head.includes(0);

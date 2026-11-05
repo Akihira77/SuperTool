@@ -19,7 +19,7 @@ Vite dev (proxy /api)  ── atau ──  Nest static (apps/web/dist)
   ▼
 Nest: AuthGuard global  ──►  validasi sesi + CSRF + status wajib ganti password
   ▼
-Controller  ──►  Service  ──►  fs / ss / nginx / fetch / file JSON
+Controller  ──►  Service  ──►  fs / ss / nginx / fetch / SQLite
   ▼
 JSON response
 ~~~
@@ -30,7 +30,7 @@ Urutan middleware di `main.ts`: body parser (limit 25 MB untuk menyimpan file be
 
 | Bagian | Implementasi |
 |--------|--------------|
-| Penyimpanan | `~/.local/share/super-tool/` (di luar repo): `auth.json`, `notes.json`, plus `*.bak` |
+| Penyimpanan | `~/.local/share/super-tool/super-tool.db` (SQLite, `node:sqlite`): akun, catatan, daftar URL, path terakhir |
 | Hash | `scrypt` 64 byte + salt acak 16 byte |
 | Sesi | `base64url(payload).hmacSHA256` — payload `{ exp, pv }`, umur 30 hari |
 | Invalidasi | `pv` naik setiap ganti password; token lama otomatis ditolak |
@@ -53,7 +53,7 @@ Kenapa `mustChange` dicek di guard, bukan di frontend? Karena frontend bisa dile
 
 ## Penyimpanan data
 
-`common/json-store.ts`: baca file, tulis ke `*.tmp`, lalu `rename`. Rename atomik di filesystem yang sama, jadi proses mati di tengah penulisan tidak membuat data korup.
+`common/db.ts`: buka `super-tool.db` (`node:sqlite`, WAL), buat skema, simpan salinan `VACUUM INTO` ke `.bak` setiap start, dan impor sekali dari `auth.json`/`notes.json` versi lama. Penulisan lewat SQLite, jadi tidak ada tulis-separuh: transaksi sqlite yang menjamin.
 
 Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar tidak ada lost update saat autosave beruntun.
 
@@ -86,7 +86,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 
 | Keputusan | Alternatif yang ditolak | Alasan |
 |-----------|-------------------------|--------|
-| File JSON untuk data | SQLite/Postgres | Single user, volume kecil, tanpa dependency |
+| SQLite (`node:sqlite`) | Postgres | Single user, tanpa server database terpisah |
 | Router hash buatan sendiri | react-router | 8 route statis, tidak perlu nested/loader |
 | `marked` + `DOMPurify` | Parser Markdown sendiri | Menulis parser aman = risiko XSS tanpa manfaat |
 | `ss` + `ps` | Library port-scanner | Perintah sistem sudah akurat, hasilnya mudah diparse |
@@ -97,7 +97,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 
 Tanda-tanda desain ini mulai kurang, beserta jalannya:
 
-- **Catatan > ribuan atau butuh pencarian isi** → ganti `NotesService` ke SQLite (`node:sqlite` sudah bawaan Node 22+, tanpa dependency baru).
+- **Butuh pencarian isi catatan** → tambah FTS5 di tabel `notes` (`node:sqlite` sudah mendukung).
 - **Butuh multi-user / role** → tambah tabel user + `userId` di catatan, guard membaca user dari sesi.
 - **Butuh iframe SPA penuh** → pasang reverse proxy per tool (subdomain), bukan memperbesar `proxy.controller.ts`.
-- **Catatan JSON mulai lambat** → pisahkan satu file per catatan (`data/notes/<id>.json`), tulis hanya file yang berubah.
+- **Database bersama antar mesin** → pindah ke Postgres; skema tabel sekarang sudah relasional.

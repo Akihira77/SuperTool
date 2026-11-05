@@ -39,6 +39,28 @@ Selama `mustChange = true`, endpoint lain membalas:
 | PUT | `/notes/:id` | `{ title?, body? }` | catatan terbaru |
 | DELETE | `/notes/:id` | – | `{ ok }` |
 
+## URL Viewer
+
+| Metode | Path | Body | Hasil |
+|--------|------|------|-------|
+| GET | `/urls` | – | `{ urls: [{ id, name, url, proxy, createdAt }] }` |
+| POST | `/urls` | `{ name?, url, proxy? }` | `{ ok, url }` |
+| PUT | `/urls/:id` | `{ name?, url?, proxy? }` | `{ ok, url }` |
+| DELETE | `/urls/:id` | – | `{ ok }` |
+
+Skema selain `http`/`https` ditolak dengan 400.
+
+## Path terakhir dibuka
+
+| Metode | Path | Query | Hasil |
+|--------|------|-------|-------|
+| GET | `/recent` | `kind` (`nginx`, `file`) | `{ kind, paths: [{ path, openedAt }] }` |
+
+Catatan:
+
+- **Database**: akun, catatan, URL, dan path terakhir ada di SQLite (`~/.local/share/super-tool/super-tool.db`).
+- Isi file nginx/explorer tidak disimpan di database — hanya path yang pernah dibuka.
+
 ## File sistem
 
 Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.

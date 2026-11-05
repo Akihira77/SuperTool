@@ -38,6 +38,7 @@ export default function NginxTool() {
   const [loading, setLoading] = useState(true);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [explain, setExplain] = useState<Explain | null>(null);
+  const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState(() => localStorage.getItem('st:llm:model') ?? '');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('st:llm:key') ?? '');
@@ -59,6 +60,15 @@ export default function NginxTool() {
   const dirty = activePath !== '' && text !== saved;
   const activeFile = files.find((file) => file.path === activePath);
 
+  const loadRecents = async () => {
+    try {
+      const result = await api.get<{ paths: Array<{ path: string; openedAt: number }> }>('/recent?kind=nginx');
+      setRecents(result.paths);
+    } catch {
+      // daftar terakhir dibuka bersifat opsional
+    }
+  };
+
   const loadList = async () => {
     try {
       const result = await api.get<{ dir: string; files: ConfFile[] }>('/nginx/files');
@@ -79,6 +89,7 @@ export default function NginxTool() {
       setText(file.text);
       setSaved(file.text);
       setNotice(null);
+      void loadRecents();
     } catch (err) {
       setNotice({ ok: false, message: err instanceof ApiError ? err.message : 'Gagal membuka file' });
     }
@@ -86,6 +97,7 @@ export default function NginxTool() {
 
   useEffect(() => {
     void loadList();
+    void loadRecents();
     void loadModels(localStorage.getItem('st:llm:key') ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -248,6 +260,22 @@ export default function NginxTool() {
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
           <div className="flex w-64 shrink-0 flex-col border-r border-line">
+            {recents.length ? (
+              <div className="mb-1 border-b border-line pb-1">
+                <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">Terakhir dibuka</div>
+                {recents.slice(0, 5).map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => void open(item.path)}
+                    title={item.path}
+                    className="block w-full truncate rounded px-1 py-0.5 text-left text-[11.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                  >
+                    {item.path.split('/').pop()}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {loading ? (
                 <div className="flex justify-center p-6">
