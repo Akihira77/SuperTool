@@ -56,7 +56,7 @@ export default function HttpTab() {
   })();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
         <select value={method} onChange={(event) => setMethod(event.target.value)} className="input w-auto py-1.5">
           {METHODS.map((item) => (

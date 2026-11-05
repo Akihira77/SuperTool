@@ -51,7 +51,7 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
   };
 
   return (
-    <div className={cn('flex min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-[#0b1118]', className)}>
+    <div className={cn('flex min-h-0 flex-1 overflow-hidden rounded-[11px] border border-line bg-[#070d14] shadow-[inset_0_1px_0_rgb(255_255_255/0.02)] transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:ring-1 focus-within:ring-accent/10', className)}>
       <div
         ref={gutterRef}
         aria-hidden="true"

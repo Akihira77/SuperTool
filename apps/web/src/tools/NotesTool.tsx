@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -86,6 +86,7 @@ export default function NotesTool() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title={t('notes.title')}
+        icon="notes"
         subtitle={
           status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : status === 'saved' ? t('notes.saved') : notes.length + ' ' + t('notes.count')
         }
@@ -100,8 +101,8 @@ export default function NotesTool() {
 
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
-        <div className="flex w-64 shrink-0 flex-col border-r border-line">
-          <div className="p-2">
+        <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
+          <div className="p-2.5">
             <div className="relative">
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13px]" />
@@ -113,7 +114,7 @@ export default function NotesTool() {
                 <Spinner />
               </div>
             ) : filtered.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted">{t('notes.none')}</p>
+              <Empty icon="notes" text={t('notes.none')} />
             ) : (
               filtered.map((note) => (
                 <button
@@ -137,14 +138,14 @@ export default function NotesTool() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {active ? (
             <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
+              <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/25 px-4 py-2.5">
                 <input
                   value={active.title}
                   onChange={(e) => patch({ title: e.target.value })}
-                  className="min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] font-semibold outline-none"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-1 text-[16px] font-semibold tracking-tight outline-none"
                   placeholder={t('notes.titlePlaceholder')}
                 />
-                <span className="text-[11px] text-muted">{active.body.length} karakter</span>
+                <span className="text-[11px] text-muted">{active.body.length} {t('notes.characters')}</span>
                 <button type="button" className="btn btn-danger" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>
@@ -152,13 +153,13 @@ export default function NotesTool() {
               <textarea
                 value={active.body}
                 onChange={(e) => patch({ body: e.target.value })}
-                placeholder="Tulis apa saja di sini..."
+                placeholder={t('notes.bodyPlaceholder')}
                 spellCheck={false}
-                className="min-h-0 flex-1 resize-none bg-transparent p-4 text-[14px] leading-7 outline-none placeholder:text-muted/50"
+                className="min-h-0 flex-1 resize-none bg-transparent p-5 text-[14px] leading-7 outline-none placeholder:text-muted/50 md:p-6"
               />
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">{t("notes.empty")}</div>
+            <Empty icon="notes" text={t('notes.empty')} />
           )}
         </div>
       </div>

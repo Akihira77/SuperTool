@@ -24,30 +24,31 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
   };
 
   return (
-    <div className="flex h-full items-center justify-center bg-[radial-gradient(60%_50%_at_50%_0%,rgba(91,140,255,0.13),transparent)] p-6">
-      <form onSubmit={submit} className="card w-full max-w-sm p-7 shadow-2xl">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent">
+    <div className="relative flex h-full items-center justify-center overflow-hidden p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_50%_0%,rgba(107,150,255,0.16),transparent_70%)]" />
+      <form onSubmit={submit} className="card relative w-full max-w-[380px] rounded-2xl p-7 shadow-[0_30px_100px_-30px_rgb(0_0_0/0.9)]">
+        <div className="mb-7 flex items-center gap-3.5">
+          <div className="flex size-11 items-center justify-center rounded-[13px] border border-accent/30 bg-gradient-to-br from-accent to-accent2 text-white shadow-[0_12px_30px_-16px_rgb(107_150_255/0.9)]">
             <Icon name="lock" size={20} />
           </div>
           <div>
-            <h1 className="text-base font-semibold">Super Tool</h1>
-            <p className="text-xs text-muted">Masuk untuk melanjutkan</p>
+            <h1 className="text-[17px] font-semibold tracking-tight">Super Tool</h1>
+            <p className="mt-0.5 text-[11.5px] text-muted">{t('login.subtitle')}</p>
           </div>
         </div>
 
-        <label className="mb-1.5 block text-xs font-medium text-muted">Password</label>
+        <label className="label mb-1.5 block">Password</label>
         <PasswordInput autoFocus value={password} onChange={setPassword} placeholder="••••••••" label="Password" />
 
-        {error ? <p className="mt-3 text-xs text-bad">{error}</p> : null}
+        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[11.5px] text-bad">{error}</p> : null}
 
-        <button type="submit" disabled={busy || !password} className="btn btn-primary mt-5 w-full justify-center py-2">
+        <button type="submit" disabled={busy || !password} className="btn btn-primary mt-5 w-full justify-center py-2.5">
           {busy ? <Spinner /> : <Icon name="lock" />}
-          Masuk
+          {t('login.submit')}
         </button>
 
-        <p className="mt-4 text-center text-[11px] text-muted">
-          Pertama kali? Password default <span className="mono text-ink/80">password</span>, lalu wajib diganti.
+        <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+          {t('login.firstTime')} <span className="mono text-ink/80">password</span>, {t('login.changeHint')}
         </p>
       </form>
     </div>

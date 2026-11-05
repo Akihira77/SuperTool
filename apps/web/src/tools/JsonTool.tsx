@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, Icon, PageHeader } from '../components/ui';
+import { CopyButton, Empty, Icon, PageHeader } from '../components/ui';
 import { bytes } from '../lib/format';
 import { highlightJson } from '../lib/highlight';
 
@@ -78,6 +78,7 @@ export default function JsonTool() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="JSON"
+        icon="json"
         subtitle={
           parsed.ok
             ? bytes(new Blob([pretty]).size) + ' terformat · ' + pretty.split('\n').length + ' baris'
@@ -106,26 +107,21 @@ export default function JsonTool() {
       </PageHeader>
 
       <div className="flex min-h-0 flex-1 divide-x divide-line">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4">
           <CodeEditor value={text} onChange={setText} areaRef={areaRef} placeholder='{"hello": "world"}' />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4">
           {parsed.ok ? (
-            <pre className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#0b1118] p-3 text-[12.5px] leading-[1.55rem]">
+            <pre className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] leading-[1.55rem]">
               <code dangerouslySetInnerHTML={{ __html: html }} />
             </pre>
           ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-line p-6 text-center">
-              <div>
-                <Icon name="json" size={22} className="mx-auto mb-2 text-muted/60" />
-                <p className="mono max-w-md text-xs break-words text-muted">{parsed.error || 'Belum ada input'}</p>
-              </div>
-            </div>
+            <Empty icon="json" text={parsed.error || 'Belum ada input'} />
           )}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-1.5 text-[11px] text-muted">
+      <div className="flex shrink-0 items-center gap-2 border-t border-line bg-panel/20 px-3 py-2 text-[11px] text-muted">
         <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" data-action="json:sample" onClick={() => setText(SAMPLE)}>
           Contoh
         </button>

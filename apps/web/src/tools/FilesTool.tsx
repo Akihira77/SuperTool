@@ -520,7 +520,7 @@ export default function FilesTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="File Explorer" subtitle={listing ? listing.path + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'}>
+      <PageHeader title="File Explorer" subtitle={listing ? listing.path + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'} icon="files">
         <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan tree' : 'Tampilkan tree'}>
           <Icon name="panel" />
         </button>
@@ -546,7 +546,7 @@ export default function FilesTool() {
             </option>
           ))}
         </select>
-        <div className="flex overflow-hidden rounded-md border border-line">
+        <div className="flex items-center gap-0.5 rounded-[10px] border border-line bg-panel2/55 p-0.5">
           {([
             [false, t('files.modeName'), 'Cocokkan nama berkas'],
             [true, t('files.modeContent'), t('files.modeContentHint')],
@@ -562,8 +562,8 @@ export default function FilesTool() {
               }}
               title={hint}
               className={cn(
-                'cursor-pointer px-2 py-1 text-[11.5px] transition-colors',
-                deep === value ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+                'cursor-pointer rounded-md px-2 py-1 text-[11.5px] transition-colors',
+                deep === value ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
               )}
             >
               {label}
@@ -758,10 +758,10 @@ export default function FilesTool() {
                       value={officeBody}
                       onChange={(event) => setOfficeBody(event.target.value)}
                       spellCheck={false}
-                      className="mono h-full min-h-[60vh] w-full resize-none rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink outline-none focus:border-accent/50"
+                      className="mono h-full min-h-[60vh] w-full resize-none rounded-lg border border-line bg-[#070d14] p-4 text-[12.5px] leading-relaxed text-ink outline-none focus:border-accent/50"
                     />
                   ) : (
-                    <pre className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink/90">
+                    <pre className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-4 text-[12.5px] leading-relaxed text-ink/90">
                       {officeBody || '(dokumen kosong)'}
                     </pre>
                   )
@@ -769,7 +769,7 @@ export default function FilesTool() {
                   office.blocks.map((block, blockIndex) => {
                     if (block.type === 'text') {
                       return (
-                        <pre key={blockIndex} className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-4 text-[12.5px] leading-relaxed text-ink/90">
+                        <pre key={blockIndex} className="mono whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-4 text-[12.5px] leading-relaxed text-ink/90">
                           {block.lines.join(String.fromCharCode(10))}
                         </pre>
                       );
@@ -857,7 +857,7 @@ export default function FilesTool() {
               <div className="min-h-0 flex-1 overflow-hidden p-3">
                 {file.binary ? (
                   IMAGE.has(fileExt) ? (
-                    <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-line bg-[#0b1118] p-4">
+                    <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-line bg-[#070d14] p-4">
                       <img src={RAW + encodeURIComponent(file.path)} alt={file.path} className="max-h-full max-w-full object-contain" />
                     </div>
                   ) : fileExt === 'pdf' ? (
@@ -874,7 +874,7 @@ export default function FilesTool() {
                 ) : largeFile ? (
                   <VirtualCode value={file.text} ext={fileExt} />
                 ) : preview ? (
-                  <div className="md h-full overflow-y-auto rounded-lg border border-line bg-[#0b1118] p-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(file.text) }} />
+                  <div className="md h-full overflow-y-auto rounded-lg border border-line bg-[#070d14] p-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(file.text) }} />
                 ) : (
                   <CodeEditor value={editing ? draft : file.text} onChange={setDraft} readOnly={!editing} onSave={save} wrap />
                 )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
@@ -225,7 +225,7 @@ export default function NginxTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Nginx" subtitle={dir ? dir + ' · ' + files.length + ' file' : 'Konfigurasi nginx'}>
+      <PageHeader title="Nginx" subtitle={dir ? dir + ' · ' + files.length + ' file' : 'Konfigurasi nginx'} icon="nginx">
         <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
           <Icon name="panel" />
         </button>
@@ -237,7 +237,7 @@ export default function NginxTool() {
         </button>
       </PageHeader>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-panel/20 px-3 py-2">
         <button type="button" className="btn px-2 py-1 text-[12px]" data-action="nginx:new" onClick={create}>
           <Icon name="plus" /> {t('nginx.new')}
         </button>
@@ -285,7 +285,7 @@ export default function NginxTool() {
 
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
-          <div className="flex w-64 shrink-0 flex-col border-r border-line">
+          <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
             {recents.length ? (
               <div className="mb-1 border-b border-line pb-1">
                 <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
@@ -308,7 +308,7 @@ export default function NginxTool() {
                   <Spinner />
                 </div>
               ) : files.length === 0 ? (
-                <p className="p-4 text-center text-xs text-muted">{t("nginx.empty")}</p>
+                <Empty icon="nginx" text={t('nginx.empty')} />
               ) : (
                 files.map((file) => (
                   <button
@@ -339,7 +339,7 @@ export default function NginxTool() {
           </div>
         ) : null}
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3 md:p-4">
           {activePath ? (
             <CodeEditor
               value={text}
@@ -359,13 +359,13 @@ export default function NginxTool() {
               }}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">{t("nginx.pickFile")}</div>
+            <Empty icon="nginx" text={t('nginx.pickFile')} />
           )}
         </div>
 
         {explain ? (
           <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel/40 xl:w-96">
-            <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2 text-[11px] text-muted">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/30 px-3 py-2 text-[11px] text-muted">
               <Icon name="eye" size={13} />
               <span className="min-w-0 flex-1 truncate">Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
               <button type="button" className="btn btn-ghost px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
@@ -390,7 +390,7 @@ export default function NginxTool() {
       {menu ? (
         <div
           style={{ top: menu.y, left: menu.x }}
-          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-line bg-panel shadow-2xl"
+          className="fixed z-50 w-56 overflow-hidden rounded-xl border border-line bg-panel shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="mono max-h-16 overflow-hidden border-b border-line px-2.5 py-1.5 text-[11px] text-muted">{menu.text.slice(0, 120)}</div>

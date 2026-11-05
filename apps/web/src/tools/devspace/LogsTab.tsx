@@ -106,7 +106,7 @@ export default function LogsTab() {
   const shown = filter ? lines.filter((line) => line.toLowerCase().includes(filter.toLowerCase())) : lines;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={path}
@@ -177,7 +177,7 @@ export default function LogsTab() {
 
       <pre
         ref={boxRef}
-        className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#0b1118] p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
+        className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
       >
         {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.empty')}
       </pre>

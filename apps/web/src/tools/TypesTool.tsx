@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, Icon, PageHeader } from '../components/ui';
+import { CopyButton, Empty, Icon, PageHeader } from '../components/ui';
 import { jsonToTs } from '../lib/json2ts';
 import { useI18n } from '../lib/i18n';
 
@@ -57,6 +57,7 @@ export default function TypesTool() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="JSON ke TypeScript"
+        icon="types"
         subtitle={result.ok ? result.count + ' interface digenerate' : 'Tempel JSON, tipe dibuat otomatis'}
       >
         <input
@@ -73,18 +74,16 @@ export default function TypesTool() {
       </PageHeader>
 
       <div className="flex min-h-0 flex-1 divide-x divide-line">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4">
           <CodeEditor value={text} onChange={setText} placeholder="Tempel objek JSON di sini" />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4">
           {result.ok ? (
-            <pre className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#0b1118] p-3 text-[12.5px] leading-[1.55rem] text-ink/90">
+            <pre className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] leading-[1.55rem] text-ink/90">
               {result.output}
             </pre>
           ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-line p-6 text-center text-sm text-muted">
-              {result.error}
-            </div>
+            <Empty icon="types" text={result.error} />
           )}
         </div>
       </div>

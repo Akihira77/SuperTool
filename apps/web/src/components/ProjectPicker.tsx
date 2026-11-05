@@ -67,7 +67,7 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
 
   return (
     <>
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line bg-panel/40 px-3">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-panel/35 px-4 backdrop-blur-sm">
         <span className="label hidden sm:inline">{t('project.label')}</span>
         {projectPath ? (
           <span className="flex min-w-0 items-center gap-1.5" title={projectPath}>
@@ -84,7 +84,7 @@ export function ProjectPicker({ right }: { right?: ReactNode }) {
             type="button"
             data-action="project:toggle"
             onClick={() => setOpen((prev) => !prev)}
-            className={cn('btn cursor-pointer px-2 py-1 text-[11.5px]', projectPath && 'border-accent/40 text-accent')}
+            className={cn('btn min-h-7 cursor-pointer px-2 py-1 text-[11.5px]', projectPath && 'border-accent/40 text-accent')}
             title={t('project.pick')}
           >
             <Icon name="folderPlus" size={13} />

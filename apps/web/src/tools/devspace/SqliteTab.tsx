@@ -122,7 +122,7 @@ export default function SqliteTab() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 md:p-5">
       <div className="card flex flex-wrap items-center gap-2 p-3 text-[12px]">
         <Icon name="db" size={14} className="text-accent" />
         <span className="text-ink">super-tool.db</span>

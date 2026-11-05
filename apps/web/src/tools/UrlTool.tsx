@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent } from '../lib/palette';
@@ -230,7 +230,7 @@ export default function UrlTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="URL Viewer" subtitle={active ? active.url : t('viewer.subtitle')}>
+      <PageHeader title="URL Viewer" subtitle={active ? active.url : t('viewer.subtitle')} icon="url">
         <button type="button" className="btn" onClick={() => active && bump(active.id)} disabled={!active} title={t('common.reload')}>
           <Icon name="refresh" /> {t('common.reload')}
         </button>
@@ -248,7 +248,7 @@ export default function UrlTool() {
           </button>
         ) : null}
         {active?.proxy ? (
-          <div className="flex overflow-hidden rounded-md border border-line">
+          <div className="flex items-center gap-0.5 rounded-[10px] border border-line bg-panel2/55 p-0.5">
             {([
               ['sub', 'Subdomain', 'Tiap target dapat origin sendiri: cookie, localStorage, dan /api/... bekerja normal'],
               ['path', 'Path', 'Satu origin, URL ditulis ulang. Cukup untuk halaman statis'],
@@ -262,8 +262,8 @@ export default function UrlTool() {
                 }}
                 title={hint}
                 className={cn(
-                  'cursor-pointer px-2 py-1 text-[11.5px] transition-colors',
-                  mode === id ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+                  'cursor-pointer rounded-md px-2 py-1 text-[11.5px] transition-colors',
+                  mode === id ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
                 )}
               >
                 {label}
@@ -307,7 +307,7 @@ export default function UrlTool() {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-56 shrink-0 flex-col border-r border-line">
+        <div className="flex w-56 shrink-0 flex-col border-r border-line bg-panel/25">
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {!ready ? (
               <div className="flex justify-center p-6">
@@ -315,7 +315,7 @@ export default function UrlTool() {
               </div>
             ) : (
               views.map((view) => (
-                <div key={view.id} className={cn('group mb-0.5 flex items-center rounded-lg pr-1', activeId === view.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
+                <div key={view.id} className={cn('group mb-0.5 flex items-center rounded-lg pr-1 transition-colors', activeId === view.id ? 'bg-accent/12' : 'hover:bg-panel2/80')}>
                   <button type="button" onClick={() => setActiveId(view.id)} className="min-w-0 flex-1 px-2.5 py-2 text-left">
                     <div className="flex items-center gap-1.5">
                       <span
@@ -363,9 +363,9 @@ export default function UrlTool() {
           </form>
         </div>
 
-        <div className="relative min-w-0 flex-1 bg-[#0b1118]">
+        <div className="relative min-w-0 flex-1 bg-[#070d14]">
           {active && !loaded[active.id] ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0b1118]/70">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#070d14]/70">
               <Spinner />
             </div>
           ) : null}
@@ -388,7 +388,7 @@ export default function UrlTool() {
               />
             ))
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted">{ready ? t('viewer.addToStart') : ''}</div>
+            <Empty icon="url" text={ready ? t('viewer.addToStart') : ''} />
           )}
         </div>
       </div>

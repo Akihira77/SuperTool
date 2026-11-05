@@ -73,9 +73,9 @@ export default function SettingsTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
+      <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} icon="save" />
 
-      <div className="flex flex-col gap-3 p-4">
+      <div className="page-body">
         <div className="card flex flex-col gap-3 p-4">
           <div className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="download" size={14} /></span>

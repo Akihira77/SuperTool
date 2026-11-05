@@ -60,7 +60,7 @@ export default function DockerTab() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1">
           {(['containers', 'images'] as const).map((item) => (
@@ -145,7 +145,7 @@ export default function DockerTab() {
                 <Icon name="x" size={13} />
               </button>
             </div>
-            <pre className="mono min-h-0 flex-1 overflow-auto bg-[#0b1118] p-3 text-[11.5px] leading-relaxed whitespace-pre-wrap">
+            <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[11.5px] leading-relaxed whitespace-pre-wrap">
               {logs.text || '(log kosong)'}
             </pre>
           </div>

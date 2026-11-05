@@ -71,7 +71,7 @@ export default function CronTab() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
       <div className="card flex flex-col gap-2 p-3">
         <div className="flex items-center gap-2">
           <span className="text-[11px] tracking-wide text-muted uppercase">Tambah jadwal</span>

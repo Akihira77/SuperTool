@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Empty, Icon, PageHeader, Spinner, Tabs, cn } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
@@ -186,6 +186,7 @@ export default function PortsTool() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title={t('ports.title')}
+        icon="ports"
         subtitle={
           (tab === 'ports' ? ports.length + ' ' + t('ports.listening') : procs.length + ' ' + t('ports.topProcs')) +
           ' · ' +
@@ -194,22 +195,6 @@ export default function PortsTool() {
           (updatedAt ? new Date(updatedAt).toLocaleTimeString() : '-')
         }
       >
-        <div className="flex overflow-hidden rounded-lg border border-line">
-          {(['ports', 'procs'] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setTab(item)}
-              data-action={item === 'ports' ? 'ports:tabPorts' : 'ports:tabProcs'}
-              className={cn(
-                'px-2.5 py-1.5 text-[12px] transition-colors',
-                tab === item ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
-              )}
-            >
-              {item === 'ports' ? t('ports.tabPorts') : t('ports.tabProcs')}
-            </button>
-          ))}
-        </div>
         <div className="relative">
           <Icon name="search" className="absolute top-2 left-2 text-muted" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('ports.filter')} className="input w-44 py-1.5 pl-7 text-[13px]" />
@@ -221,6 +206,15 @@ export default function PortsTool() {
           <Icon name="refresh" /> {t('ports.refresh')}
         </button>
       </PageHeader>
+
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'ports', label: t('ports.tabPorts'), icon: 'ports', action: 'ports:tabPorts' },
+          { id: 'procs', label: t('ports.tabProcs'), icon: 'dev', action: 'ports:tabProcs' },
+        ]}
+      />
 
       {system ? (
         <div className="flex shrink-0 flex-wrap items-center gap-5 border-b border-line px-3 py-2">
@@ -257,7 +251,7 @@ export default function PortsTool() {
       ) : tab === 'ports' ? (
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[11px] backdrop-blur tracking-wide text-muted uppercase">
               <tr>
                 <th className="border-b border-line px-3 py-2 font-medium">Port</th>
                 <th className="border-b border-line px-3 py-2 font-medium">Alamat</th>
@@ -270,19 +264,19 @@ export default function PortsTool() {
             </thead>
             <tbody>
               {filteredPorts.map((row) => (
-                <tr key={row.port + row.address} className="group hover:bg-panel2/60">
-                  <td className="mono border-b border-line/60 px-3 py-1.5 font-medium text-accent">{row.port}</td>
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.address}</td>
-                  <td className="max-w-[22rem] border-b border-line/60 px-3 py-1.5">
+                <tr key={row.port + row.address} className="group transition-colors hover:bg-accent/[0.045]">
+                  <td className="mono border-b border-line/60 px-3 py-2 font-medium text-accent">{row.port}</td>
+                  <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.address}</td>
+                  <td className="max-w-[22rem] border-b border-line/60 px-3 py-2">
                     <div className="truncate">{row.process || '-'}</div>
                     <div className="truncate text-[11px] text-muted" title={row.cmd}>
                       {row.cmd}
                     </div>
                   </td>
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.pid ?? '-'}</td>
-                  <td className="border-b border-line/60 px-3 py-1.5 text-muted">{duration(row.uptimeSec)}</td>
-                  <td className="border-b border-line/60 px-3 py-1.5 text-muted">{row.established}</td>
-                  <td className="border-b border-line/60 px-3 py-1.5 text-right whitespace-nowrap">
+                  <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.pid ?? '-'}</td>
+                  <td className="border-b border-line/60 px-3 py-2 text-muted">{duration(row.uptimeSec)}</td>
+                  <td className="border-b border-line/60 px-3 py-2 text-muted">{row.established}</td>
+                  <td className="border-b border-line/60 px-3 py-2 text-right whitespace-nowrap">
                     <a
                       className="btn btn-ghost px-1.5 py-0.5 text-[11px]"
                       href={'http://127.0.0.1:' + row.port}
@@ -314,12 +308,12 @@ export default function PortsTool() {
               ))}
             </tbody>
           </table>
-          {filteredPorts.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t('ports.noMatch')}</p> : null}
+          {filteredPorts.length === 0 ? <Empty icon="search" text={t('ports.noMatch')} /> : null}
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[11px] backdrop-blur tracking-wide text-muted uppercase">
               <tr>
                 <SortTh label={t('ports.pid')} sortKey="pid" sort={sort} onSort={toggleSort} />
                 <SortTh label={t('ports.user')} sortKey="user" sort={sort} onSort={toggleSort} />
@@ -333,20 +327,20 @@ export default function PortsTool() {
             </thead>
             <tbody>
               {sortedProcs.map((row) => (
-                <tr key={row.pid} className="group hover:bg-panel2/60">
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.pid}</td>
-                  <td className="border-b border-line/60 px-3 py-1.5 text-muted">{row.user}</td>
+                <tr key={row.pid} className="group transition-colors hover:bg-accent/[0.045]">
+                  <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.pid}</td>
+                  <td className="border-b border-line/60 px-3 py-2 text-muted">{row.user}</td>
                   <MetricCell value={row.cpu} />
                   <MetricCell value={row.mem} danger={50} />
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-right text-muted">{bytes(row.rssKb * 1024)}</td>
-                  <td className="mono border-b border-line/60 px-3 py-1.5 text-muted">{row.elapsed}</td>
-                  <td className="max-w-[26rem] border-b border-line/60 px-3 py-1.5">
+                  <td className="mono border-b border-line/60 px-3 py-2 text-right text-muted">{bytes(row.rssKb * 1024)}</td>
+                  <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.elapsed}</td>
+                  <td className="max-w-[26rem] border-b border-line/60 px-3 py-2">
                     <div className="truncate font-medium">{row.command}</div>
                     <div className="truncate text-[11px] text-muted" title={row.args}>
                       {row.args}
                     </div>
                   </td>
-                  <td className="border-b border-line/60 px-3 py-1.5 text-right">
+                  <td className="border-b border-line/60 px-3 py-2 text-right">
                     <button
                       type="button"
                       className="btn btn-danger px-1.5 py-0.5 text-[11px]"
@@ -360,7 +354,7 @@ export default function PortsTool() {
               ))}
             </tbody>
           </table>
-          {filteredProcs.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t('ports.noMatch')}</p> : null}
+          {filteredProcs.length === 0 ? <Empty icon="search" text={t('ports.noMatch')} /> : null}
         </div>
       )}
     </div>

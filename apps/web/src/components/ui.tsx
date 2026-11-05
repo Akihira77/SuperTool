@@ -114,14 +114,31 @@ export function PasswordInput({
   );
 }
 
-export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  icon,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  children?: ReactNode;
+}) {
   return (
-    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-5 py-3">
-      <div className="min-w-0">
-        <h1 className="truncate text-[15px] font-semibold tracking-tight">{title}</h1>
-        {subtitle ? <p className="truncate text-xs text-muted">{subtitle}</p> : null}
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-panel/25 px-4 py-3 backdrop-blur-sm md:px-5">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {icon ? (
+          <span className="grid size-9 shrink-0 place-items-center rounded-[11px] border border-accent/20 bg-accent/10 text-accent shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]">
+            <Icon name={icon} size={17} />
+          </span>
+        ) : null}
+        <div className="min-w-0">
+          <h1 className="truncate text-[16px] leading-6 font-semibold tracking-[-0.01em]">{title}</h1>
+          {subtitle ? <p className="mt-0.5 max-w-[70vw] truncate text-[11.5px] text-muted">{subtitle}</p> : null}
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div>
     </header>
   );
 }
@@ -149,8 +166,57 @@ export function CopyButton({ text, label }: { text: string; label?: string }) {
   );
 }
 
-export function Empty({ text }: { text: string }) {
-  return <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted">{text}</div>;
+export function Empty({ text, icon, action }: { text: string; icon?: string; action?: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-44 flex-col items-center justify-center gap-3 p-8 text-center">
+      <span className="grid size-11 place-items-center rounded-2xl border border-line bg-panel2/70 text-muted/80">
+        <Icon name={icon ?? 'search'} size={19} />
+      </span>
+      <p className="max-w-sm text-[12.5px] leading-relaxed text-muted">{text}</p>
+      {action}
+    </div>
+  );
+}
+
+export type TabItem<T extends string = string> = {
+  id: T;
+  label: string;
+  icon?: string;
+  action?: string;
+};
+
+export function Tabs<T extends string>({
+  items,
+  value,
+  onChange,
+  className,
+}: {
+  items: Array<TabItem<T>>;
+  value: T;
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  return (
+    <div role="tablist" className={cn('tabbar', className)}>
+      {items.map((item) => {
+        const active = item.id === value;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            data-action={item.action}
+            onClick={() => onChange(item.id)}
+            className={cn('tab', active && 'tab-active')}
+          >
+            {item.icon ? <Icon name={item.icon} size={13} /> : null}
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function Spinner() {

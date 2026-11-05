@@ -128,7 +128,7 @@ export default function WebhookTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title={t('webhook.title')} subtitle={t('webhook.subtitle')}>
+      <PageHeader title={t('webhook.title')} subtitle={t('webhook.subtitle')} icon="webhook">
         <span className={cn('flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px]', live ? 'bg-ok/15 text-ok' : 'bg-panel2 text-muted')}>
           <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-ok' : 'bg-muted')} />
           {live ? t('webhook.live') : t('webhook.paused')}
@@ -141,8 +141,8 @@ export default function WebhookTool() {
         </button>
       </PageHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-        <div className="card flex flex-col gap-3 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 md:p-5">
+        <div className="card flex flex-col gap-3 bg-panel/80 p-4">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="label mr-1">{t('webhook.endpoints')}</span>
             {(info?.endpoints ?? []).map((endpoint) => {
@@ -217,8 +217,8 @@ export default function WebhookTool() {
         {error ? <div className="text-[12px] text-bad">{error}</div> : null}
 
         <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[320px_1fr]">
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line">
-            <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5 text-[11px] text-muted">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-panel/60">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/70 px-3 py-2 text-[11px] text-muted">
               {t('webhook.requests')}
               <span className="rounded bg-panel2 px-1 text-ink">{items.length}</span>
               {active ? <span className="ml-auto truncate text-[10.5px]">{active.name}</span> : null}
@@ -230,7 +230,7 @@ export default function WebhookTool() {
                   type="button"
                   onClick={() => setSelected(item.id)}
                   className={cn(
-                    'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-2 py-1.5 text-left',
+                    'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left transition-colors',
                     selected === item.id ? 'bg-accent/10' : 'hover:bg-panel2',
                   )}
                 >
@@ -243,11 +243,11 @@ export default function WebhookTool() {
                   </span>
                 </button>
               ))}
-              {!items.length ? <div className="px-3 py-6 text-center text-[11.5px] text-muted">{t('webhook.empty')}</div> : null}
+              {!items.length ? <Empty icon="webhook" text={t('webhook.empty')} /> : null}
             </div>
           </div>
 
-          <div className="min-h-0 overflow-auto rounded-lg border border-line">
+          <div className="min-h-0 overflow-auto rounded-xl border border-line bg-panel/60">
             {current ? (
               <div className="flex flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
@@ -272,7 +272,7 @@ export default function WebhookTool() {
                     {current.body ? <CopyButton text={pretty(current.body, current.contentType)} label={t('webhook.copy')} /> : null}
                   </div>
                   {current.body ? (
-                    <pre className="mono max-h-[45vh] overflow-auto rounded border border-line bg-[#0b1118] p-2 text-[11.5px] whitespace-pre-wrap text-ink/85">
+                    <pre className="mono max-h-[45vh] overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[11.5px] whitespace-pre-wrap text-ink/85">
                       {pretty(current.body, current.contentType)}
                     </pre>
                   ) : (
@@ -281,7 +281,7 @@ export default function WebhookTool() {
                 </div>
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center p-8 text-center text-[12px] text-muted">{t('webhook.select')}</div>
+              <Empty icon="webhook" text={t('webhook.select')} />
             )}
           </div>
         </div>

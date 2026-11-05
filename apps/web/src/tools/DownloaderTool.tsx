@@ -287,7 +287,7 @@ export default function DownloaderTool() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={t('downloader.title')} subtitle={t('downloader.subtitle')}>
+      <PageHeader title={t('downloader.title')} subtitle={t('downloader.subtitle')} icon="download">
         <span className="rounded-md border border-line bg-panel2 px-2 py-1 text-[10.5px] text-muted">MP4 · MP3</span>
       </PageHeader>
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Icon, PageHeader, Spinner, Tabs, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -55,7 +55,7 @@ function FileCard({
           target="_blank"
           rel="noreferrer"
           title="Buka ukuran penuh"
-          className="block overflow-hidden rounded-md border border-line bg-[#0b1118]"
+          className="block overflow-hidden rounded-md border border-line bg-[#070d14]"
         >
           <img src={src} alt={path} className="h-56 w-full object-contain" loading="lazy" />
         </a>
@@ -217,37 +217,27 @@ export default function CompressTool() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={t('compress.title')} subtitle={t('compress.subtitle')}>
+      <PageHeader title={t('compress.title')} subtitle={t('compress.subtitle')} icon="compress">
         <span className="text-[11px] text-muted">
           PDF: {caps?.pdf === 'ghostscript' ? 'ghostscript' : 'pdf-lib'}
           {caps?.pdfToImage ? ' · poppler' : ' · poppler tidak ada'}
         </span>
       </PageHeader>
 
-      <div className="flex shrink-0 gap-1 border-b border-line px-3 py-1.5">
-        {([
-          ['compress', t('compress.compress')],
-          ['convert', t('compress.convert')],
-        ] as const).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              setTab(id);
-              setResult(null);
-              setError('');
-            }}
-            className={cn(
-              'cursor-pointer rounded-md px-2.5 py-1 text-[12px] transition-colors',
-              tab === id ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={(next) => {
+          setTab(next);
+          setResult(null);
+          setError('');
+        }}
+        items={[
+          { id: 'compress', label: t('compress.compress'), icon: 'compress' },
+          { id: 'convert', label: t('compress.convert'), icon: 'types' },
+        ]}
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
           <input
             ref={fileRef}
@@ -268,11 +258,13 @@ export default function CompressTool() {
             }}
             data-action="compress:pick" onClick={() => fileRef.current?.click()}
             className={cn(
-              'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-6 text-center transition-colors',
-              dragging ? 'border-accent bg-accent/10' : 'border-line hover:border-accent/50',
+              'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-panel/[0.14] p-8 text-center transition-colors',
+              dragging ? 'border-accent bg-accent/10' : 'border-line hover:border-accent/50 hover:bg-panel2/30',
             )}
           >
-            {busy ? <Spinner /> : <Icon name="upload" size={20} className="text-muted" />}
+            <span className="grid size-11 place-items-center rounded-2xl border border-line bg-panel2/60 text-muted">
+              {busy ? <Spinner /> : <Icon name="upload" size={20} />}
+            </span>
             <span className="text-[12.5px] text-muted">{path ? path.split('/').pop() : t('compress.drop')}</span>
             {path ? <span className="mono max-w-full truncate text-[11px] text-muted/70">{path}</span> : null}
           </button>
@@ -287,7 +279,7 @@ export default function CompressTool() {
                     setPath(item.path);
                     setResult(null);
                   }}
-                  className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+                  className="max-w-full cursor-pointer truncate rounded-md border border-line bg-panel2/40 px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent/50 hover:text-ink"
                   title={item.path}
                 >
                   {item.path.split('/').pop()}

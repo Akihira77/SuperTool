@@ -117,7 +117,7 @@ export function PrayerWidget() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="btn cursor-pointer gap-1.5 px-2 py-1"
+        className="btn min-h-7 cursor-pointer gap-1.5 px-2 py-1"
         title={dateText + ' · ' + clockText}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -129,8 +129,8 @@ export function PrayerWidget() {
       </button>
 
       {open ? (
-        <div className="absolute top-full right-0 z-50 mt-1 w-72 rounded-lg border border-line bg-panel p-2 shadow-2xl" role="dialog" aria-label={t('prayer.title')}>
-          <div className="flex items-start gap-2 px-1.5 pt-1 pb-2">
+        <div className="absolute top-full right-0 z-50 mt-1.5 w-72 rounded-xl border border-line bg-panel p-2 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]" role="dialog" aria-label={t('prayer.title')}>
+          <div className="flex items-start gap-2 rounded-lg bg-panel2/45 px-2 py-2">
             <Icon name="bell" size={14} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] font-medium">{t('prayer.today')}</div>
@@ -190,7 +190,7 @@ export function PrayerWidget() {
       ) : null}
 
       {alert ? (
-        <div className="fixed bottom-4 left-4 z-[70] w-80 rounded-lg border border-accent/50 bg-panel/95 p-3 shadow-2xl backdrop-blur" role="alert">
+        <div className="fixed bottom-4 left-4 z-[70] w-80 rounded-xl border border-accent/50 bg-panel/95 p-3 shadow-[0_24px_70px_-20px_rgb(0_0_0/0.9)] backdrop-blur" role="alert">
           <div className="flex items-start gap-2.5">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
               <Icon name="bell" size={16} />

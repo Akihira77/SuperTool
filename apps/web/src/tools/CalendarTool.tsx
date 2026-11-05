@@ -425,7 +425,7 @@ export default function CalendarTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title={t('calendar.title')} subtitle={subtitle}>
+      <PageHeader title={t('calendar.title')} subtitle={subtitle} icon="calendar">
         <button type="button" className="btn btn-primary" onClick={openComposer} disabled={phase !== 'ready' || busy || !writeScope}>
           <Icon name="plus" />
           {t('calendar.addEvent')}

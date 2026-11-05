@@ -25,7 +25,7 @@ export function VirtualCode({ value, ext = '', className }: { value: string; ext
   const width = Math.min(Math.max(maxLen + 10, 40), MAX_WIDTH_CH) + 'ch';
 
   return (
-    <div data-vcode className={cn('mono flex h-full min-h-0 overflow-hidden rounded-lg border border-line bg-[#0b1118] text-[12.5px]', className)}>
+    <div data-vcode className={cn('mono flex h-full min-h-0 overflow-hidden rounded-[11px] border border-line bg-[#070d14] text-[12.5px] shadow-[inset_0_1px_0_rgb(255_255_255/0.02)]', className)}>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <div className="relative min-w-full" style={{ height: virtualizer.getTotalSize(), width }}>
           {virtualizer.getVirtualItems().map((row) => (

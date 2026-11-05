@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { Fragment, Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
@@ -15,29 +15,37 @@ import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
 import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
 
+type ToolGroup = 'workspace' | 'build' | 'ops';
 type Tool = {
   id: string;
   label: string;
   desc: string;
   icon: string;
+  group: ToolGroup;
   component: LazyExoticComponent<ComponentType>;
 };
 
 const TOOLS: Array<Tool & { key: string }> = [
-  { id: 'markdown', key: 'nav.markdown', label: 'Markdown', desc: 'Editor + live preview', icon: 'markdown', component: lazy(() => import('./tools/MarkdownTool')) },
-  { key: 'nav.json', id: 'json', label: 'JSON', desc: 'Formatter & beautify', icon: 'json', component: lazy(() => import('./tools/JsonTool')) },
-  { key: 'nav.types', id: 'types', label: 'JSON ke TS', desc: 'Generate tipe TypeScript', icon: 'types', component: lazy(() => import('./tools/TypesTool')) },
-  { key: 'nav.notes', id: 'notes', label: 'Catatan', desc: 'Notepad tersimpan', icon: 'notes', component: lazy(() => import('./tools/NotesTool')) },
-  { key: 'nav.viewer', id: 'viewer', label: 'URL Viewer', desc: 'Buka tool lain via iframe', icon: 'url', component: lazy(() => import('./tools/UrlTool')) },
-  { key: 'nav.nginx', id: 'nginx', label: 'Nginx', desc: 'Edit konfigurasi', icon: 'nginx', component: lazy(() => import('./tools/NginxTool')) },
-  { key: 'nav.ports', id: 'ports', label: 'Port', desc: 'App yang sedang jalan', icon: 'ports', component: lazy(() => import('./tools/PortsTool')) },
-  { key: 'nav.files', id: 'files', label: 'File Explorer', desc: 'Jelajah & lihat file', icon: 'files', component: lazy(() => import('./tools/FilesTool')) },
-  { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', component: lazy(() => import('./tools/CompressTool')) },
-  { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', component: lazy(() => import('./tools/DevSpaceTool')) },
-  { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', component: lazy(() => import('./tools/WebhookTool')) },
-  { key: 'nav.calendar', id: 'calendar', label: 'Calendar', desc: 'Agenda Google Calendar', icon: 'calendar', component: lazy(() => import('./tools/CalendarTool')) },
-  { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', component: lazy(() => import('./tools/DownloaderTool')) },
-  { key: 'nav.settings', id: 'settings', label: 'Settings', desc: 'Backup & restore data', icon: 'save', component: lazy(() => import('./tools/SettingsTool')) },
+  { id: 'markdown', key: 'nav.markdown', label: 'Markdown', desc: 'Editor + live preview', icon: 'markdown', group: 'workspace', component: lazy(() => import('./tools/MarkdownTool')) },
+  { id: 'notes', key: 'nav.notes', label: 'Catatan', desc: 'Notepad tersimpan', icon: 'notes', group: 'workspace', component: lazy(() => import('./tools/NotesTool')) },
+  { id: 'files', key: 'nav.files', label: 'File Explorer', desc: 'Jelajah & lihat file', icon: 'files', group: 'workspace', component: lazy(() => import('./tools/FilesTool')) },
+  { id: 'viewer', key: 'nav.viewer', label: 'URL Viewer', desc: 'Buka tool lain via iframe', icon: 'url', group: 'workspace', component: lazy(() => import('./tools/UrlTool')) },
+  { key: 'nav.json', id: 'json', label: 'JSON', desc: 'Formatter & beautify', icon: 'json', group: 'build', component: lazy(() => import('./tools/JsonTool')) },
+  { key: 'nav.types', id: 'types', label: 'JSON ke TS', desc: 'Generate tipe TypeScript', icon: 'types', group: 'build', component: lazy(() => import('./tools/TypesTool')) },
+  { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', group: 'build', component: lazy(() => import('./tools/CompressTool')) },
+  { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', group: 'build', component: lazy(() => import('./tools/DownloaderTool')) },
+  { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', group: 'ops', component: lazy(() => import('./tools/DevSpaceTool')) },
+  { key: 'nav.nginx', id: 'nginx', label: 'Nginx', desc: 'Edit konfigurasi', icon: 'nginx', group: 'ops', component: lazy(() => import('./tools/NginxTool')) },
+  { key: 'nav.ports', id: 'ports', label: 'Port', desc: 'App yang sedang jalan', icon: 'ports', group: 'ops', component: lazy(() => import('./tools/PortsTool')) },
+  { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', group: 'ops', component: lazy(() => import('./tools/WebhookTool')) },
+  { key: 'nav.calendar', id: 'calendar', label: 'Calendar', desc: 'Agenda Google Calendar', icon: 'calendar', group: 'ops', component: lazy(() => import('./tools/CalendarTool')) },
+  { key: 'nav.settings', id: 'settings', label: 'Settings', desc: 'Backup & restore data', icon: 'save', group: 'ops', component: lazy(() => import('./tools/SettingsTool')) },
+];
+
+const GROUPS: Array<{ id: ToolGroup; key: 'nav.group.workspace' | 'nav.group.build' | 'nav.group.ops' }> = [
+  { id: 'workspace', key: 'nav.group.workspace' },
+  { id: 'build', key: 'nav.group.build' },
+  { id: 'ops', key: 'nav.group.ops' },
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
@@ -192,72 +200,97 @@ function Shell() {
 
   return (
     <div className="flex h-full">
-      <aside className={cn('flex shrink-0 flex-col border-r border-line bg-panel/50', navOpen ? 'w-14 md:w-56' : 'w-10')}>
-        <div className="flex items-center gap-2.5 px-2 py-3">
+      <aside
+        className={cn(
+          'flex shrink-0 flex-col border-r border-line bg-panel/55 transition-[width] duration-200',
+          navOpen ? 'w-60' : 'w-14',
+        )}
+      >
+        <div className={cn('flex items-center gap-2.5 px-2.5 py-3', !navOpen && 'flex-col gap-1.5 px-2')}>
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-[10px] border border-accent/30 bg-gradient-to-br from-accent to-accent2 text-[14px] font-bold text-white shadow-[0_8px_24px_-14px_rgb(107_150_255/0.9)]">
+            S
+          </div>
           {navOpen ? (
-            <>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-[15px] font-bold text-white">S</div>
-              <div className="hidden min-w-0 md:block">
-                <div className="truncate text-[13px] leading-tight font-semibold">Super Tool</div>
-                <div className="truncate text-[10.5px] text-muted">local developer kit</div>
-              </div>
-            </>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] leading-tight font-semibold">Super Tool</div>
+              <div className="truncate text-[10.5px] text-muted">{t('app.tagline')}</div>
+            </div>
           ) : null}
           <button
             type="button"
             onClick={toggleNav}
-            className="btn btn-ghost ml-auto shrink-0 px-1"
-            title={navOpen ? 'Sembunyikan sidebar' : 'Tampilkan sidebar'}
+            className={cn('btn btn-ghost shrink-0 px-1.5', navOpen && 'ml-auto')}
+            title={navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
+            aria-label={navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
           >
             <Icon name={navOpen ? 'back' : 'panel'} />
           </button>
         </div>
 
-        {navOpen ? (
-          <>
-            <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
-              {TOOLS.map((tool) => (
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-2 py-2">
+          {TOOLS.map((tool, index) => {
+            const previous = TOOLS[index - 1];
+            const newGroup = !previous || previous.group !== tool.group;
+            const group = GROUPS.find((item) => item.id === tool.group);
+            return (
+              <Fragment key={tool.id}>
+                {newGroup ? (
+                  <div className={cn('px-2 pt-2 pb-1 text-[9.5px] font-semibold tracking-[0.12em] text-muted/65 uppercase', !navOpen && 'mx-auto h-px w-6 overflow-hidden bg-line p-0 text-transparent')}>
+                    {navOpen ? t(group?.key ?? 'nav.group.workspace') : '•'}
+                  </div>
+                ) : null}
                 <button
-                  key={tool.id}
                   type="button"
                   onClick={() => navigate(tool.id)}
-                  title={tool.label}
-                  className={cn('nav-item', active.id === tool.id && 'nav-item-active')}
+                  title={t(tool.key as 'nav.markdown', tool.label)}
+                  aria-current={active.id === tool.id ? 'page' : undefined}
+                  className={cn('nav-item w-full', active.id === tool.id && 'nav-item-active', !navOpen && 'justify-center px-0')}
                 >
                   <Icon name={tool.icon} className="shrink-0" />
-                  <span className="hidden truncate md:inline">{t(tool.key as 'nav.markdown', tool.label)}</span>
+                  {navOpen ? <span className="truncate">{t(tool.key as 'nav.markdown', tool.label)}</span> : null}
+                </button>
+              </Fragment>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-line p-2">
+          {navOpen ? (
+            <div className="mb-1 flex items-center gap-1 px-1">
+              <span className="text-[10px] tracking-wide text-muted uppercase">{t('nav.language')}</span>
+              {(['id', 'en'] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setLang(item)}
+                  className={cn(
+                    'cursor-pointer rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+                    lang === item ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
+                  )}
+                >
+                  {item.toUpperCase()}
                 </button>
               ))}
-            </nav>
-
-            <div className="border-t border-line p-2">
-              <div className="mb-1 flex items-center gap-1 px-1">
-                <span className="hidden text-[10px] tracking-wide text-muted uppercase md:inline">{t('nav.language')}</span>
-                {(['id', 'en'] as const).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setLang(item)}
-                    className={cn(
-                      'cursor-pointer rounded border px-1.5 py-0.5 text-[11px] transition-colors',
-                      lang === item ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
-                    )}
-                  >
-                    {item.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-              <button type="button" onClick={() => navigate('password')} className="nav-item w-full" title={t('nav.password')}>
-                <Icon name="lock" className="shrink-0" />
-                <span className="hidden truncate md:inline">{t('nav.password')}</span>
-              </button>
-              <button type="button" onClick={logout} className="nav-item w-full" title={t('nav.logout')}>
-                <Icon name="logout" className="shrink-0" />
-                <span className="hidden truncate md:inline">{t('nav.logout')}</span>
-              </button>
             </div>
-          </>
-        ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
+              className="mb-1 flex w-full cursor-pointer justify-center rounded py-1 text-[9.5px] font-semibold tracking-wide text-muted hover:bg-panel2 hover:text-ink"
+              title={t('nav.language')}
+            >
+              {lang.toUpperCase()}
+            </button>
+          )}
+          <button type="button" onClick={() => navigate('password')} className={cn('nav-item w-full', !navOpen && 'justify-center px-0')} title={t('nav.password')}>
+            <Icon name="lock" className="shrink-0" />
+            {navOpen ? <span className="truncate">{t('nav.password')}</span> : null}
+          </button>
+          <button type="button" onClick={logout} className={cn('nav-item w-full', !navOpen && 'justify-center px-0')} title={t('nav.logout')}>
+            <Icon name="logout" className="shrink-0" />
+            {navOpen ? <span className="truncate">{t('nav.logout')}</span> : null}
+          </button>
+        </div>
       </aside>
 
       <main className="relative flex min-w-0 flex-1 flex-col">

@@ -114,16 +114,16 @@ export default function MarkdownTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Markdown" subtitle={stats.chars + ' karakter · ' + stats.words + ' kata · ' + stats.lines + ' baris · ~' + stats.minutes + ' menit baca'}>
-        <div className="flex overflow-hidden rounded-lg border border-line">
+      <PageHeader title="Markdown" subtitle={stats.chars + ' karakter · ' + stats.words + ' kata · ' + stats.lines + ' baris · ~' + stats.minutes + ' menit baca'} icon="markdown">
+        <div className="flex items-center gap-0.5 rounded-[10px] border border-line bg-panel2/55 p-0.5">
           {(['split', 'edit', 'preview'] as View[]).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setView(mode)}
               className={cn(
-                'px-2.5 py-1.5 text-[12px] capitalize transition-colors',
-                view === mode ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink',
+                'rounded-md px-2.5 py-1 text-[11.5px] font-medium capitalize transition-colors',
+                view === mode ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
               )}
             >
               {mode === 'split' ? 'Split' : mode === 'edit' ? 'Editor' : 'Preview'}
@@ -147,9 +147,9 @@ export default function MarkdownTool() {
       </PageHeader>
 
       {view !== 'preview' ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line px-3 py-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
           {buttons.map((button) => (
-            <button key={button.label} type="button" title={button.title} onClick={button.run} className="btn btn-ghost px-2 py-1 text-[12px]">
+            <button key={button.label} type="button" title={button.title} onClick={button.run} className="btn btn-ghost min-h-7 px-2 py-1 text-[11.5px]">
               {button.label}
             </button>
           ))}

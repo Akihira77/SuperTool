@@ -203,15 +203,15 @@ export default function CommandPalette({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[12vh]" onMouseDown={close} role="presentation">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[11vh] backdrop-blur-[2px]" onMouseDown={close} role="presentation">
       <div
-        className="flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-line bg-panel shadow-2xl"
+        className="flex max-h-[72vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-[0_30px_100px_-30px_rgb(0_0_0/0.9)] ring-1 ring-white/[0.03]"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
       >
-        <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
+        <div className="flex items-center gap-2.5 border-b border-line bg-panel/80 px-4 py-3">
           {form ? (
             <button type="button" className="cursor-pointer text-muted hover:text-ink" onClick={back} aria-label={t('palette.back')}>
               <Icon name="back" size={14} />
@@ -232,7 +232,7 @@ export default function CommandPalette({
               spellCheck={false}
             />
           )}
-          <kbd className="ml-auto rounded border border-line px-1 text-[10px] text-muted">esc</kbd>
+          <kbd className="kbd ml-auto">esc</kbd>
         </div>
 
         {crumbs.length || form ? (
@@ -309,7 +309,7 @@ export default function CommandPalette({
             </div>
           </div>
         ) : (
-          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-1.5">
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-2">
             {loading ? (
               <div className="flex items-center gap-2 px-3 py-4 text-[12px] text-muted">
                 <Spinner /> {t('palette.loading')}
@@ -323,7 +323,7 @@ export default function CommandPalette({
                   onMouseEnter={() => setActive(index)}
                   onClick={() => void enter(item)}
                   className={cn(
-                    'flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left',
+                    'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
                     index === active ? 'bg-accent/15 text-ink' : 'text-muted hover:bg-panel2',
                   )}
                 >
@@ -342,7 +342,7 @@ export default function CommandPalette({
           </div>
         )}
 
-        <div className="flex items-center gap-3 border-t border-line px-3 py-1.5 text-[10.5px] text-muted">
+        <div className="flex items-center gap-3 border-t border-line bg-panel/50 px-4 py-2 text-[10.5px] text-muted">
           <span>↑↓ {t('palette.hintMove')}</span>
           <span>↵ {t('palette.hintOpen')}</span>
           <span>esc {crumbs.length ? t('palette.hintBack') : t('palette.hintClose')}</span>

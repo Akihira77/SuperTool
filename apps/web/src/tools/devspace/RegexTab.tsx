@@ -88,7 +88,7 @@ export default function RegexTab() {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-[11px] tracking-wide text-muted uppercase">Sorotan</span>
-          <pre className="mono min-h-24 whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-3 text-[12.5px] leading-relaxed">
+          <pre className="mono min-h-24 whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] leading-relaxed">
             {segments.map((segment, index) =>
               segment.hit ? (
                 <mark key={index} className="rounded bg-accent/30 px-0.5 text-ink">
@@ -120,7 +120,7 @@ export default function RegexTab() {
 
         <div className="flex flex-col gap-1">
           <span className="text-[11px] tracking-wide text-muted uppercase">{t('regex.result')}</span>
-          <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-[#0b1118] p-3 text-[12.5px]">
+          <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px]">
             {result.error ? '' : result.replaced}
           </pre>
         </div>
