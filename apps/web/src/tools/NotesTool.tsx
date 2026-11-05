@@ -18,7 +18,7 @@ const SCOPE_OPTIONS = [
 ] as const;
 
 /** Sorot semua kemunculan kata pencarian di potongan isi catatan. */
-function Highlight({ text, query }: { text: string; query: string }) {
+function Highlight({ text, query, editor = false }: { text: string; query: string; editor?: boolean }) {
   const needle = query.trim();
   if (!needle) return <>{text}</>;
   const haystack = text.toLowerCase();
@@ -29,7 +29,10 @@ function Highlight({ text, query }: { text: string; query: string }) {
   while (index >= 0) {
     if (index > cursor) parts.push(text.slice(cursor, index));
     parts.push(
-      <mark key={index} className="rounded bg-accent/30 px-0.5 text-ink">
+      <mark
+        key={index}
+        className={editor ? 'rounded-[2px] bg-accent/30 text-transparent' : 'rounded bg-accent/30 px-0.5 text-ink'}
+      >
         {text.slice(index, index + needle.length)}
       </mark>,
     );
@@ -57,6 +60,8 @@ export default function NotesTool() {
   const timer = useRef<number | undefined>(undefined);
   const searchStarted = useRef(false);
   const scopeRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
 
   const open = useCallback(async (id: string) => {
     const note = await api.get<Note>('/notes/' + id);
@@ -93,6 +98,25 @@ export default function NotesTool() {
     }, 250);
     return () => window.clearTimeout(id);
   }, [fetchNotes, query, scope]);
+
+  const syncHighlight = useCallback(() => {
+    const textarea = textareaRef.current;
+    const layer = highlightRef.current;
+    if (!textarea || !layer) return;
+    layer.style.width = textarea.clientWidth + 'px';
+    layer.style.height = textarea.clientHeight + 'px';
+    layer.scrollTop = textarea.scrollTop;
+    layer.scrollLeft = textarea.scrollLeft;
+  }, []);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    syncHighlight();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncHighlight);
+    observer?.observe(textarea);
+    return () => observer?.disconnect();
+  }, [active?.id, query, scope, syncHighlight]);
 
   useEffect(() => {
     if (!scopeOpen) return;
@@ -260,13 +284,26 @@ export default function NotesTool() {
                   <Icon name="trash" />
                 </button>
               </div>
-              <textarea
-                value={active.body}
-                onChange={(e) => patch({ body: e.target.value })}
-                placeholder={t('notes.bodyPlaceholder')}
-                spellCheck={false}
-                className="min-h-0 flex-1 resize-none bg-transparent p-5 text-[14px] leading-7 outline-none placeholder:text-muted/50 md:p-6"
-              />
+              <div className="relative min-h-0 flex-1">
+                {query.trim() && scope !== 'title' ? (
+                  <div
+                    ref={highlightRef}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-0 left-0 w-full overflow-hidden p-5 text-[14px] leading-7 break-words whitespace-pre-wrap text-transparent md:p-6"
+                  >
+                    <Highlight text={active.body} query={query} editor />
+                  </div>
+                ) : null}
+                <textarea
+                  ref={textareaRef}
+                  value={active.body}
+                  onChange={(e) => patch({ body: e.target.value })}
+                  onScroll={syncHighlight}
+                  placeholder={t('notes.bodyPlaceholder')}
+                  spellCheck={false}
+                  className="relative h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
+                />
+              </div>
             </>
           ) : (
             <Empty icon="notes" text={t('notes.empty')} />
