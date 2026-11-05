@@ -1,0 +1,16 @@
+{
+  "name": "super-tool",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Super Tool - kumpulan utilitas developer berbasis web",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @super-tool/api --filter @super-tool/web dev",
+    "build": "pnpm --filter @super-tool/web build && pnpm --filter @super-tool/api build",
+    "start": "pnpm --filter @super-tool/api start",
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm build && node --test apps/api/selfcheck.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

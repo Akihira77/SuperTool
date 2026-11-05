@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0e13;
+  --color-panel: #0f151c;
+  --color-panel2: #141c25;
+  --color-line: #1e2a36;
+  --color-ink: #e6edf5;
+  --color-muted: #8397a9;
+  --color-accent: #5b8cff;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-ink;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #263442 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #263442;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::selection {
+    background: rgb(91 140 255 / 0.35);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-panel2 px-2.5 py-1.5 text-[13px] font-medium text-ink transition-colors select-none hover:border-accent/60 hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-accent/40 bg-accent/15 text-accent hover:bg-accent/25;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-muted hover:bg-panel2 hover:text-ink;
+  }
+  .btn-danger {
+    @apply border-bad/40 text-bad hover:bg-bad/10;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-accent/70;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-panel;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-1.5 py-0.5 font-mono text-[11px] text-muted;
+  }
+  .nav-item {
+    @apply flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-muted transition-colors hover:bg-panel2 hover:text-ink;
+  }
+  .nav-item-active {
+    @apply bg-accent/12 text-ink;
+  }
+  .mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Markdown preview */
+.md {
+  @apply text-[15px] leading-7 text-ink/90;
+}
+.md h1 {
+  @apply mt-6 mb-3 border-b border-line pb-2 text-2xl font-semibold text-ink;
+}
+.md h2 {
+  @apply mt-6 mb-2 text-xl font-semibold text-ink;
+}
+.md h3 {
+  @apply mt-5 mb-2 text-lg font-semibold text-ink;
+}
+.md p {
+  @apply my-3;
+}
+.md a {
+  @apply text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent;
+}
+.md ul {
+  @apply my-3 list-disc pl-6;
+}
+.md ol {
+  @apply my-3 list-decimal pl-6;
+}
+.md li {
+  @apply my-1;
+}
+.md blockquote {
+  @apply my-3 border-l-2 border-accent/50 pl-4 text-muted italic;
+}
+.md code {
+  @apply rounded bg-panel2 px-1.5 py-0.5 font-mono text-[13px] text-accent;
+}
+.md pre {
+  @apply my-3 overflow-auto rounded-lg border border-line bg-[#0b1118] p-3.5;
+}
+.md pre code {
+  @apply bg-transparent p-0 text-[13px] text-ink/90;
+}
+.md table {
+  @apply my-3 w-full border-collapse text-sm;
+}
+.md th,
+.md td {
+  @apply border border-line px-3 py-1.5 text-left;
+}
+.md th {
+  @apply bg-panel2 font-semibold;
+}
+.md hr {
+  @apply my-6 border-line;
+}
+.md img {
+  @apply max-w-full rounded-lg;
+}
+.md input[type='checkbox'] {
+  @apply mr-1.5 align-middle;
+}

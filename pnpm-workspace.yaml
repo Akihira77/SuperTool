@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+
+storeDir: .pnpm-store
+verifyDepsBeforeRun: false
+onlyBuiltDependencies:
+  - esbuild
