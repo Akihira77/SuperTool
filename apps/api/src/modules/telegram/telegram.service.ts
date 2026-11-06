@@ -252,7 +252,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.reply('Hanya gambar dan PDF yang bisa dikompres.');
       return;
     }
-    const ext = safeExtension(document.file_name ?? '', mime);
+    const ext = mime === 'application/pdf' ? '.pdf' : safeExtension(document.file_name ?? '', mime);
     await this.processCompressFile(
       ctx,
       document.file_id,
