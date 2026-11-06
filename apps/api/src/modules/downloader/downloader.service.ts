@@ -140,6 +140,11 @@ function isCookieError(detail: string): boolean {
   return /login|sign in|log in|cookie|premium|member-only|大会员|会员|需要登录|permission denied/i.test(detail);
 }
 
+function isConnectionError(error: unknown): boolean {
+  const detail = ytDlpStderr(error) + '\n' + (error instanceof Error ? error.message : '');
+  return /Remote end closed connection|Connection reset|Connection aborted|timed out|IncompleteRead|HTTP Error 5\d\d|Service Unavailable/i.test(detail);
+}
+
 function isBilibiliHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com');
@@ -344,16 +349,24 @@ export class DownloaderService implements OnModuleInit {
         ...(cookies ? { cookies } : {}),
       };
 
-      // Best mencoba 4K dulu. Kalau ffmpeg gagal merge, ulangi dengan format
-      // gabungan <=1080 yang tidak perlu merge (Bug DASH Bilibili/HEVC).
+      // Bilibili CDN sering menutup stream AV1 (100024) tetapi AVC stabil;
+      // prioritaskan AVC lalu fallback ke selector generik.
+      const bilibili = isBilibiliHost(new URL(target).hostname);
       const formats = request.audioOnly
         ? ['bestaudio/best']
-        : request.quality === 'best'
-          ? ['bv*+ba/b', 'best[height<=1080]/best']
-          : [
-              'bv*[height<=' + request.quality + ']+ba/b[height<=' + request.quality + ']',
-              'best[height<=' + request.quality + ']/best',
-            ];
+        : bilibili
+          ? request.quality === 'best'
+            ? ['bv*[vcodec^=avc1]+ba/bv*+ba/b', 'bv*+ba/b']
+            : [
+                'bv*[height<=' + request.quality + '][vcodec^=avc1]+ba/b[height<=' + request.quality + ']',
+                'bv*[height<=' + request.quality + ']+ba/b[height<=' + request.quality + ']',
+              ]
+          : request.quality === 'best'
+            ? ['bv*+ba/b', 'best[height<=1080]/best']
+            : [
+                'bv*[height<=' + request.quality + ']+ba/b[height<=' + request.quality + ']',
+                'best[height<=' + request.quality + ']/best',
+              ];
 
       let chosen: { filePath: string; size: number } | undefined;
       let lastError: unknown;
@@ -403,7 +416,10 @@ export class DownloaderService implements OnModuleInit {
           lastError = error;
           if (signal.aborted) throw error;
           const noFile = error instanceof Error && /tidak menghasilkan file/i.test(error.message);
-          const canFallback = !request.audioOnly && attempt < formats.length - 1 && (isMergeError(error) || isFormatUnavailable(error) || noFile);
+          const canFallback =
+            !request.audioOnly &&
+            attempt < formats.length - 1 &&
+            (isMergeError(error) || isFormatUnavailable(error) || isConnectionError(error) || noFile);
           if (!canFallback) throw error;
           await rm(attemptDir, { recursive: true, force: true }).catch(() => undefined);
           this.logger.warn(
@@ -434,6 +450,9 @@ export class DownloaderService implements OnModuleInit {
       const stderr = ytDlpStderr(error);
       const host = new URL(request.url).hostname;
       const generic = /\[generic\]|URL could be a direct video link/i.test(stderr);
+      const message = isConnectionError(error)
+        ? 'Koneksi ke server video terputus. Coba lagi beberapa saat.'
+        : detail;
       const hint = !isBilibiliHost(host)
         ? ''
         : generic
@@ -442,7 +461,7 @@ export class DownloaderService implements OnModuleInit {
             ? ' Video ini kemungkinan butuh login; unggah cookies.txt di Settings.'
             : '';
       throw new BadRequestException(
-        detail ? 'Gagal memproses video: ' + detail + hint : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.' + hint,
+        message ? 'Gagal memproses video: ' + message + hint : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.' + hint,
       );
     }
   }
