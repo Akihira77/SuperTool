@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Icon, cn } from '../components/ui';
 import { useI18n } from '../lib/i18n';
 import { buildDiff, type Diff, type Row, type Segment } from '../lib/textDiff';
@@ -67,11 +67,15 @@ function InputPane({
   placeholder,
   value,
   onChange,
+  textareaRef,
+  height,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  height: number;
 }) {
   const { t } = useI18n();
   const lines = value ? value.split(/\r\n?|\n/).length : 0;
@@ -82,12 +86,14 @@ function InputPane({
         <span className="mono text-[10.5px] text-muted">{lines} {t('compare.lines')}</span>
       </div>
       <textarea
+        ref={textareaRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={label}
         spellCheck={false}
-        className="block h-56 w-full resize-y bg-transparent p-3 font-mono text-[12px] leading-5 outline-none placeholder:text-muted/50"
+        style={{ height }}
+        className="block w-full resize-y bg-transparent p-3 font-mono text-[12px] leading-5 outline-none placeholder:text-muted/50"
       />
     </div>
   );
@@ -100,6 +106,26 @@ export default function TextCompare() {
   const [diff, setDiff] = useState<Diff | null>(null);
   const [error, setError] = useState('');
   const [selecting, setSelecting] = useState<'left' | 'right' | null>(null);
+  const [editorHeight, setEditorHeight] = useState(224);
+  const leftRef = useRef<HTMLTextAreaElement>(null);
+  const rightRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const elements = [leftRef.current, rightRef.current].filter(
+      (element): element is HTMLTextAreaElement => element !== null,
+    );
+    if (!elements.length || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver((entries) => {
+      const target = entries[0]?.target as HTMLTextAreaElement | undefined;
+      if (!target) return;
+      const height = Math.round(target.getBoundingClientRect().height);
+      if (height < 24) return;
+      setEditorHeight((current) => (Math.abs(current - height) < 1 ? current : height));
+    });
+    for (const element of elements) observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const clear = () => setSelecting(null);
@@ -157,6 +183,8 @@ export default function TextCompare() {
               setDiff(null);
               setError('');
             }}
+            textareaRef={leftRef}
+            height={editorHeight}
           />
           <InputPane
             label={t('compare.right')}
@@ -167,6 +195,8 @@ export default function TextCompare() {
               setDiff(null);
               setError('');
             }}
+            textareaRef={rightRef}
+            height={editorHeight}
           />
         </div>
 
