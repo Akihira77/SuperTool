@@ -17,7 +17,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
 | 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode (virtual untuk berkas besar)/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus, cari & urutkan container/image), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
 | 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit, pengingat pop-up + bell 1 jam/30/15 menit |
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
@@ -449,7 +449,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **Cron**: mengubah crontab user yang menjalankan server; butuh izin tulis ke `/var/spool/cron`. Di sandbox/container tanpa cron, penulisan ditolak dengan pesan jelas.
 - **DNS lookup**: lokasi server memakai ip-api.com (HTTP, tanpa API key) sehingga butuh internet; tanpa internet record DNS tetap tampil.
 - **Storage Monitor**: scan pertama membaca metadata seluruh isi home, jadi di home puluhan GB butuh puluhan detik; hasil di-cache 5 menit. Kedalaman tree 2 level, folder yang tidak bisa dibaca ditandai peringatan, dan angka memakai blok disk (bukan ukuran logis). Docker prune hanya menghapus objek tidak terpakai (tanpa volume).
-- **Docker**: start/stop/restart/hapus container tersedia langsung dari daftar. Hapus memakai `docker rm -f` dan minta konfirmasi; aksi hanya menerima ID/ nama container yang tervalidasi, tanpa shell. Pembuatan container, pull image, dan Docker Compose belum termasuk.
+- **Docker**: start/stop/restart/hapus container tersedia langsung dari daftar. Tab Container bisa dicari berdasarkan name/image/port dan diurutkan berdasarkan name/image; tab Image bisa dicari berdasarkan repository dan diurutkan berdasarkan repository/ukuran/dibuat. Hapus memakai `docker rm -f` dan minta konfirmasi; aksi hanya menerima ID/nama container yang tervalidasi, tanpa shell. Pembuatan container, pull image, dan Docker Compose belum termasuk.
 - **HTTP Client**: mengizinkan host publik seperti curl, kecuali alamat metadata cloud. Cookie dan otentikasi tidak disimpan antar request.
 
 ## Lisensi

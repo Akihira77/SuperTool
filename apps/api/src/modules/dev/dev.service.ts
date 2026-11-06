@@ -205,7 +205,13 @@ export class DevService {
       .map((line) => {
         try {
           const raw = JSON.parse(line) as Record<string, string>;
-          return { repo: raw.Repository, tag: raw.Tag, size: raw.Size, created: raw.CreatedSince ?? raw.Created };
+          return {
+            repo: raw.Repository,
+            tag: raw.Tag,
+            size: raw.Size,
+            created: raw.CreatedSince ?? raw.Created,
+            createdAt: raw.CreatedAt ?? '',
+          };
         } catch {
           return null;
         }
