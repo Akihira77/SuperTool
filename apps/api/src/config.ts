@@ -45,6 +45,14 @@ export const cfg = {
     redirectUri:
       env.GOOGLE_REDIRECT_URI ?? 'http://127.0.0.1:' + Number(env.ST_PORT ?? 3001) + '/api/calendar/callback',
   },
+  // Telegram Command Center. Token kosong = bot tidak dijalankan.
+  telegram: {
+    botToken: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
+    allowedChatIds: (env.TELEGRAM_ALLOWED_CHAT_IDS ?? '')
+      .split(/[,\s]+/)
+      .map((id) => id.trim())
+      .filter(Boolean),
+  },
   // LLM kompatibel OpenAI (9router, ollama, dsb). Default: 9router lokal.
   llm: {
     baseUrl: env.ST_LLM_BASE_URL ?? 'http://127.0.0.1:20128/v1',

@@ -23,6 +23,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 | 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
+| 16 | Telegram Command Center | Bot long polling: download URL YouTube/FB/Bilibili, kirim file langsung / link 0x0.st untuk file besar, kompres gambar/PDF lewat caption `/compress` |
 
 ## Tech stack
 
@@ -116,6 +117,8 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
 | `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
 | `GOOGLE_REDIRECT_URI` | `http://127.0.0.1:<ST_PORT>/api/calendar/callback` | Redirect URI yang sama persis dengan Google Cloud Console |
+| `TELEGRAM_BOT_TOKEN` | kosong | Token BotFather; kosong = Telegram Command Center nonaktif |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | kosong | Daftar chat ID yang boleh memakai bot, pisahkan koma. Kosong = semua chat (tidak disarankan) |
 
 Contoh untuk mengakses dua folder:
 
@@ -311,6 +314,19 @@ Menu **Downloader** mengunduh video/audio publik dari YouTube, Facebook, dan Bil
 - `POST /api/downloader/proxy` menerima `{ url, quality, audioOnly }`, menjalankan yt-dlp, lalu mengalirkan file sebagai `Content-Disposition: attachment` dengan nama judul video. `quality` = `best|1080|720|480|360`; `audioOnly` menghasilkan MP3. Ada juga `GET /api/downloader/proxy?url=...&quality=...&audio=1` untuk browser/anchor.
 - Di Chrome/Edge halaman memakai **File System Access API**: dialog Save As muncul lebih dulu, respons di-stream langsung ke file yang dipilih (bukan blob di memori). Browser lain memakai fallback blob/unduhan biasa. Tombol berubah menjadi **Memproses video…** dan bisa dibatalkan; permintaan yang dibatalkan ikut menghentikan yt-dlp.
 - Setiap unduhan memakai folder unik di `temp/` (`ST_TEMP_DIR`), berisi file hasil merge. Folder dihapus setelah respons selesai, saat klien memutus koneksi, atau saat proses gagal; sisa folder lebih dari 6 jam dibersihkan saat server start. Batas playlist dimatikan (`--no-playlist`), jadi satu URL = satu video.
+
+## Telegram Command Center
+
+Bot Telegram berjalan di backend dengan **long polling** (tanpa webhook, tanpa membuka port tambahan). Isi `TELEGRAM_BOT_TOKEN` dari BotFather di `apps/api/.env`, lalu restart API.
+
+- **Download**: kirim URL YouTube/Facebook/Bilibili. Bot membalas "Sedang mengunduh...", mengunduh video 720p lewat Downloader yang sama, lalu mengirim file.
+- **Batas file**: file ≤45 MB dikirim langsung. File lebih besar diunggah ke `https://0x0.st`, lalu bot mengirim link. 0x0.st adalah layanan publik dan sementara; jangan kirim file sensitif. Jika 0x0.st menolak (mis. 503), bot melaporkan error dan file tidak terkirim.
+- **Kompres**: kirim gambar atau PDF dengan caption `/compress`. Bot mengunduh file dari Telegram (maks. 20 MB), menjalankan `CompressService` yang sama dengan halaman Kompresor, lalu mengirim hasilnya.
+- **Perintah**: `/start` dan `/help` untuk bantuan, `/compress` untuk petunjuk kompres, `/id` untuk melihat chat ID.
+- **Keamanan**: isi `TELEGRAM_ALLOWED_CHAT_IDS` dengan chat ID kamu. Tanpa allowlist, siapa pun yang menemukan bot bisa memakai resource server. Bot hanya memproses operasi di private chat.
+- **Temp**: file kerja memakai `ST_TEMP_DIR`; untuk fitur `/compress`, folder itu harus berada di dalam `ST_FS_ROOTS` karena `CompressService` memakai `jailPath`.
+
+Saat pertama kali dipakai, kirim `/id` ke bot, salin ID ke `TELEGRAM_ALLOWED_CHAT_IDS`, lalu restart API.
 
 ## Widget Waktu & Jadwal Sholat
 

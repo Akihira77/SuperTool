@@ -16,6 +16,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { DownloaderModule } from './modules/downloader/downloader.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DownloaderModule } from './modules/downloader/downloader.module';
     BackupModule,
     CalendarModule,
     DownloaderModule,
+    TelegramModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })
