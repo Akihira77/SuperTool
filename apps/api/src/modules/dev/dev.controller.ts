@@ -36,6 +36,11 @@ export class DevController {
     return this.dev.dockerContainers();
   }
 
+  @Post('docker/action')
+  dockerAction(@Body() body: { action?: string; id?: string }) {
+    return this.dev.dockerAction(body?.action ?? '', body?.id ?? '');
+  }
+
   @Get('cron')
   cronList() {
     return this.dev.cronList();

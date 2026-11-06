@@ -17,7 +17,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
 | 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode (virtual untuk berkas besar)/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), docker read-only, git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
 | 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit |
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
@@ -55,7 +55,7 @@ sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 |--------|---------------|-----------------|
 | `gs` (ghostscript) | kompres PDF besar (streaming, hemat RAM) | PDF hanya disimpan ulang lewat pdf-lib, penghematan kecil |
 | `pdftoppm` (poppler-utils) | konversi PDF → gambar | tab Konversi untuk PDF dinonaktifkan |
-| `docker` | tab Docker (read-only) | tab menampilkan pesan error |
+| `docker` | tab Docker (ps/images/logs + kontrol container) | tab menampilkan pesan error; aksi start/stop/restart/hapus gagal dengan pesan jelas |
 | `git` | tab Git Status | tab menampilkan pesan error |
 | `cron` | tab Cron Job | daftar kosong, penambahan gagal dengan pesan jelas |
 | `grep` | pencarian isi berkas | pencarian isi tidak berfungsi (pencarian nama tetap jalan) |
@@ -211,7 +211,7 @@ Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil
 | Encode/Decode & Hash | `POST /api/dev/hash` | konversi Teks ↔ Base64 ↔ Base64 URL-safe ↔ Hex (dua arah), URL, HTML entity, JWT decode; MD5/SHA/HMAC di server |
 | HTTP Client | `POST /api/dev/http` | seperti curl ringan: method, header, body, timeout. Alamat metadata cloud (169.254.169.254) diblokir |
 | Log Tailer | `GET /api/dev/logs`, `GET /api/dev/logs/stream` | tail 400 baris, mode live pakai SSE, filter teks, preset `/var/log/nginx/*` |
-| Docker | `GET /api/dev/docker` | read-only: `docker ps`, `docker images`, `docker logs --tail 300` |
+| Docker | `GET /api/dev/docker`, `POST /api/dev/docker/action` | baca: `docker ps`, `docker images`, `docker logs --tail 300`; aksi: `start`, `stop`, `restart`, `remove` (hapus paksa) berdasarkan ID container tervalidasi |
 | Git Status | `GET /api/dev/git`, `POST /api/dev/git/stage`, `GET /api/dev/git/diff`, `GET /api/dev/git/show` | pilih folder lewat daftar direktori (klik nama = pakai folder, tombol `›` = masuk folder). Dua kolom: kiri grafik commit (SVG, warna per lane/branch) + daftar commit (inisial penulis, waktu, hash biru, badge HEAD/branch), kanan kartu berkas staged/diubah/belum dilacak dengan centang untuk stage/unstage + panel diff merah/hijau saat berkas atau commit diklik |
 | Cron Job | `GET/POST/DELETE /api/dev/cron` | `crontab -l`, tambah baris, hapus per indeks |
 | DNS/IP Lookup | `GET /api/dev/dns` | A, AAAA, MX, CNAME, NS, TXT + lokasi lewat ip-api.com |
@@ -433,7 +433,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **Konversi PDF → gambar**: memecah 3 halaman pertama per proses, butuh `pdftoppm`. Hasilnya gambar per halaman, bukan PDF baru.
 - **Cron**: mengubah crontab user yang menjalankan server; butuh izin tulis ke `/var/spool/cron`. Di sandbox/container tanpa cron, penulisan ditolak dengan pesan jelas.
 - **DNS lookup**: lokasi server memakai ip-api.com (HTTP, tanpa API key) sehingga butuh internet; tanpa internet record DNS tetap tampil.
-- **Docker**: hanya baca (ps/images/logs). Tombol start/stop sengaja tidak ada.
+- **Docker**: start/stop/restart/hapus container tersedia langsung dari daftar. Hapus memakai `docker rm -f` dan minta konfirmasi; aksi hanya menerima ID/ nama container yang tervalidasi, tanpa shell. Pembuatan container, pull image, dan Docker Compose belum termasuk.
 - **HTTP Client**: mengizinkan host publik seperti curl, kecuali alamat metadata cloud. Cookie dan otentikasi tidak disimpan antar request.
 
 ## Lisensi

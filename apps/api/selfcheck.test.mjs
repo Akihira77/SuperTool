@@ -7,12 +7,14 @@ import token from './dist/common/token.js';
 import downloader from './dist/modules/downloader/downloader.service.js';
 import calendarOauth from './dist/modules/calendar/oauth.js';
 import webhook from './dist/modules/webhook/webhook.service.js';
+import devService from './dist/modules/dev/dev.service.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
 const { isAllowedHost, canonicalBilibiliUrl } = downloader;
 const { authPrompt } = calendarOauth;
 const { WebhookService } = webhook;
+const { dockerActionArgs } = devService;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -46,6 +48,16 @@ test('webhook: token endpoint bisa diganti dan divalidasi', () => {
   assert.throws(() => hooks.updateToken(first.id, ''), /Token hanya/);
   const second = hooks.create('lain');
   assert.throws(() => hooks.updateToken(second.id, 'custom-hook_1'), /sudah dipakai/);
+});
+
+test('docker: aksi lifecycle dibatasi dan argumen aman', () => {
+  assert.deepEqual(dockerActionArgs('start', 'abc123'), ['start', 'abc123']);
+  assert.deepEqual(dockerActionArgs('stop', 'abc123'), ['stop', 'abc123']);
+  assert.deepEqual(dockerActionArgs('restart', 'abc123'), ['restart', 'abc123']);
+  assert.deepEqual(dockerActionArgs('remove', 'abc123'), ['rm', '-f', 'abc123']);
+  assert.throws(() => dockerActionArgs('exec', 'abc123'), /tidak didukung/);
+  assert.throws(() => dockerActionArgs('start', 'abc; rm -rf /'), /ID container/);
+  assert.throws(() => dockerActionArgs('start', '--help'), /ID container/);
 });
 
 test('downloader: allowlist host tidak bisa ditipu suffix', () => {

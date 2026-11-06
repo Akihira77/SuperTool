@@ -12,6 +12,16 @@ import { jailPath } from '../../common/fs-jail';
 const exec = promisify(execFile);
 const HASHES = new Set(['md5', 'sha1', 'sha256', 'sha512', 'sha3-256', 'sha3-512']);
 const MAX_TEXT = 4 * 1024 * 1024;
+const DOCKER_ACTIONS = new Set(['start', 'stop', 'restart', 'remove']);
+const CONTAINER_REF = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/;
+
+export function dockerActionArgs(action: unknown, id: unknown): string[] {
+  const verb = String(action ?? '');
+  if (!DOCKER_ACTIONS.has(verb)) throw new BadRequestException('Aksi Docker tidak didukung');
+  const ref = String(id ?? '');
+  if (!CONTAINER_REF.test(ref)) throw new BadRequestException('ID container tidak valid');
+  return verb === 'remove' ? ['rm', '-f', ref] : [verb, ref];
+}
 
 @Injectable()
 export class DevService {
@@ -205,9 +215,15 @@ export class DevService {
   }
 
   async dockerLogs(id: string) {
-    if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(String(id ?? ''))) throw new BadRequestException('ID container tidak valid');
+    if (!CONTAINER_REF.test(String(id ?? ''))) throw new BadRequestException('ID container tidak valid');
     const stdout = await this.docker(['logs', '--tail', '300', id]);
     return { text: stdout };
+  }
+
+  async dockerAction(action: string, id: string) {
+    const args = dockerActionArgs(action, id);
+    const output = await this.docker(args);
+    return { ok: true, action, output: output.trim() };
   }
 
   // ---------- cron ----------

@@ -77,7 +77,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | downloader | `downloader.service.ts`, `downloader.controller.ts` | yt-dlp + ffmpeg-static; allowlist host, metadata preview (`/info`), temp per request, stream `Content-Disposition` MP4/MP3, cleanup saat selesai/abort |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (`pdf-lib`/ghostscript), antrean job latar belakang |
-| dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker read-only, git ringkas, crontab, DNS + geo |
+| dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker lifecycle (start/stop/restart/hapus), git ringkas, crontab, DNS + geo |
 
 ## Peta frontend
 
