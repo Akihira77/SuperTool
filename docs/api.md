@@ -72,7 +72,7 @@ Catatan:
 
 ## Storage Monitor
 
-Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level; `snap`/`lost+found` dilewati. Scan per folder top-level berjalan paralel dan hasilnya di-cache 5 menit.
+Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level; `snap`/`lost+found` dilewati. Scan per folder top-level berjalan paralel dengan timeout 5 menit per folder; hasilnya di-cache 30 menit di tabel `storage_cache` SQLite dan bertahan setelah restart.
 
 | Metode | Path | Query/Body | Hasil |
 |--------|------|------------|-------|
@@ -80,7 +80,7 @@ Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level;
 | POST | `/storage/delete` | `{ path }` | `{ ok, path }`; hanya nama folder allowlist, path di dalam root |
 | POST | `/storage/docker-prune` | – | `{ ok, output }` dari `docker system prune -f` |
 
-`tree[]` berisi `{ name, path, size, depth, cleanable, children? }`, diurutkan dari yang terbesar. Folder dengan `cleanable=true` boleh dihapus dari UI setelah konfirmasi. Docker prune memakai argumen tetap dan tidak menghapus volume.
+`tree[]` berisi `{ name, path, size, depth, cleanable, children? }`, diurutkan dari yang terbesar. Semua baris bisa disalin path-nya; folder dengan `cleanable=true` boleh dihapus dari UI setelah konfirmasi. Docker prune memakai argumen tetap dan tidak menghapus volume. Cache dihapus setelah delete/prune.
 
 ## File sistem
 

@@ -12,11 +12,14 @@ import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
 
 const exec = promisify(execFile);
-const CACHE_MS = 5 * 60_000;
-const FOLDER_TIMEOUT_MS = 45_000;
+// Cache 30 menit: scan bisa puluhan detik, dan tombol "Pindai ulang" tetap
+// memaksa data segar. Cache disimpan di SQLite supaya bertahan setelah restart.
+const CACHE_MS = 30 * 60_000;
+// Folder besar (mis. home 58 GB) bisa lebih dari 45 detik; beri ruang lebih.
+const FOLDER_TIMEOUT_MS = 5 * 60_000;
 const SCAN_CONCURRENCY = 8;
 const MAX_CHILDREN = 200;
-const MAX_OUTPUT = 2 * 1024 * 1024;
+const MAX_OUTPUT = 8 * 1024 * 1024;
 const SYSTEM_EXCLUDES = ['snap', 'lost+found'];
 
 /** Folder yang aman dihapus dari UI. Jangan izinkan path sembarang. */
@@ -91,21 +94,69 @@ export class StorageUsageService {
   private cache: { at: number; data: UsageResult } | null = null;
   private scanning: Promise<UsageResult> | null = null;
 
-  usage(refresh = false): Promise<UsageResult> {
+  async usage(refresh = false): Promise<UsageResult> {
     if (!refresh && this.cache && Date.now() - this.cache.at < CACHE_MS) {
-      return Promise.resolve(this.cache.data);
+      return this.cache.data;
+    }
+    if (!refresh && !this.cache) {
+      const stored = await this.readStoredCache();
+      if (stored && Date.now() - stored.at < CACHE_MS) {
+        this.cache = stored;
+        return stored.data;
+      }
     }
     // Satu proses du saja; permintaan kedua menunggu hasil yang sama.
     if (this.scanning) return this.scanning;
     this.scanning = this.scan()
-      .then((data) => {
-        this.cache = { at: Date.now(), data };
+      .then(async (data) => {
+        this.cache = { at: data.scannedAt, data };
+        await this.writeStoredCache(data);
         return data;
       })
       .finally(() => {
         this.scanning = null;
       });
     return this.scanning;
+  }
+
+  // Import DB dibuat dinamis supaya selfcheck yang hanya memakai fungsi murni
+  // tidak ikut membuka database aplikasi.
+  private async readStoredCache(): Promise<{ at: number; data: UsageResult } | null> {
+    try {
+      const { one } = await import('../../common/db');
+      const row = one<{ data: string; scannedAt: number }>(
+        'SELECT data, scanned_at AS scannedAt FROM storage_cache WHERE id = 1',
+      );
+      if (!row || !Number.isFinite(row.scannedAt)) return null;
+      const data = JSON.parse(row.data) as UsageResult;
+      if (!data || !Array.isArray(data.tree) || typeof data.total !== 'number') return null;
+      return { at: row.scannedAt, data };
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeStoredCache(data: UsageResult): Promise<void> {
+    try {
+      const { run } = await import('../../common/db');
+      run(
+        'INSERT INTO storage_cache (id, data, scanned_at) VALUES (1, ?, ?) ' +
+          'ON CONFLICT(id) DO UPDATE SET data = excluded.data, scanned_at = excluded.scanned_at',
+        JSON.stringify(data),
+        data.scannedAt,
+      );
+    } catch {
+      // Cache DB opsional; scan tetap berhasil walau penyimpanan gagal.
+    }
+  }
+
+  private async clearStoredCache(): Promise<void> {
+    try {
+      const { run } = await import('../../common/db');
+      run('DELETE FROM storage_cache WHERE id = 1');
+    } catch {
+      // Abaikan bila tabel/cache tidak tersedia.
+    }
   }
 
   private async scan(): Promise<UsageResult> {
@@ -293,6 +344,7 @@ export class StorageUsageService {
     if (!info.isDirectory()) throw new BadRequestException('Target bukan folder');
     await rm(realTarget, { recursive: true, force: false });
     this.cache = null;
+    await this.clearStoredCache();
     return { ok: true, path: realTarget };
   }
 
@@ -302,6 +354,8 @@ export class StorageUsageService {
         timeout: 5 * 60_000,
         maxBuffer: 8 * 1024 * 1024,
       });
+      this.cache = null;
+      await this.clearStoredCache();
       return { ok: true, output: (result.stdout + result.stderr).trim() };
     } catch (err) {
       const error = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };

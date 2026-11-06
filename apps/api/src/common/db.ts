@@ -61,6 +61,11 @@ db.exec(`
     token_type TEXT,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS storage_cache (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    data TEXT NOT NULL,
+    scanned_at INTEGER NOT NULL
+  );
 `);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */

@@ -49,6 +49,31 @@ function ordered(nodes: UsageNode[], sort: Sort): UsageNode[] {
   );
 }
 
+async function copyText(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Clipboard API bisa diblokir; coba fallback di bawah.
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = value;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Treemap binary split tanpa dependency: area mengikuti ukuran folder. */
 function layout(nodes: UsageNode[], box: Box): Array<{ node: UsageNode; box: Box }> {
   if (nodes.length === 0 || box.w <= 0 || box.h <= 0) return [];
@@ -72,12 +97,12 @@ function layout(nodes: UsageNode[], box: Box): Array<{ node: UsageNode; box: Box
   return [...layout(firstNodes, { ...box, h: top }), ...layout(restNodes, { ...box, y: box.y + top, h: box.h - top })];
 }
 
-function Treemap({ nodes, total }: { nodes: UsageNode[]; total: number }) {
+function Treemap({ nodes, total, label }: { nodes: UsageNode[]; total: number; label: string }) {
   const [hover, setHover] = useState<string | null>(null);
   const boxes = layout(ordered(nodes, 'size'), { x: 0, y: 0, w: 1000, h: 360 });
   if (!boxes.length || total <= 0) return null;
   return (
-    <svg viewBox="0 0 1000 360" className="aspect-[1000/360] w-full" role="img" aria-label="Treemap folder">
+    <svg viewBox="0 0 1000 360" className="aspect-[1000/360] w-full" role="img" aria-label={label}>
       {boxes.map(({ node, box }, index) => {
         const showName = box.w > 46 && box.h > 20;
         const showSize = box.w > 88 && box.h > 38;
@@ -120,7 +145,7 @@ function Treemap({ nodes, total }: { nodes: UsageNode[]; total: number }) {
 }
 
 export default function StorageTool() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const toast = useToast();
   const confirm = useConfirm();
   const [data, setData] = useState<Usage | null>(null);
@@ -140,7 +165,7 @@ export default function StorageTool() {
       setData(result);
       setExpanded(new Set(result.tree.filter((node) => node.children?.length).slice(0, 3).map((node) => node.path)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memindai storage');
+      setError(err instanceof ApiError ? err.message : t('storage.scanError'));
     } finally {
       setLoading(false);
     }
@@ -173,7 +198,7 @@ export default function StorageTool() {
       );
       toast(t('storage.deleted'), 'ok');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menghapus folder');
+      setError(err instanceof ApiError ? err.message : t('storage.deleteError'));
     } finally {
       setDeleting(null);
     }
@@ -194,10 +219,16 @@ export default function StorageTool() {
       setDockerOutput(result.output || t('storage.noOutput'));
       toast(t('storage.dockerDone'), 'ok');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membersihkan Docker');
+      setError(err instanceof ApiError ? err.message : t('storage.dockerError'));
     } finally {
       setDockerBusy(false);
     }
+  };
+
+  const copyPath = async (path: string) => {
+    const ok = await copyText(path);
+    if (ok) toast(t('storage.copied'), 'ok');
+    else toast(t('storage.copyFailed'), 'error');
   };
 
   const toggle = (path: string) => {
@@ -227,7 +258,7 @@ export default function StorageTool() {
             type="button"
             className={cn('btn btn-ghost size-6 shrink-0 px-0', !childCount ? 'invisible' : '')}
             onClick={() => toggle(node.path)}
-            aria-label={open ? 'Collapse' : 'Expand'}
+            aria-label={open ? t('storage.collapse') : t('storage.expand')}
           >
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} />
           </button>
@@ -243,20 +274,29 @@ export default function StorageTool() {
           </button>
           <span className="mono w-20 shrink-0 text-right text-muted">{bytes(node.size)}</span>
           <span className="hidden w-12 shrink-0 text-right text-[11px] text-muted/70 sm:block">{pct.toFixed(1)}%</span>
-          {node.cleanable ? (
+          <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
-              className="btn btn-ghost shrink-0 px-1.5 py-0.5 text-bad opacity-70 hover:border-bad/30 hover:opacity-100"
-              onClick={() => void remove(node)}
-              disabled={deleting !== null || loading}
-              title={t('storage.cleanable')}
-              aria-label={t('storage.clean') + ' ' + node.name}
+              className="btn btn-ghost shrink-0 px-1.5 py-0.5 opacity-70 hover:text-accent hover:opacity-100"
+              onClick={() => void copyPath(node.path)}
+              title={t('storage.copyPath')}
+              aria-label={t('storage.copyPath') + ' ' + node.name}
             >
-              {deleting === node.path ? <Spinner /> : <Icon name="trash" size={13} />}
+              <Icon name="copy" size={13} />
             </button>
-          ) : (
-            <span className="w-7 shrink-0" />
-          )}
+            {node.cleanable ? (
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 px-1.5 py-0.5 text-bad opacity-70 hover:border-bad/30 hover:opacity-100"
+                onClick={() => void remove(node)}
+                disabled={deleting !== null || loading}
+                title={t('storage.clean')}
+                aria-label={t('storage.clean') + ' ' + node.name}
+              >
+                {deleting === node.path ? <Spinner /> : <Icon name="trash" size={13} />}
+              </button>
+            ) : null}
+          </div>
         </div>
         {open ? children.map((child) => renderNode(child, depth + 1)) : null}
       </Fragment>
@@ -269,7 +309,7 @@ export default function StorageTool() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader title={t('storage.title')} subtitle={t('storage.subtitle')} icon="storage">
-        {data ? <span className="text-[11px] text-muted">{new Date(data.scannedAt).toLocaleTimeString()}</span> : null}
+        {data ? <span className="text-[11px] text-muted">{new Date(data.scannedAt).toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-US')}</span> : null}
         <button type="button" className="btn" onClick={() => void load(true)} disabled={loading}>
           {loading ? <Spinner /> : <Icon name="refresh" size={13} />}
           {loading ? t('storage.scanning') : t('storage.scan')}
@@ -299,7 +339,7 @@ export default function StorageTool() {
               </div>
               <div className="card p-3">
                 <div className="text-[10.5px] uppercase tracking-wide text-muted">{t('storage.folders')}</div>
-                <div className="mono mt-1 text-[18px] font-semibold">{data.count.toLocaleString('id-ID')}</div>
+                <div className="mono mt-1 text-[18px] font-semibold">{data.count.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US')}</div>
                 <div className="mt-0.5 text-[10.5px] text-muted">{data.truncated ? t('storage.truncated') : '—'}</div>
               </div>
               {data.disk ? (
@@ -326,7 +366,7 @@ export default function StorageTool() {
                 <span className="text-[10.5px] text-muted">{tree.length} {t('storage.topLevel')}</span>
               </div>
               <div className="p-2">
-                <Treemap nodes={tree} total={data.total} />
+                <Treemap nodes={tree} total={data.total} label={t('storage.treemapAria')} />
               </div>
             </section>
 

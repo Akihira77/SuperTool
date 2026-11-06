@@ -623,7 +623,8 @@ export default function CalendarTool() {
           <Icon name="bell" size={13} className={remindBefore > 0 ? 'text-accent' : ''} />
           <span className="hidden lg:inline">{t('calendar.remind')}</span>
           <select
-            className="cursor-pointer border-0 bg-transparent p-0 pr-1 text-[11px] text-ink outline-none"
+            className="input h-6 cursor-pointer border-0 py-0 pr-6 pl-1 text-[11px] shadow-none focus:ring-0"
+            style={{ width: 'auto', colorScheme: 'dark', background: 'var(--color-panel2)', color: 'var(--color-ink)' }}
             value={remindBefore}
             onChange={(event) => setRemindBefore(Number(event.target.value))}
             aria-label={t('calendar.remind')}
