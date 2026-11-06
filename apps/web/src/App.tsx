@@ -199,7 +199,7 @@ function Shell() {
   const ActiveComponent = active.component;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       <aside
         className={cn(
           'flex shrink-0 flex-col border-r border-line bg-panel/55 transition-[width] duration-200',
