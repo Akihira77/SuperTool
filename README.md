@@ -11,7 +11,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 1 | Markdown | Editor + live preview, toolbar format, auto simpan ke browser |
 | 2 | JSON | Formatter, minify, urutkan kunci, highlight, unduh |
 | 3 | JSON ke TypeScript | Generate `interface` otomatis, array objek digabung |
-| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, tab Text Compare dengan sorotan perbedaan baris/kata |
+| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, tab Text Compare dengan sorotan perbedaan baris/kata, riwayat hasil bandingkan (infinite scroll) |
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
@@ -141,6 +141,7 @@ Tabelnya:
 |-------|-----|
 | `account` | salt, hash password (scrypt), versi sesi, wajib-ganti, secret HMAC |
 | `notes` | catatan |
+| `compare_history` | isi kiri/kanan + ringkasan hasil Text Compare |
 | `urls` | daftar URL di URL Viewer |
 | `recent_paths` | path yang pernah dibuka per tool (nginx, file explorer) |
 

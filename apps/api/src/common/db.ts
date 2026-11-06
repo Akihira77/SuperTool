@@ -85,6 +85,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC);
   CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC);
   CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC);
+  CREATE TABLE IF NOT EXISTS compare_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    left_text TEXT NOT NULL,
+    right_text TEXT NOT NULL,
+    left_lines INTEGER NOT NULL DEFAULT 0,
+    right_lines INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC);
 `);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */
@@ -150,6 +159,12 @@ export function replaceDatabase(source: string): { ok: true; path: string } {
   db.exec('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC)');
+  db.exec(
+    'CREATE TABLE IF NOT EXISTS compare_history (' +
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, left_text TEXT NOT NULL, ' +
+      'right_text TEXT NOT NULL, left_lines INTEGER NOT NULL DEFAULT 0, right_lines INTEGER NOT NULL DEFAULT 0)',
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC)');
   return { ok: true, path: file };
 }
 

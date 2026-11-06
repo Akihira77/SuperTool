@@ -16,6 +16,7 @@ import { SqliteModule } from './modules/sqlite/sqlite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { CompareModule } from './modules/compare/compare.module';
 import { DownloaderModule } from './modules/downloader/downloader.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 
@@ -36,6 +37,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     WebhookModule,
     BackupModule,
     CalendarModule,
+    CompareModule,
     DownloaderModule,
     TelegramModule,
   ],
