@@ -66,6 +66,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | auth | `auth.service.ts`, `auth.guard.ts` | login, ganti password, verifikasi sesi |
 | notes | `notes.service.ts` | CRUD catatan + serialisasi tulis |
 | files | `files.service.ts`, `mime.ts`, `office.ts`, `zip.ts` | list, read, write, mkdir, rename, delete, upload, search, du, grep isi berkas, pratinjau + edit OOXML/ODF, kirim berkas dengan HTTP Range |
+| storage | `storage-usage.service.ts`, `storage-usage.controller.ts` | scan home 2 level dengan `du` per folder paralel + cache 5 menit, tree/treemap, hapus folder allowlist, `docker system prune -f` |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
 | proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
@@ -100,6 +101,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; tampilkan **Atur Lokasi** jika koordinat kosong; cek pengingat tiap menit |
 | `components/PrayerSettings.tsx` | Form Settings: nama kota (label), latitude/longitude manual, dropdown kota cepat, toggle suara & pop-up |
 | `tools/SettingsTool.tsx` | Unduh backup (`/api/backup`), restore zip (modal konfirmasi + `POST /api/restore`), info database |
+| `tools/StorageTool.tsx` | Storage Monitor: kartu total/disk, treemap SVG, tree urut ukuran/nama, hapus folder allowlist dengan konfirmasi, bersihkan Docker |
 | `tools/*.tsx` | Satu tool = satu file, di-`lazy` load |
 | `tools/devspace/*.tsx` | Satu tab Dev Space = satu file, di-`lazy` load saat tab pertama dibuka |
 

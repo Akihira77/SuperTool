@@ -8,6 +8,7 @@ import downloader from './dist/modules/downloader/downloader.service.js';
 import calendarOauth from './dist/modules/calendar/oauth.js';
 import webhook from './dist/modules/webhook/webhook.service.js';
 import devService from './dist/modules/dev/dev.service.js';
+import storageUsage from './dist/modules/storage/storage-usage.service.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
@@ -15,6 +16,7 @@ const { isAllowedHost, canonicalBilibiliUrl } = downloader;
 const { authPrompt } = calendarOauth;
 const { WebhookService } = webhook;
 const { dockerActionArgs } = devService;
+const { parseDuOutput, isCleanableFolder } = storageUsage;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -58,6 +60,20 @@ test('docker: aksi lifecycle dibatasi dan argumen aman', () => {
   assert.throws(() => dockerActionArgs('exec', 'abc123'), /tidak didukung/);
   assert.throws(() => dockerActionArgs('start', 'abc; rm -rf /'), /ID container/);
   assert.throws(() => dockerActionArgs('start', '--help'), /ID container/);
+});
+
+test('storage: parse du NUL dan allowlist hapus aman', () => {
+  const root = '/home/uji';
+  const raw = '4096\t/home/uji/a\0' + '2048\t/home/uji/a/node_modules\0' + '10\t/home/uji-evil/x\0';
+  assert.deepEqual(parseDuOutput(raw, root), [
+    { path: '/home/uji/a', size: 4096 },
+    { path: '/home/uji/a/node_modules', size: 2048 },
+  ]);
+  assert.equal(isCleanableFolder('node_modules'), true);
+  assert.equal(isCleanableFolder('temp'), true);
+  assert.equal(isCleanableFolder('.cache'), true);
+  assert.equal(isCleanableFolder('personal'), false);
+  assert.equal(isCleanableFolder('..'), false);
 });
 
 test('downloader: allowlist host tidak bisa ditipu suffix', () => {

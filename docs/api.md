@@ -70,6 +70,18 @@ Catatan:
 
 `GET /backup` membuat snapshot konsisten dengan `VACUUM INTO` lalu mengompresnya (archiver). `POST /restore` memvalidasi arsip (nama entri tanpa `..`/path absolut, maks 3000 entri, maks 100 MB terkompresi dan 1 GB isi), memeriksa header `SQLite format 3`, mengekstrak dengan perintah sistem `unzip`, mengganti database aktif (koneksi ditutup lalu dibuka ulang) dan folder `uploads`. Sesi login lama tidak valid setelah restore karena secret HMAC tersimpan di database.
 
+## Storage Monitor
+
+Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level; `snap`/`lost+found` dilewati. Scan per folder top-level berjalan paralel dan hasilnya di-cache 5 menit.
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/storage/usage` | `refresh=1` (opsional) | `{ root, total, scannedAt, truncated, warning?, count, disk, tree[] }` |
+| POST | `/storage/delete` | `{ path }` | `{ ok, path }`; hanya nama folder allowlist, path di dalam root |
+| POST | `/storage/docker-prune` | – | `{ ok, output }` dari `docker system prune -f` |
+
+`tree[]` berisi `{ name, path, size, depth, cleanable, children? }`, diurutkan dari yang terbesar. Folder dengan `cleanable=true` boleh dihapus dari UI setelah konfirmasi. Docker prune memakai argumen tetap dan tidak menghapus volume.
+
 ## File sistem
 
 Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.

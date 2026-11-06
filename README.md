@@ -1,6 +1,6 @@
 # Super Tool
 
-Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
+Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port dan pemakaian disk, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
 
 Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite lokal; isi berkas tetap di disk.
 
@@ -22,6 +22,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit |
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
+| 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
 
 ## Tech stack
 
@@ -53,6 +54,7 @@ sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 
 | Binary | Dipakai untuk | Kalau tidak ada |
 |--------|---------------|-----------------|
+| `du` (coreutils) | Storage Monitor menghitung ukuran folder | endpoint storage membalas 503 dengan pesan jelas |
 | `gs` (ghostscript) | kompres PDF besar (streaming ke disk, tanpa batas 200 MB) | hanya PDF ≤50 MB yang bisa disimpan ulang lewat pdf-lib; PDF besar ditolak dengan pesan jelas |
 | `pdftoppm` (poppler-utils) | konversi PDF → gambar | tab Konversi untuk PDF dinonaktifkan |
 | `docker` | tab Docker (ps/images/logs + kontrol container) | tab menampilkan pesan error; aksi start/stop/restart/hapus gagal dengan pesan jelas |
@@ -204,6 +206,15 @@ Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas dipu
 - Berkas rusak atau terkunci password menghasilkan pesan seperti "Berkas terkunci password, tidak bisa diproses", bukan halaman kosong.
 
 Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil di kanan, masing-masing dengan pratinjau besar (gambar tampil penuh, klik untuk ukuran asli), ukuran berkas, dan tombol unduh. Konversi yang melibatkan PDF tidak menampilkan isi, hanya info berkas.
+
+## Storage Monitor
+
+- Memindai folder root pertama dari `ST_FS_ROOTS` (default home) sampai **2 level**. Folder sistem `snap` dan `lost+found` dilewati.
+- Scan dipecah per folder top-level dan dijalankan paralel (`du -x -0 -B1 --max-depth=1`), jadi home 58 GB selesai sekitar 20–30 detik. Hasil di-cache 5 menit; tombol **Pindai ulang** memaksa scan baru.
+- Tampilan: kartu total + sisa disk, **treemap SVG** (tanpa dependency), dan tree yang bisa diurutkan berdasarkan ukuran/nama. Baris bisa dibuka untuk melihat anak folder.
+- **Hapus** hanya muncul untuk nama folder yang masuk allowlist: `node_modules`, `temp`, `.cache`, `dist`, `build`, `target`, `vendor`, `coverage`, dan cache build lain. Path tetap dicek lewat `ST_FS_ROOTS` + symlink, jadi bukan hapus path bebas.
+- **Bersihkan Docker** menjalankan `docker system prune -f` (fixed command, tanpa input pengguna) dan menampilkan outputnya. Volume tidak dihapus karena tidak memakai `--volumes`.
+- Endpoint: `GET /api/storage/usage?refresh=1`, `POST /api/storage/delete` `{ path }`, `POST /api/storage/docker-prune`.
 
 ## Dev Space
 
@@ -373,6 +384,7 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Semua request pengubah (`POST/PUT/DELETE`) wajib menyertakan header `X-ST-CSRF: 1`.
 - Login dibatasi 6 percobaan per 10 menit per IP.
 - Semua path File Explorer dipaksa berada di dalam `ST_FS_ROOTS`, termasuk pemeriksaan symlink (tidak bisa kabur lewat `..` atau link).
+- Hapus di Storage Monitor hanya menerima nama folder yang ada di allowlist (`node_modules`, `temp`, cache build). Path tetap dijail ke root pertama `ST_FS_ROOTS`; Docker prune selalu memakai argumen tetap, tanpa input pengguna.
 - Proxy URL hanya boleh ke `localhost`/IP privat; `169.254.x.x` (metadata cloud) dan host publik ditolak kecuali diaktifkan.
 - Downloader hanya menerima host YouTube/Facebook/Bilibili (allowlist domain, bukan suffix palsu), memakai argumen yt-dlp tetap (tanpa shell), dan menghapus file temp setelah stream. Endpoint tetap butuh sesi; POST butuh `X-ST-CSRF`.
 - Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini.
@@ -394,7 +406,7 @@ super-tool/
 │   │       ├── config.ts    # semua env di satu tempat
 │   │       ├── app.module.ts
 │   │       ├── common/      # db (sqlite), token, fs-jail, net-guard
-│   │       └── modules/     # auth, notes, files, ports, nginx, proxy, downloader
+│   │       └── modules/     # auth, notes, files, storage, ports, nginx, proxy, downloader
 │   └── web/                 # React + Vite + Tailwind
 │       └── src/
 │           ├── App.tsx      # shell + sidebar + auth gate
@@ -416,7 +428,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 | `pnpm build` | Build frontend lalu backend |
 | `pnpm start` | Jalankan hasil build |
 | `pnpm typecheck` | `tsc --noEmit` di semua paket |
-| `pnpm check` | Build + uji mandiri (token HMAC, pembatas path, allowlist downloader) |
+| `pnpm check` | Build + uji mandiri (token HMAC, pembatas path, parser du/allowlist storage, allowlist downloader) |
 
 ## Batasan yang diketahui
 
@@ -435,6 +447,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **Konversi PDF → gambar**: memecah 3 halaman pertama per proses, butuh `pdftoppm`. Hasilnya gambar per halaman, bukan PDF baru.
 - **Cron**: mengubah crontab user yang menjalankan server; butuh izin tulis ke `/var/spool/cron`. Di sandbox/container tanpa cron, penulisan ditolak dengan pesan jelas.
 - **DNS lookup**: lokasi server memakai ip-api.com (HTTP, tanpa API key) sehingga butuh internet; tanpa internet record DNS tetap tampil.
+- **Storage Monitor**: scan pertama membaca metadata seluruh isi home, jadi di home puluhan GB butuh puluhan detik; hasil di-cache 5 menit. Kedalaman tree 2 level, folder yang tidak bisa dibaca ditandai peringatan, dan angka memakai blok disk (bukan ukuran logis). Docker prune hanya menghapus objek tidak terpakai (tanpa volume).
 - **Docker**: start/stop/restart/hapus container tersedia langsung dari daftar. Hapus memakai `docker rm -f` dan minta konfirmasi; aksi hanya menerima ID/ nama container yang tervalidasi, tanpa shell. Pembuatan container, pull image, dan Docker Compose belum termasuk.
 - **HTTP Client**: mengizinkan host publik seperti curl, kecuali alamat metadata cloud. Cookie dan otentikasi tidak disimpan antar request.
 

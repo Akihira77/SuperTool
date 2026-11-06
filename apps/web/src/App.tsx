@@ -35,6 +35,7 @@ const TOOLS: Array<Tool & { key: string }> = [
   { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', group: 'build', component: lazy(() => import('./tools/CompressTool')) },
   { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', group: 'build', component: lazy(() => import('./tools/DownloaderTool')) },
   { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', group: 'ops', component: lazy(() => import('./tools/DevSpaceTool')) },
+  { key: 'nav.storage', id: 'storage', label: 'Storage Monitor', desc: 'Pemakaian disk & bersihkan', icon: 'storage', group: 'ops', component: lazy(() => import('./tools/StorageTool')) },
   { key: 'nav.nginx', id: 'nginx', label: 'Nginx', desc: 'Edit konfigurasi', icon: 'nginx', group: 'ops', component: lazy(() => import('./tools/NginxTool')) },
   { key: 'nav.ports', id: 'ports', label: 'Port', desc: 'App yang sedang jalan', icon: 'ports', group: 'ops', component: lazy(() => import('./tools/PortsTool')) },
   { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', group: 'ops', component: lazy(() => import('./tools/WebhookTool')) },

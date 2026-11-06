@@ -13,6 +13,8 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { all, one, recentPaths, run } from '../../common/db';
+import { StorageUsageController } from './storage-usage.controller';
+import { StorageUsageService } from './storage-usage.service';
 
 type UrlRow = { id: string; name: string; url: string; proxy: number; createdAt: number };
 type UrlView = { id: string; name: string; url: string; proxy: boolean; createdAt: number };
@@ -84,5 +86,8 @@ export class RecentController {
   }
 }
 
-@Module({ controllers: [UrlsController, RecentController] })
+@Module({
+  controllers: [UrlsController, RecentController, StorageUsageController],
+  providers: [StorageUsageService],
+})
 export class StorageModule {}
