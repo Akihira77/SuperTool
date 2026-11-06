@@ -11,7 +11,19 @@ export type Note = {
 };
 
 export type NoteSearchScope = 'all' | 'title' | 'body';
-export type NoteListItem = Omit<Note, 'body'> & { snippet?: string };
+export type NoteListItem = Omit<Note, 'body'> & { snippet?: string; matches?: number };
+
+function countMatches(text: string, query: string): number {
+  const target = query.toLowerCase();
+  const haystack = text.toLowerCase();
+  let count = 0;
+  let index = 0;
+  while ((index = haystack.indexOf(target, index)) >= 0) {
+    count += 1;
+    index += target.length;
+  }
+  return count;
+}
 
 /** Potongan isi di sekitar kata yang dicari, untuk hasil pencarian. */
 function bodySnippet(body: string, query: string): string | undefined {
@@ -46,9 +58,14 @@ export class NotesService {
       `SELECT id, title, body, created_at AS createdAt, updated_at AS updatedAt FROM notes WHERE ${where} ORDER BY updated_at DESC`,
       ...params,
     );
-    return rows.map(({ body, ...note }) =>
-      mode === 'title' ? note : { ...note, snippet: bodySnippet(body, q) },
-    );
+    return rows.map(({ body, ...note }) => {
+      // Hitungan mengikuti isi yang dicari: judul untuk mode judul, body untuk
+      // mode isi/semua. Dengan begitu angka di listing sama dengan total jump.
+      const matches = mode === 'title' ? countMatches(note.title, q) : countMatches(body, q);
+      return mode === 'title'
+        ? { ...note, matches }
+        : { ...note, matches, snippet: bodySnippet(body, q) };
+    });
   }
 
   async get(id: string): Promise<Note> {

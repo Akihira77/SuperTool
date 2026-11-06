@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
@@ -7,7 +7,7 @@ import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
 
-type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string };
+type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string; matches?: number };
 type Note = NoteMeta & { body: string };
 type SearchScope = 'all' | 'title' | 'body';
 
@@ -17,25 +17,47 @@ const SCOPE_OPTIONS = [
   { value: 'body', label: 'notes.searchBody' },
 ] as const;
 
+function countMatches(text: string, query: string): number {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return 0;
+  const haystack = text.toLowerCase();
+  let count = 0;
+  let index = 0;
+  while ((index = haystack.indexOf(needle, index)) >= 0) {
+    count += 1;
+    index += needle.length;
+  }
+  return count;
+}
+
 /** Sorot semua kemunculan kata pencarian di potongan isi catatan. */
-function Highlight({ text, query, editor = false }: { text: string; query: string; editor?: boolean }) {
+function Highlight({ text, query, editor = false, activeIndex }: { text: string; query: string; editor?: boolean; activeIndex?: number }) {
   const needle = query.trim();
   if (!needle) return <>{text}</>;
   const haystack = text.toLowerCase();
   const target = needle.toLowerCase();
   const parts: ReactNode[] = [];
   let cursor = 0;
+  let match = 0;
   let index = haystack.indexOf(target);
   while (index >= 0) {
     if (index > cursor) parts.push(text.slice(cursor, index));
+    const current = editor && activeIndex === match;
     parts.push(
       <mark
         key={index}
-        className={editor ? 'rounded-[2px] bg-accent/30 text-transparent' : 'rounded bg-accent/30 px-0.5 text-ink'}
+        className={
+          editor
+            ? current
+              ? 'rounded-[2px] bg-warn/50 text-transparent'
+              : 'rounded-[2px] bg-accent/30 text-transparent'
+            : 'rounded bg-accent/30 px-0.5 text-ink'
+        }
       >
         {text.slice(index, index + needle.length)}
       </mark>,
     );
+    match += 1;
     cursor = index + needle.length;
     index = haystack.indexOf(target, cursor);
   }
@@ -56,12 +78,19 @@ export default function NotesTool() {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<SearchScope>('all');
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [matchIndex, setMatchIndex] = useState(0);
+  const [jumpTick, setJumpTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
   const searchStarted = useRef(false);
   const scopeRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const bodyMatchCount = useMemo(
+    () => (active && query.trim() && scope !== 'title' ? countMatches(active.body, query) : 0),
+    [active, query, scope],
+  );
+  const activeMatch = bodyMatchCount ? matchIndex % bodyMatchCount : 0;
 
   const open = useCallback(async (id: string) => {
     const note = await api.get<Note>('/notes/' + id);
@@ -119,6 +148,27 @@ export default function NotesTool() {
   }, [active?.id, query, scope, syncHighlight]);
 
   useEffect(() => {
+    setMatchIndex(0);
+  }, [active?.id, query, scope]);
+
+  useEffect(() => {
+    if (!jumpTick || !bodyMatchCount) return;
+    const textarea = textareaRef.current;
+    const layer = highlightRef.current;
+    const mark = layer?.querySelectorAll('mark')[activeMatch] as HTMLElement | undefined;
+    if (!textarea || !layer || !mark) return;
+    const markRect = mark.getBoundingClientRect();
+    const layerRect = layer.getBoundingClientRect();
+    const top = markRect.top - layerRect.top + layer.scrollTop;
+    const target = Math.min(
+      Math.max(0, textarea.scrollHeight - textarea.clientHeight),
+      Math.max(0, top - textarea.clientHeight / 2 + markRect.height / 2),
+    );
+    textarea.scrollTop = target;
+    syncHighlight();
+  }, [jumpTick, activeMatch, bodyMatchCount, syncHighlight]);
+
+  useEffect(() => {
     if (!scopeOpen) return;
     const onPointer = (event: PointerEvent) => {
       if (!scopeRef.current?.contains(event.target as Node)) setScopeOpen(false);
@@ -169,6 +219,12 @@ export default function NotesTool() {
       if (list.length) await open(list[0].id);
       else setActive(null);
     }
+  };
+
+  const jumpNext = () => {
+    if (!bodyMatchCount) return;
+    setMatchIndex((prev) => (prev + 1) % bodyMatchCount);
+    setJumpTick((prev) => prev + 1);
   };
 
   return (
@@ -261,7 +317,14 @@ export default function NotesTool() {
                       <Highlight text={note.snippet} query={query} />
                     </div>
                   ) : null}
-                  <div className="text-[11px] text-muted">{timeAgo(note.updatedAt)}</div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted">{timeAgo(note.updatedAt)}</span>
+                    {typeof note.matches === 'number' && note.matches > 0 ? (
+                      <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[9.5px] font-medium text-accent">
+                        {note.matches} {t('notes.matches')}
+                      </span>
+                    ) : null}
+                  </div>
                 </button>
               ))
             )}
@@ -280,6 +343,23 @@ export default function NotesTool() {
                   placeholder={t('notes.titlePlaceholder')}
                 />
                 <span className="text-[11px] text-muted">{active.body.length} {t('notes.characters')}</span>
+                {bodyMatchCount ? (
+                  <div className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-panel2/50 px-1.5 py-0.5">
+                    <span className="mono text-[10.5px] tabular-nums text-muted">
+                      {activeMatch + 1}/{bodyMatchCount}
+                    </span>
+                    <button
+                      type="button"
+                      data-action="notes:jump"
+                      onClick={jumpNext}
+                      className="grid size-5 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                      title={t('notes.jumpNext')}
+                      aria-label={t('notes.jumpNext')}
+                    >
+                      <Icon name="chevronDown" size={11} />
+                    </button>
+                  </div>
+                ) : null}
                 <button type="button" className="btn btn-danger" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>
@@ -291,7 +371,7 @@ export default function NotesTool() {
                     aria-hidden="true"
                     className="pointer-events-none absolute top-0 left-0 w-full overflow-hidden p-5 text-[14px] leading-7 break-words whitespace-pre-wrap text-transparent md:p-6"
                   >
-                    <Highlight text={active.body} query={query} editor />
+                    <Highlight text={active.body} query={query} editor activeIndex={activeMatch} />
                   </div>
                 ) : null}
                 <textarea
