@@ -72,7 +72,7 @@ Catatan:
 
 ## Storage Monitor
 
-Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level; `snap`/`lost+found` dilewati. Scan per folder top-level berjalan paralel dengan timeout 5 menit per folder; hasilnya di-cache 30 menit di tabel `storage_cache` SQLite dan bertahan setelah restart.
+Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level; `snap`/`lost+found` dilewati. Scan per folder top-level berjalan paralel dengan timeout 5 menit per folder; scan bersifat on-demand (tanpa cron), hasilnya di-cache 6 jam di tabel `storage_cache` SQLite dan bertahan setelah restart.
 
 | Metode | Path | Query/Body | Hasil |
 |--------|------|------------|-------|

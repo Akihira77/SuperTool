@@ -12,9 +12,9 @@ import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
 
 const exec = promisify(execFile);
-// Cache 30 menit: scan bisa puluhan detik, dan tombol "Pindai ulang" tetap
-// memaksa data segar. Cache disimpan di SQLite supaya bertahan setelah restart.
-const CACHE_MS = 30 * 60_000;
+// Scan hanya saat diminta (menu dibuka / tombol Pindai ulang), bukan cron.
+// Cache 6 jam disimpan di SQLite supaya scan 20-30 detik tidak diulang tiap buka.
+const CACHE_MS = 6 * 60 * 60_000;
 // Folder besar (mis. home 58 GB) bisa lebih dari 45 detik; beri ruang lebih.
 const FOLDER_TIMEOUT_MS = 5 * 60_000;
 const SCAN_CONCURRENCY = 8;

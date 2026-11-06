@@ -66,7 +66,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | auth | `auth.service.ts`, `auth.guard.ts` | login, ganti password, verifikasi sesi |
 | notes | `notes.service.ts` | CRUD catatan + serialisasi tulis |
 | files | `files.service.ts`, `mime.ts`, `office.ts`, `zip.ts` | list, read, write, mkdir, rename, delete, upload, search, du, grep isi berkas, pratinjau + edit OOXML/ODF, kirim berkas dengan HTTP Range |
-| storage | `storage-usage.service.ts`, `storage-usage.controller.ts` | scan home 2 level dengan `du` per folder paralel (timeout 5 menit) + cache 30 menit di tabel `storage_cache`, tree/treemap, salin path, hapus folder allowlist, `docker system prune -f` |
+| storage | `storage-usage.service.ts`, `storage-usage.controller.ts` | scan home 2 level on-demand dengan `du` per folder paralel (timeout 5 menit) + cache 6 jam di tabel `storage_cache`, tree/treemap klik-ke-daftar, salin path, hapus folder allowlist, `docker system prune -f` |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
 | proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |

@@ -102,17 +102,41 @@ function layout(nodes: UsageNode[], box: Box): Array<{ node: UsageNode; box: Box
   return [...layout(firstNodes, { ...box, h: top }), ...layout(restNodes, { ...box, y: box.y + top, h: box.h - top })];
 }
 
-function Treemap({ nodes, total, label }: { nodes: UsageNode[]; total: number; label: string }) {
+function Treemap({
+  nodes,
+  total,
+  label,
+  onSelect,
+}: {
+  nodes: UsageNode[];
+  total: number;
+  label: string;
+  onSelect: (path: string) => void;
+}) {
   const [hover, setHover] = useState<string | null>(null);
   const boxes = layout(ordered(nodes, 'size'), { x: 0, y: 0, w: 1000, h: 360 });
   if (!boxes.length || total <= 0) return null;
   return (
-    <svg viewBox="0 0 1000 360" className="aspect-[1000/360] w-full" role="img" aria-label={label}>
+    <svg viewBox="0 0 1000 360" className="aspect-[1000/360] w-full" role="group" aria-label={label}>
       {boxes.map(({ node, box }, index) => {
         const showName = box.w > 46 && box.h > 20;
         const showSize = box.w > 88 && box.h > 38;
         return (
-          <g key={node.path} onMouseEnter={() => setHover(node.path)} onMouseLeave={() => setHover(null)}>
+          <g
+            key={node.path}
+            role="button"
+            tabIndex={0}
+            aria-label={node.name + ' · ' + bytes(node.size)}
+            className="cursor-pointer outline-none focus-visible:opacity-100"
+            onMouseEnter={() => setHover(node.path)}
+            onMouseLeave={() => setHover(null)}
+            onClick={() => onSelect(node.path)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              onSelect(node.path);
+            }}
+          >
             <title>{node.name + ' · ' + bytes(node.size)}</title>
             <rect
               x={box.x + 1}
@@ -161,6 +185,7 @@ export default function StorageTool() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dockerBusy, setDockerBusy] = useState(false);
   const [dockerOutput, setDockerOutput] = useState('');
+  const [activePath, setActivePath] = useState<string | null>(null);
 
   const load = useCallback(async (force = false) => {
     setLoading(true);
@@ -245,6 +270,15 @@ export default function StorageTool() {
     });
   };
 
+  const focusPath = (path: string) => {
+    const row = Array.from(document.querySelectorAll<HTMLElement>('[data-storage-path]')).find(
+      (element) => element.dataset.storagePath === path,
+    );
+    if (!row) return;
+    setActivePath(path);
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const renderNode = (node: UsageNode, depth: number) => {
     const children = node.children ? ordered(node.children, sort) : [];
     const open = expanded.has(node.path);
@@ -253,9 +287,10 @@ export default function StorageTool() {
     return (
       <Fragment key={node.path}>
         <div
+          data-storage-path={node.path}
           className={cn(
             'group flex items-center gap-2 border-b border-line/50 px-2 py-1.5 text-[12.5px] transition-colors hover:bg-panel2/60',
-            depth === 0 ? 'bg-panel/30' : '',
+            activePath === node.path ? 'bg-accent/10 ring-1 ring-inset ring-accent/40' : depth === 0 ? 'bg-panel/30' : '',
           )}
           style={{ paddingLeft: 8 + depth * 18 }}
         >
@@ -386,7 +421,7 @@ export default function StorageTool() {
                 <span className="text-[10.5px] text-muted">{tree.length} {t('storage.topLevel')}</span>
               </div>
               <div className="p-2">
-                <Treemap nodes={tree} total={data.total} label={t('storage.treemapAria')} />
+                <Treemap nodes={tree} total={data.total} label={t('storage.treemapAria')} onSelect={focusPath} />
               </div>
             </section>
 
