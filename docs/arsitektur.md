@@ -94,7 +94,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/json2ts.ts` | Inferensi tipe: nama dari key, gabung bentuk array, penanda `?` untuk field yang tidak selalu ada |
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
-| `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda); judul event di grid, modal detail (WIB/WITA/WIT), rentang bulan berjalan, form Tambah Event, connect/reconnect OAuth, Sync + auto-refresh 5 menit, mapping all-day |
+| `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda); judul event di grid, modal detail (WIB/WITA/WIT), rentang bulan berjalan, form Tambah Event, connect/reconnect OAuth, Sync + auto-refresh 5 menit, mapping all-day; pengingat pop-up + bell 1 jam/30/15 menit dengan pilihan tersimpan di `localStorage` |
 | `tools/DownloaderTool.tsx` | Cek link dulu (`/downloader/info`: judul/thumbnail/durasi/resolusi), lalu pilih resolusi/audio-only dan Download; POST `/downloader/proxy`; Chrome/Edge stream ke File System Access, fallback blob; status proses & cancel |
 | `tools/calendar.css` | Override tema `react-big-calendar` dengan token warna/font Super Tool; hanya dimuat di halaman Calendar |
 | `lib/prayer.ts` | Setelan sholat manual di `localStorage` (`st:prayer`), daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio; tanpa geolocation |

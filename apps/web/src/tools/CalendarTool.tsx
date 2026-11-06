@@ -18,6 +18,15 @@ import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { safeExternalUrl, sanitizeEventHtml } from '../lib/safe-html';
+import { playChime } from '../lib/chime';
+import {
+  NOTIFIED_KEY,
+  REMIND_KEY,
+  dueReminders,
+  eventIdentity,
+  notifyKey,
+  readRemindBefore,
+} from '../lib/calendar-reminder';
 
 type GoogleDate = { date?: string; dateTime?: string; timeZone?: string };
 type CalendarPerson = {
@@ -50,6 +59,8 @@ type CalendarResponse = { calendarId: string; account?: string; timeMin: string;
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
 type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; isHoliday: boolean; tone: number; resource: CalendarEvent };
 type EventForm = { summary: string; start: string; end: string; location: string; description: string };
+
+const REMINDER_CHECK_MS = 15_000;
 
 const localizer = dayjsLocalizer(dayjs);
 const VIEWS: View[] = ['month', 'week', 'agenda'];
@@ -248,8 +259,11 @@ export default function CalendarTool() {
   const [form, setForm] = useState<EventForm>(() => defaultEventForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [remindBefore, setRemindBefore] = useState(readRemindBefore);
+  const [reminders, setReminders] = useState<CalendarEvent[]>([]);
   const booted = useRef(false);
   const fetching = useRef(false);
+  const notified = useRef<Set<string>>(new Set());
   const locale = lang === 'id' ? 'id-ID' : 'en-US';
 
   const errorText = (message: string): string => {
@@ -325,6 +339,54 @@ export default function CalendarTool() {
     const id = window.setInterval(() => void fetchEvents(false), AUTO_REFRESH_MS);
     return () => window.clearInterval(id);
   }, [fetchEvents]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REMIND_KEY, String(remindBefore));
+    } catch {
+      // localStorage diblokir; pengingat tetap jalan untuk sesi ini.
+    }
+    if (remindBefore === 0) setReminders([]);
+  }, [remindBefore]);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(NOTIFIED_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      if (Array.isArray(parsed)) {
+        notified.current = new Set(parsed.filter((item): item is string => typeof item === 'string'));
+      }
+    } catch {
+      // Abaikan data notifikasi yang rusak.
+    }
+  }, []);
+
+  // Cek tiap 15 detik supaya event yang baru masuk jendela pengingat tidak
+  // menunggu refresh 5 menit. Satu event hanya diberitahu sekali per sesi.
+  useEffect(() => {
+    if (remindBefore <= 0) return;
+    const check = () => {
+      const now = Date.now();
+      const lead = remindBefore * 60_000;
+      const due = dueReminders(events, lead, now);
+      const fresh = due.filter(({ event, start }) => !notified.current.has(notifyKey(event, start)));
+      if (!fresh.length) return;
+      for (const { event, start } of fresh) notified.current.add(notifyKey(event, start));
+      try {
+        sessionStorage.setItem(NOTIFIED_KEY, JSON.stringify([...notified.current].slice(-500)));
+      } catch {
+        // Penyimpanan sesi opsional.
+      }
+      setReminders((current) => {
+        const seen = new Set(current.map(eventIdentity));
+        return [...current, ...fresh.map(({ event }) => event).filter((event) => !seen.has(eventIdentity(event)))];
+      });
+      playChime();
+    };
+    check();
+    const id = window.setInterval(check, REMINDER_CHECK_MS);
+    return () => window.clearInterval(id);
+  }, [events, remindBefore]);
 
   useEffect(() => {
     dayjs.locale(lang);
@@ -535,9 +597,43 @@ export default function CalendarTool() {
     ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(selected.resource.location)
     : '';
 
+  const reminder = reminders[0] ?? null;
+  const reminderStart = reminder ? parseDate(reminder.start) : null;
+  const reminderEvent = reminder
+    ? rbcEvents.find((event) => event.id === reminder.id) ?? toRbcEvent(reminder, t('calendar.noTitle'))
+    : null;
+  const reminderMinutes = reminderStart
+    ? Math.max(1, Math.ceil((reminderStart.getTime() - Date.now()) / 60_000))
+    : 0;
+
+  const openReminder = () => {
+    if (reminderEvent) setSelected(reminderEvent);
+    setReminders((current) => current.slice(1));
+  };
+
+  const dismissReminder = () => setReminders((current) => current.slice(1));
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('calendar.title')} subtitle={subtitle} icon="calendar">
+        <label
+          className="flex items-center gap-1.5 rounded-lg border border-line bg-panel/50 px-2 py-1 text-[11px] text-muted"
+          title={t('calendar.remindHint')}
+        >
+          <Icon name="bell" size={13} className={remindBefore > 0 ? 'text-accent' : ''} />
+          <span className="hidden lg:inline">{t('calendar.remind')}</span>
+          <select
+            className="cursor-pointer border-0 bg-transparent p-0 pr-1 text-[11px] text-ink outline-none"
+            value={remindBefore}
+            onChange={(event) => setRemindBefore(Number(event.target.value))}
+            aria-label={t('calendar.remind')}
+          >
+            <option value={60}>{t('calendar.remind1h')}</option>
+            <option value={30}>{t('calendar.remind30m')}</option>
+            <option value={15}>{t('calendar.remind15m')}</option>
+            <option value={0}>{t('calendar.remindOff')}</option>
+          </select>
+        </label>
         <button type="button" className="btn btn-primary" onClick={openComposer} disabled={phase !== 'ready' || busy || !writeScope}>
           <Icon name="plus" />
           {t('calendar.addEvent')}
@@ -646,6 +742,52 @@ export default function CalendarTool() {
           </div>
         )}
       </div>
+
+      {reminder && reminderEvent ? (
+        <div
+          role="alertdialog"
+          aria-live="assertive"
+          aria-labelledby="calendar-reminder-title"
+          className="fixed right-4 bottom-4 z-[100] w-[min(380px,calc(100vw-2rem))] rounded-xl border border-accent/35 bg-panel p-3 shadow-2xl"
+        >
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <Icon name="bell" size={16} className="animate-pulse" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+                {t('calendar.reminderTitle')}
+              </div>
+              <div id="calendar-reminder-title" className="mt-0.5 text-[13px] font-semibold break-words">
+                {reminderEvent.title}
+              </div>
+              <div className="mt-0.5 text-[11px] text-muted">
+                {t('calendar.reminderIn').replace('{n}', String(reminderMinutes))}
+              </div>
+              <div className="mt-0.5 text-[10.5px] text-muted">
+                {eventWhen(reminderEvent, locale, t('calendar.allDay'))}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost shrink-0 px-1.5 py-0.5"
+              onClick={dismissReminder}
+              title={t('common.close')}
+              aria-label={t('common.close')}
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          <div className="mt-2.5 flex justify-end gap-2">
+            <button type="button" className="btn px-2 py-1 text-[11px]" onClick={dismissReminder}>
+              {t('common.close')}
+            </button>
+            <button type="button" className="btn btn-primary px-2 py-1 text-[11px]" onClick={openReminder}>
+              {t('calendar.reminderOpen')}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {selected ? (
         <div

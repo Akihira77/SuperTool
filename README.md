@@ -19,7 +19,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
 | 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
-| 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit |
+| 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit, pengingat pop-up + bell 1 jam/30/15 menit |
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 | 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
@@ -265,7 +265,7 @@ Request muncul di daftar tanpa refresh (SSE `/api/webhook/stream`), klik satu it
 
 ## Google Calendar
 
-Integrasi baca-tulis ke Google Calendar. Menu **Calendar** menampilkan event sekitar bulan berjalan dalam kalender visual (bulan/minggu/agenda), detail event, dan form **Tambah Event**.
+Integrasi baca-tulis ke Google Calendar. Menu **Calendar** menampilkan event sekitar bulan berjalan dalam kalender visual (bulan/minggu/agenda), detail event, form **Tambah Event**, serta pengingat pop-up + bell untuk event terdekat.
 
 Setup:
 
@@ -297,6 +297,7 @@ Halaman Calendar:
 - Klik event membuka **modal detail**: judul, waktu mulai–selesai dengan label **WIB/WITA/WIT** sesuai zona waktu perangkat (sama dengan jam di header), lokasi, deskripsi, dan tautan ke Google Calendar. Escape/klik latar menutup modal.
 - Toolbar (Hari ini/Sebelumnya/Berikutnya + pilihan view) mengikuti bahasa ID/EN. Warna event, border, dan font memakai token tema Super Tool lewat `tools/calendar.css`.
 - Tombol **Sync** di header memuat ulang data, dan halaman juga **auto-refresh setiap 5 menit** selama Calendar terbuka. Kalau rentang tidak punya event, kalender tetap tampil dengan tombol Tambah Event.
+- Dropdown **Ingatkan** di header: 1 jam, 30 menit, 15 menit sebelum event, atau **Nonaktif**. Pilihan disimpan di `localStorage` (`st:calendar:remind`). Pengingat dicek tiap 15 detik, menampilkan pop-up dengan judul/waktu event dan membunyikan bell Web Audio. Event yang sama hanya diberitahu sekali per sesi tab (`sessionStorage`). Event sepanjang hari belum diingatkan karena tidak punya jam mulai; pengingat hanya aktif selama halaman Calendar terbuka.
 
 Belum ada tombol "putuskan kalender"; hubungkan ulang akan menimpa token. Untuk menghapus total, hapus baris `google_tokens` lewat SQLite Viewer, lalu cabut akses aplikasi di myaccount.google.com/permissions.
 
