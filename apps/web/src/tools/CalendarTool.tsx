@@ -626,7 +626,12 @@ export default function CalendarTool() {
             className="input h-6 cursor-pointer border-0 py-0 pr-6 pl-1 text-[11px] shadow-none focus:ring-0"
             style={{ width: 'auto', colorScheme: 'dark', background: 'var(--color-panel2)', color: 'var(--color-ink)' }}
             value={remindBefore}
-            onChange={(event) => setRemindBefore(Number(event.target.value))}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              if (value === remindBefore) return;
+              setRemindBefore(value);
+              toast(t(value === 0 ? 'calendar.reminderOff' : 'calendar.reminderUpdated'), 'ok');
+            }}
             aria-label={t('calendar.remind')}
           >
             <option value={60}>{t('calendar.remind1h')}</option>
