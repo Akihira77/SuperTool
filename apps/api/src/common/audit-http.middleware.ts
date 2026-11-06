@@ -28,6 +28,13 @@ function fileMeta(req: Request & { file?: { fieldname?: string; originalname?: s
 
 export function auditHttp(service: AuditService): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
+    // Request baca (GET/HEAD/OPTIONS) tidak mengubah state dan hanya membuat
+    // audit penuh noise; abaikan. Mutasi tetap dicatat sampai response selesai.
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      next();
+      return;
+    }
+
     const started = Date.now();
     let logged = false;
 

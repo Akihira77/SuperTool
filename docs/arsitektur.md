@@ -75,7 +75,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip` lalu ganti DB aktif |
 | webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |
 | telegram | `telegram.service.ts`, `telegram.module.ts` | bot long polling: download URL → dokumen Telegram/0x0.st (video tidak auto-play), `/compress` gambar/PDF lewat `CompressService`, allowlist chat ID |
-| audit | `audit.service.ts`, `audit.controller.ts`, `common/audit-http.middleware.ts` | catat semua request API dan aksi Telegram ke `audit_log`: payload, actor, fitur, status, durasi, IP/user agent; UI di Dev Space → Audit Log |
+| audit | `audit.service.ts`, `audit.controller.ts`, `common/audit-http.middleware.ts` | catat request API pengubah state (POST/PUT/PATCH/DELETE) dan aksi Telegram ke `audit_log`: payload, actor, fitur, status, durasi, IP/user agent; GET/HEAD/OPTIONS diabaikan; UI di Dev Space → Audit Log |
 | calendar | `calendar.service.ts`, `calendar.controller.ts` | OAuth2 Google Calendar baca-tulis: URL consent + state sekali pakai, token di `google_tokens`, refresh otomatis, event semua kalender (maks 250), `events.insert` ke primary |
 | downloader | `downloader.service.ts`, `downloader.controller.ts` | yt-dlp + ffmpeg-static; allowlist host, metadata preview (`/info`), temp per request, stream `Content-Disposition` MP4/MP3, cleanup saat selesai/abort |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |

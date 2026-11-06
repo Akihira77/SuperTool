@@ -330,10 +330,10 @@ Saat pertama kali dipakai, kirim `/id` ke bot, salin ID ke `TELEGRAM_ALLOWED_CHA
 
 ## Audit Log
 
-Semua request `/api` dan aksi Telegram dicatat ke tabel `audit_log` di SQLite: timestamp, sumber (`web` / `telegram_bot`), actor, fitur, aksi, status, durasi, IP/user agent, payload, dan error. Lihat di **Dev Space → Audit Log**, atau `GET /api/audit` dengan filter `source`, `actor`, `feature`, `q`, `since`, `until`, `limit`, `offset`.
+Request API pengubah state (`POST`/`PUT`/`PATCH`/`DELETE`) dan aksi Telegram dicatat ke tabel `audit_log` di SQLite: timestamp, sumber (`web` / `telegram_bot`), actor, fitur, aksi, status, durasi, IP/user agent, payload, dan error. Request baca (`GET`/`HEAD`/`OPTIONS`) diabaikan agar audit tidak penuh noise. Lihat di **Dev Space → Audit Log**, atau `GET /api/audit` dengan filter `source`, `actor`, `feature`, `q`, `since`, `until`, `limit`, `offset`.
 
 - Payload disimpan sampai 64 KB; field sensitif seperti password, token, cookie, dan secret diredaksi.
-- Request proxy mentah dan file statis tidak masuk audit; request API yang ditolak auth tetap dicatat.
+- Request proxy mentah dan file statis tidak masuk audit; request mutasi yang ditolak auth tetap dicatat.
 - Audit ikut masuk backup SQLite. Tidak ada penghapusan otomatis, jadi bersihkan tabel secara berkala jika sudah terlalu besar.
 
 ## Widget Waktu & Jadwal Sholat

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon, cn } from '../components/ui';
 import { useI18n } from '../lib/i18n';
-import { buildDiff, type Diff, type Segment } from '../lib/textDiff';
+import { buildDiff, type Diff, type Row, type Segment } from '../lib/textDiff';
 
 function Segments({ parts, fallback }: { parts?: Segment[]; fallback: string }) {
   if (!parts) return <>{fallback}</>;
@@ -20,6 +20,45 @@ function Segments({ parts, fallback }: { parts?: Segment[]; fallback: string }) 
         );
       })}
     </>
+  );
+}
+
+function DiffSide({
+  side,
+  row,
+  locked,
+  onStart,
+}: {
+  side: 'left' | 'right';
+  row: Row;
+  locked: boolean;
+  onStart: (side: 'left' | 'right') => void;
+}) {
+  const left = side === 'left';
+  const lineNo = left ? row.leftNo : row.rightNo;
+  const text = left ? row.left : row.right;
+  const parts = left ? row.leftParts : row.rightParts;
+  const removed = left && row.kind === 'removed';
+  const added = !left && row.kind === 'added';
+  const changed = row.kind === 'changed';
+
+  return (
+    <div
+      className={cn(
+        'flex min-h-6 gap-2 px-2 py-0.5',
+        left && 'border-r border-line/40',
+        removed ? 'bg-bad/10' : added ? 'bg-ok/10' : changed ? (left ? 'bg-warn/5' : 'bg-ok/5') : '',
+        locked && 'select-none',
+      )}
+      onMouseDown={() => onStart(side)}
+    >
+      <span className="mono w-8 shrink-0 select-none text-right text-[10px] leading-5 text-muted/45">
+        {lineNo ?? ''}
+      </span>
+      <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-5">
+        <Segments parts={parts} fallback={text ?? ''} />
+      </div>
+    </div>
   );
 }
 
@@ -60,6 +99,17 @@ export default function TextCompare() {
   const [right, setRight] = useState('');
   const [diff, setDiff] = useState<Diff | null>(null);
   const [error, setError] = useState('');
+  const [selecting, setSelecting] = useState<'left' | 'right' | null>(null);
+
+  useEffect(() => {
+    const clear = () => setSelecting(null);
+    window.addEventListener('mouseup', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('mouseup', clear);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
 
   const stats = useMemo(() => {
     const counts = { same: 0, changed: 0, added: 0, removed: 0 };
@@ -157,32 +207,18 @@ export default function TextCompare() {
                 <div className="divide-y divide-line/40">
                   {diff.rows.map((row, index) => (
                     <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                      <div
-                        className={cn(
-                          'flex min-h-6 gap-2 border-r border-line/40 px-2 py-0.5',
-                          row.kind === 'removed' ? 'bg-bad/10' : row.kind === 'changed' ? 'bg-warn/5' : '',
-                        )}
-                      >
-                        <span className="mono w-8 shrink-0 select-none text-right text-[10px] leading-5 text-muted/45">
-                          {row.leftNo ?? ''}
-                        </span>
-                        <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-5">
-                          <Segments parts={row.leftParts} fallback={row.left ?? ''} />
-                        </div>
-                      </div>
-                      <div
-                        className={cn(
-                          'flex min-h-6 gap-2 px-2 py-0.5',
-                          row.kind === 'added' ? 'bg-ok/10' : row.kind === 'changed' ? 'bg-ok/5' : '',
-                        )}
-                      >
-                        <span className="mono w-8 shrink-0 select-none text-right text-[10px] leading-5 text-muted/45">
-                          {row.rightNo ?? ''}
-                        </span>
-                        <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-5">
-                          <Segments parts={row.rightParts} fallback={row.right ?? ''} />
-                        </div>
-                      </div>
+                      <DiffSide
+                        side="left"
+                        row={row}
+                        locked={selecting === 'right'}
+                        onStart={setSelecting}
+                      />
+                      <DiffSide
+                        side="right"
+                        row={row}
+                        locked={selecting === 'left'}
+                        onStart={setSelecting}
+                      />
                     </div>
                   ))}
                 </div>
