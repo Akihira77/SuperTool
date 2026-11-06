@@ -48,7 +48,7 @@ type CalendarEvent = {
 };
 type CalendarResponse = { calendarId: string; account?: string; timeMin: string; writeScope?: boolean; events: CalendarEvent[] };
 type Phase = 'loading' | 'disconnected' | 'ready' | 'error';
-type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; isHoliday: boolean; resource: CalendarEvent };
+type RbcEvent = { id: string; title: string; start: Date; end: Date; allDay: boolean; isHoliday: boolean; tone: number; resource: CalendarEvent };
 type EventForm = { summary: string; start: string; end: string; location: string; description: string };
 
 const localizer = dayjsLocalizer(dayjs);
@@ -71,6 +71,16 @@ function parseDate(value: GoogleDate | null | undefined): Date | null {
 }
 
 /** Google end.date eksklusif, sama seperti react-big-calendar untuk all-day. */
+const EVENT_TONES = 5;
+
+/** Warna konsisten per kalender, supaya event non-libur mudah dibedakan. */
+function eventTone(event: CalendarEvent): number {
+  const key = event.calendarId || event.calendarName ? (event.calendarId ?? '') + '|' + (event.calendarName ?? '') : event.id;
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  return hash % EVENT_TONES;
+}
+
 function toRbcEvent(event: CalendarEvent, noTitle: string): RbcEvent | null {
   const start = parseDate(event.start);
   if (!start) return null;
@@ -86,6 +96,7 @@ function toRbcEvent(event: CalendarEvent, noTitle: string): RbcEvent | null {
     end,
     allDay,
     isHoliday: isHolidayEvent(event),
+    tone: eventTone(event),
     resource: event,
   };
 }
@@ -199,8 +210,10 @@ function AttendeeStatus({ status }: { status?: string }) {
 
 /** Isi kotak event di grid: judul harus selalu terlihat, bukan cuma blok warna. */
 function EventBlock({ event }: EventProps<RbcEvent>) {
+  const calendarName = event.resource.calendarName?.trim();
+  const label = calendarName ? event.title + ' · ' + calendarName : event.title;
   return (
-    <span className={event.isHoliday ? 'rbc-event-title rbc-event-holiday-title' : 'rbc-event-title'} title={event.title}>
+    <span className={event.isHoliday ? 'rbc-event-title rbc-event-holiday-title' : 'rbc-event-title'} title={label}>
       {event.title}
     </span>
   );
@@ -470,7 +483,7 @@ export default function CalendarTool() {
   );
 
   const eventPropGetter = useCallback(
-    (event: RbcEvent) => (event.isHoliday ? { className: 'rbc-holiday-event' } : {}),
+    (event: RbcEvent) => ({ className: event.isHoliday ? 'rbc-holiday-event' : 'rbc-event-tone-' + event.tone }),
     [],
   );
 
