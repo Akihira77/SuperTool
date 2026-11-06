@@ -191,11 +191,20 @@ export class StorageUsageService {
     const byPath = new Map<string, UsageNode>();
     let timedOut = false;
     let unreadable = false;
+    let unreadableDetail = '';
     for (let index = 0; index < dirs.length; index += 1) {
       const run = runs[index];
       if (!run) continue;
       if (run.timedOut) timedOut = true;
-      if (run.code !== 0) unreadable = true;
+      if (run.code !== 0) {
+        unreadable = true;
+        if (!unreadableDetail) {
+          unreadableDetail = run.stderr
+            .split('\n')
+            .map((line) => line.trim())
+            .find(Boolean) ?? '';
+        }
+      }
       for (const entry of parseDuOutput(run.raw, dirs[index])) {
         const rel = relative(root, entry.path);
         if (!rel || rel.startsWith('..')) continue;
@@ -242,9 +251,15 @@ export class StorageUsageService {
     walk(tree);
 
     let warning: string | undefined;
-    if (timedOut) warning = 'Sebagian folder terlalu lama dipindai; ukuran bisa belum lengkap.';
-    else if (unreadable) warning = 'Sebagian folder tidak bisa dibaca; ukuran bisa belum lengkap.';
-    else if (truncated) warning = 'Daftar dipotong agar UI tetap responsif; ukuran total tetap dihitung.';
+    if (timedOut) {
+      warning = 'Sebagian folder terlalu lama dipindai; ukuran bisa belum lengkap.';
+      if (unreadable) warning += ' Sebagian folder juga tidak bisa dibaca.';
+    } else if (unreadable) {
+      const detail = unreadableDetail.replace(/^du:\s*/, '').slice(0, 220);
+      warning = 'Sebagian folder tidak bisa dibaca' + (detail ? ': ' + detail : '') + '; ukuran bisa belum lengkap.';
+    } else if (truncated) {
+      warning = 'Daftar dipotong agar UI tetap responsif; ukuran total tetap dihitung.';
+    }
 
     const disk = await statfs(root)
       .then((info) => ({

@@ -211,6 +211,7 @@ Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil
 
 - Memindai folder root pertama dari `ST_FS_ROOTS` (default home) sampai **2 level**. Folder sistem `snap` dan `lost+found` dilewati.
 - Scan dipecah per folder top-level dan dijalankan paralel (`du -x -0 -B1 --max-depth=1`), jadi home 58 GB selesai sekitar 20–30 detik. Timeout per folder 5 menit dan batas output 8 MB supaya folder besar tidak terpotong terlalu cepat. Hasil di-cache **30 menit di tabel `storage_cache` SQLite** (bertahan setelah restart); tombol **Pindai ulang** memaksa scan baru. Cache dibuang setelah hapus folder atau Docker prune.
+- Kalau ada folder tanpa izin baca (mis. volume Docker milik `nobody`), warning menyebut path penyebabnya. Scan tetap selesai, tetapi isi folder tersebut tidak masuk total karena `du` tidak bisa membacanya.
 - Tampilan: kartu total + sisa disk, **treemap SVG** (tanpa dependency), dan tree yang bisa diurutkan berdasarkan ukuran/nama. Baris bisa dibuka untuk melihat anak folder. Setiap baris punya **Salin path**; **Hapus** hanya muncul untuk nama folder yang masuk allowlist.
 - **Hapus** hanya untuk nama folder yang masuk allowlist: `node_modules`, `temp`, `.cache`, `dist`, `build`, `target`, `vendor`, `coverage`, dan cache build lain. Path tetap dicek lewat `ST_FS_ROOTS` + symlink, jadi bukan hapus path bebas.
 - **Bersihkan Docker** menjalankan `docker system prune -f` (fixed command, tanpa input pengguna) dan menampilkan outputnya. Volume tidak dihapus karena tidak memakai `--volumes`.
