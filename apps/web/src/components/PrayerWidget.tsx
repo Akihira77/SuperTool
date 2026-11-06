@@ -17,7 +17,8 @@ import {
 
 const ALERT_VISIBLE_MS = 20_000;
 const SOON_MS = 30 * 60_000;
-const JUST_PASSED_MS = 10 * 60_000;
+const THROB_BEFORE_MS = 15 * 60_000;
+const THROB_AFTER_MS = 10 * 60_000;
 
 /**
  * Widget jam + jadwal sholat di header. Lokasi hanya dari input manual di
@@ -114,9 +115,17 @@ export function PrayerWidget() {
   const clockText = formatClock(now);
   const nowMs = now.getTime();
   const upcoming = nextPrayer(times, nowMs);
-  const justPassed = times.find((item) => nowMs >= item.at.getTime() && nowMs < item.at.getTime() + JUST_PASSED_MS) ?? null;
-  const headerNext = justPassed ?? upcoming ?? nextDayTimes[0] ?? null;
-  const headerTone = justPassed ? 'now' : headerNext && headerNext.at.getTime() - nowMs <= SOON_MS ? 'soon' : null;
+  const beforePrayer = times.find(
+    (item) => nowMs >= item.at.getTime() - THROB_BEFORE_MS && nowMs < item.at.getTime(),
+  ) ?? null;
+  const afterPrayer = times.find(
+    (item) => nowMs >= item.at.getTime() && nowMs < item.at.getTime() + THROB_AFTER_MS,
+  ) ?? null;
+  const throbTone = afterPrayer ? 'after' : beforePrayer ? 'before' : null;
+  // Jangan lompat ke sholat berikutnya sampai jendela 10 menit sesudahnya lewat.
+  const focusPrayer = afterPrayer ?? upcoming;
+  const headerNext = focusPrayer ?? nextDayTimes[0] ?? null;
+  const headerTone = throbTone ?? (headerNext && headerNext.at.getTime() - nowMs <= SOON_MS ? 'soon' : null);
   const coords = settings.lat !== null && settings.lon !== null
     ? settings.lat.toFixed(4) + ', ' + settings.lon.toFixed(4)
     : '';
@@ -130,6 +139,13 @@ export function PrayerWidget() {
 
   return (
     <div ref={rootRef} className="relative">
+      <div
+        className={cn(
+          'relative rounded-[10px]',
+          throbTone === 'after' && 'prayer-throbber prayer-throbber-after',
+          throbTone === 'before' && 'prayer-throbber prayer-throbber-before',
+        )}
+      >
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
@@ -145,8 +161,8 @@ export function PrayerWidget() {
           <span className="flex items-center gap-1.5 border-l border-line pl-1.5">
             {headerTone ? (
               <span className="relative flex size-1.5" aria-hidden="true">
-                <span className={cn('absolute inline-flex size-full animate-ping rounded-full opacity-70', headerTone === 'now' ? 'bg-ok' : 'bg-warn')} />
-                <span className={cn('relative inline-flex size-1.5 rounded-full', headerTone === 'now' ? 'bg-ok' : 'bg-warn')} />
+                <span className={cn('absolute inline-flex size-full animate-ping rounded-full opacity-70', headerTone === 'after' ? 'bg-ok' : 'bg-warn')} />
+                <span className={cn('relative inline-flex size-1.5 rounded-full', headerTone === 'after' ? 'bg-ok' : 'bg-warn')} />
               </span>
             ) : null}
             <span className="hidden text-[11px] text-muted sm:inline">{prayerLabel(headerNext.key)}</span>
@@ -155,6 +171,7 @@ export function PrayerWidget() {
         ) : null}
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} className="shrink-0 text-muted" />
       </button>
+      </div>
 
       {open ? (
         <div className="absolute top-full right-0 z-50 mt-1.5 w-72 rounded-xl border border-line bg-panel p-2 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]" role="dialog" aria-label={t('prayer.title')}>
@@ -171,7 +188,7 @@ export function PrayerWidget() {
           {times.length ? (
             <div className="flex flex-col">
               {times.map((item) => {
-                const next = upcoming?.key === item.key;
+                const next = focusPrayer?.key === item.key;
                 const passed = item.at.getTime() < now.getTime() && !next;
                 return (
                   <div

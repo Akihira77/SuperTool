@@ -87,7 +87,9 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 
 | File | Peran |
 |------|-------|
-| `App.tsx` | Gate auth (loading/anonymous/wajib-ganti/siap), sidebar, routing hash |
+| `App.tsx` | Gate auth (loading/anonymous/wajib-ganti/siap), sidebar, routing hash, pemilik state sesi |
+| `lib/sessions.ts` | Kontainer multi sesi di `localStorage` (`st:sessions:v1`): daftar, urutan, nama, sesi aktif; normalisasi data rusak; sinkron antar-tab lewat event `storage` |
+| `components/SessionTabs.tsx` | Bar tab sesi: aktifkan, rename (klik dua kali), tutup (`x`/klik tengah), drag urutkan, tombol `+` buka tool |
 | `lib/router.ts` | Router hash ~15 baris — tanpa react-router; query di hash (`#/calendar?google=connected`) dibuang saat mencocokkan id tool |
 | `lib/api.ts` | `fetch` wrapper: JSON, cookie, header CSRF, `ApiError` |
 | `lib/project.tsx` | Konteks folder proyek aktif (localStorage `st:project`) + riwayat `st:project:recent`; `useProject()` dipakai File Explorer dan Git |
@@ -100,8 +102,9 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda); judul event di grid, modal detail (WIB/WITA/WIT), rentang bulan berjalan, form Tambah Event, connect/reconnect OAuth, Sync + auto-refresh 5 menit, mapping all-day; pengingat pop-up + bell 1 jam/30/15 menit dengan pilihan tersimpan di `localStorage` |
 | `tools/DownloaderTool.tsx` | Cek link dulu (`/downloader/info`: judul/thumbnail/durasi/resolusi), lalu pilih resolusi/audio-only dan Download; POST `/downloader/proxy`; Chrome/Edge stream ke File System Access, fallback blob; status proses & cancel |
 | `tools/calendar.css` | Override tema `react-big-calendar` dengan token warna/font Super Tool; hanya dimuat di halaman Calendar |
-| `lib/prayer.ts` | Setelan sholat manual di `localStorage` (`st:prayer`), daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat, beep Web Audio; tanpa geolocation |
-| `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; tampilkan **Atur Lokasi** jika koordinat kosong; cek pengingat tiap menit |
+| `lib/prayer.ts` | Setelan sholat manual di `localStorage` (`st:prayer`), daftar 27 kota, hitung adhan (Singapore) via dynamic import, jendela pengingat; tanpa geolocation |
+| `lib/chime.ts` | AudioContext singleton; dibuka pada gesture pertama (`pointerdown`/`keydown`), lalu `playChime` me-resume context dan memutar tiga beep |
+| `components/PrayerWidget.tsx` | Widget jam 24 jam + popover jadwal di header; tampilkan **Atur Lokasi** jika koordinat kosong; cek pengingat tiap menit; throbber oranye 15 menit sebelum dan hijau 10 menit sesudah sholat, tanpa melompat ke sholat berikutnya selama jendela itu |
 | `components/PrayerSettings.tsx` | Form Settings: nama kota (label), latitude/longitude manual, dropdown kota cepat, toggle suara & pop-up |
 | `tools/SettingsTool.tsx` | Unduh backup (`/api/backup`), restore zip (modal konfirmasi + `POST /api/restore`), info database |
 | `tools/StorageTool.tsx` | Storage Monitor: kartu total/disk, treemap SVG, tree urut ukuran/nama, hapus folder allowlist dengan konfirmasi, bersihkan Docker |

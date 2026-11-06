@@ -249,3 +249,36 @@
 [data-player='dock']:fullscreen > div {
   background: rgb(15 21 28 / 0.95);
 }
+
+/* Throbber pengingat sholat: oranye 15 menit sebelum, hijau 10 menit sesudah. */
+.prayer-throbber::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  pointer-events: none;
+}
+.prayer-throbber-before::after {
+  border-color: rgb(251 191 36 / 0.8);
+  animation: prayer-throb-before 1.8s ease-in-out infinite;
+}
+.prayer-throbber-after::after {
+  border-color: rgb(52 211 153 / 0.8);
+  animation: prayer-throb-after 1.8s ease-in-out infinite;
+}
+@keyframes prayer-throb-before {
+  0%, 100% { opacity: 0.35; box-shadow: 0 0 0 0 rgb(251 191 36 / 0); }
+  50% { opacity: 1; box-shadow: 0 0 0 4px rgb(251 191 36 / 0.16); }
+}
+@keyframes prayer-throb-after {
+  0%, 100% { opacity: 0.35; box-shadow: 0 0 0 0 rgb(52 211 153 / 0); }
+  50% { opacity: 1; box-shadow: 0 0 0 4px rgb(52 211 153 / 0.16); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prayer-throbber-before::after,
+  .prayer-throbber-after::after {
+    animation: none;
+    opacity: 0.9;
+  }
+}

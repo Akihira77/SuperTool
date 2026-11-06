@@ -137,6 +137,13 @@ export function PrayerSettings() {
       </div>
       {error ? <div className="text-[11.5px] text-bad">{error}</div> : null}
 
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <span className="text-[10.5px] text-muted">{t('prayer.settings.soundHint')}</span>
+        <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" onClick={playChime}>
+          <Icon name="volume" size={12} /> {t('prayer.settings.testSound')}
+        </button>
+      </div>
+
       <div className="grid gap-2 border-t border-line pt-3 sm:grid-cols-2">
         <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.sound ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
           <span className="flex min-w-0 flex-col">

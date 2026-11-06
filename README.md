@@ -2,7 +2,7 @@
 
 Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port dan pemakaian disk, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
 
-Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite lokal; isi berkas tetap di disk.
+Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite lokal; isi berkas tetap di disk. Susunan tab multi sesi disimpan di `localStorage` browser.
 
 ## Daftar tool
 
@@ -24,6 +24,17 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 | 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
 | 16 | Telegram Command Center | Bot long polling: download URL YouTube/FB/Bilibili, kirim file langsung / link 0x0.st untuk file besar, kompres gambar/PDF lewat caption `/compress` |
+
+## Multi sesi
+
+Bar tab di atas area kerja menyimpan beberapa tool sekaligus, seperti tmux untuk panel web.
+
+- Satu sesi per tool. Membuka tool yang sudah punya sesi akan mengaktifkan sesi itu, bukan membuat duplikat.
+- Susunan sesi (daftar, urutan, nama, sesi aktif) disimpan di `localStorage` `st:sessions:v1` dan dipulihkan saat URL Super Tool dibuka lagi.
+- Perubahan tab disinkronkan antar-tab browser lewat event `storage`, tanpa polling.
+- Klik dua kali nama untuk mengganti nama, seret tab untuk mengurutkan, klik `x` atau klik tengah untuk menutup. Tombol `+` membuka tool baru.
+- Hanya sesi aktif yang di-mount. URL Viewer tetap di-mount tersembunyi supaya iframe/terminal di dalamnya tidak reload saat pindah sesi.
+- Tool di dalam sesi tidak punya tab bertingkat. State internal tiap tool tidak disimpan per sesi; datanya tetap memakai sumber aslinya (server atau `localStorage` tool).
 
 ## Tech stack
 
@@ -345,8 +356,9 @@ Widget di header (kanan atas, sebelah pemilih proyek) menampilkan hari, tanggal,
 - **Tidak memakai geolocation browser/GPS** — tidak ada permintaan izin lokasi sama sekali. Lokasi diisi manual di **Settings → Waktu & Jadwal Sholat**: nama kota (label), latitude, longitude, atau pilih salah satu dari 27 kota untuk mengisi koordinat otomatis.
 - Data disimpan di `localStorage` (`st:prayer`) dan **tidak pernah dikirim ke server**. Kalau lokasi belum diisi, popover widget menampilkan tombol **Atur Lokasi** yang membuka Settings. Perubahan langsung dipakai widget tanpa reload.
 - Pengingat dicek tiap menit: jendela 5 menit sebelum sampai 1 menit sesudah waktu sholat. Saat masuk jendela, muncul kartu **“Waktunya Sholat [Nama]”** di pojok kiri bawah (bukan alert browser) dan/atau bunyi beep Web Audio. Satu sholat hanya memicu sekali per hari; pop-up menutup sendiri setelah 20 detik atau bisa ditutup manual.
-- Toggle **Suara pengingat** dan **Pop-up pengingat** ada di Settings. Kalau pop-up dimatikan, pengingat suara tetap jalan (dan sebaliknya).
-- Batasan: bunyi bisa diblokir browser sampai ada interaksi user (kebijakan autoplay); perhitungan memakai zona waktu perangkat, jadi untuk kota di zona lain jam ditampilkan menurut waktu lokal perangkat.
+- Throbber di tombol jam aktif 15 menit sebelum waktu sholat (oranye) sampai 10 menit sesudahnya (hijau). Selama 10 menit sesudah itu widget tetap menampilkan sholat yang baru masuk, belum melompat ke sholat berikutnya.
+- Toggle **Suara pengingat** dan **Pop-up pengingat** ada di Settings. Tombol **Tes bunyi** di Settings membuka kunci audio browser dan memutar beep percobaan. Kalau pop-up dimatikan, pengingat suara tetap jalan (dan sebaliknya).
+- Batasan: bunyi bisa diblokir browser sampai ada interaksi user (kebijakan autoplay); setelah interaksi pertama, audio dibuka sekali dan dipakai ulang. Perhitungan memakai zona waktu perangkat, jadi untuk kota di zona lain jam ditampilkan menurut waktu lokal perangkat.
 
 ## Notifikasi toast
 

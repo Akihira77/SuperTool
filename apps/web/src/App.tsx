@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { Fragment, Suspense, lazy, useEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
@@ -7,6 +7,7 @@ import { ProjectProvider } from './lib/project';
 import { PlayerProvider } from './lib/player';
 import { ProjectPicker } from './components/ProjectPicker';
 import { PrayerWidget } from './components/PrayerWidget';
+import { SessionTabs } from './components/SessionTabs';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -14,6 +15,14 @@ import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
 import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
+import {
+  MAX_SESSIONS,
+  loadSessionStore,
+  newSession,
+  saveSessionStore,
+  subscribeSessionStore,
+  type SessionStore,
+} from './lib/sessions';
 
 type ToolGroup = 'workspace' | 'build' | 'ops';
 type Tool = {
@@ -51,6 +60,37 @@ const GROUPS: Array<{ id: ToolGroup; key: 'nav.group.workspace' | 'nav.group.bui
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
 
+function toolById(id: string): Tool | undefined {
+  return TOOLS.find((tool) => tool.id === id);
+}
+
+/** Satu sesi per tool; buang tool yang sudah tidak ada di katalog. */
+function normalizeSessions(store: SessionStore): SessionStore {
+  const seen = new Set<string>();
+  const sessions = store.sessions
+    .filter((session) => {
+      if (!toolById(session.tool) || seen.has(session.tool)) return false;
+      seen.add(session.tool);
+      return true;
+    })
+    .slice(0, MAX_SESSIONS);
+  const activeId = sessions.some((session) => session.id === store.activeId)
+    ? store.activeId
+    : sessions[0]?.id ?? null;
+  return { sessions, activeId };
+}
+
+function initialSessionStore(route: string): SessionStore {
+  const stored = loadSessionStore();
+  if (stored) {
+    const clean = normalizeSessions(stored);
+    if (clean.sessions.length || !stored.sessions.length) return clean;
+  }
+  const tool = toolById(route) ?? TOOLS[0];
+  const session = newSession(tool.id);
+  return { sessions: [session], activeId: session.id };
+}
+
 export default function App() {
   return (
     <I18nProvider>
@@ -72,8 +112,20 @@ function Shell() {
   const [route, navigate] = useRoute();
   const [navOpen, toggleNav] = useSidebar('nav');
   const { t, lang, setLang } = useI18n();
-  const ViewerComponent = TOOLS.find((tool) => tool.id === 'viewer')!.component;
+  const [store, setStore] = useState<SessionStore>(() => initialSessionStore(route));
+  const [booted, setBooted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const ViewerComponent = TOOLS.find((tool) => tool.id === 'viewer')!.component;
+  const routeRef = useRef(route);
+  const lastRoute = useRef(route);
+  const lastSaved = useRef('');
+  routeRef.current = route;
+
+  const activeSession = store.sessions.find((session) => session.id === store.activeId) ?? null;
+  const activeToolId = activeSession?.tool ?? null;
+  const activeTool = activeToolId ? toolById(activeToolId) ?? null : null;
+  const ActiveComponent = activeTool?.component;
+  const viewerSessions = store.sessions.filter((session) => session.tool === 'viewer');
 
   // Ctrl/Cmd + K membuka command palette.
   useEffect(() => {
@@ -142,18 +194,18 @@ function Shell() {
 
   const runPalette = (path: PaletteNode[], node: PaletteNode, payload?: FilesSearchPayload) => {
     if (node.id === 'files:search-run' && payload) {
-      navigate('files');
+      openTool('files');
       dispatchIntent({ tool: 'files', action: 'search', payload });
       return;
     }
     if (node.id.startsWith('viewer:open:') || node.id.startsWith('viewer:edit:')) {
       const [, action, target] = node.id.split(':');
-      navigate('viewer');
+      openTool('viewer');
       dispatchIntent({ tool: 'viewer', action: action === 'edit' ? 'edit' : 'open', payload: target });
       return;
     }
     if (node.id.startsWith('tool:')) {
-      navigate(node.id.slice(5));
+      openTool(node.id.slice(5));
       return;
     }
     if (node.id.startsWith('action:')) {
@@ -163,7 +215,7 @@ function Shell() {
       return;
     }
     const [tool, action] = node.id.split(':');
-    navigate(tool);
+    openTool(tool);
     const focusTarget: Record<string, string> = { 'markdown:write': 'editor', 'json:write': 'editor', 'notes:search': 'search' };
     if (focusTarget[node.id]) void runFocus(tool, focusTarget[node.id]);
     else void runClick(tool, action);
@@ -181,6 +233,121 @@ function Shell() {
     };
   }, []);
 
+  useEffect(() => {
+    const serialized = JSON.stringify({ sessions: store.sessions, activeId: store.activeId });
+    if (lastSaved.current === serialized) return;
+    lastSaved.current = serialized;
+    saveSessionStore(store);
+  }, [store]);
+
+  useEffect(() => {
+    return subscribeSessionStore((incoming) => {
+      const clean = normalizeSessions(incoming);
+      lastSaved.current = JSON.stringify({ sessions: clean.sessions, activeId: clean.activeId });
+      setStore(clean);
+      const active = clean.sessions.find((session) => session.id === clean.activeId);
+      if (active && active.tool !== routeRef.current) navigate(active.tool);
+    });
+  }, [navigate]);
+
+  useEffect(() => {
+    const active = store.sessions.find((session) => session.id === store.activeId);
+    if (active && active.tool !== routeRef.current && routeRef.current !== 'password') navigate(active.tool);
+    const frame = requestAnimationFrame(() => setBooted(true));
+    return () => cancelAnimationFrame(frame);
+    // Hanya saat mount: hash awal diselaraskan dengan sesi yang di-restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!booted || lastRoute.current === route) return;
+    lastRoute.current = route;
+    if (!store.sessions.length) return;
+    const active = store.sessions.find((session) => session.id === store.activeId);
+    if (active?.tool === route) return;
+    const existing = store.sessions.find((session) => session.tool === route);
+    if (existing) {
+      setStore((previous) => (previous.activeId === existing.id ? previous : { ...previous, activeId: existing.id }));
+      return;
+    }
+    const tool = toolById(route);
+    if (!tool) return;
+    const session = newSession(tool.id);
+    setStore((previous) => {
+      if (previous.sessions.some((item) => item.tool === tool.id)) return previous;
+      return { sessions: [...previous.sessions, session], activeId: session.id };
+    });
+  }, [booted, route, store, navigate]);
+
+  const activateSession = (id: string) => {
+    const session = store.sessions.find((item) => item.id === id);
+    if (!session) return;
+    setStore((previous) => ({ ...previous, activeId: session.id }));
+    if (routeRef.current !== session.tool) navigate(session.tool);
+  };
+
+  const closeSession = (id: string) => {
+    const index = store.sessions.findIndex((session) => session.id === id);
+    if (index < 0) return;
+    const remaining = store.sessions.filter((session) => session.id !== id);
+    const closingActive = store.activeId === id;
+    const nextActiveId = closingActive
+      ? remaining[Math.min(index, remaining.length - 1)]?.id ?? null
+      : store.activeId;
+    setStore({ sessions: remaining, activeId: nextActiveId });
+    if (closingActive) {
+      const next = remaining.find((session) => session.id === nextActiveId);
+      if (next) navigate(next.tool);
+    }
+  };
+
+  const renameSession = (id: string, name: string) => {
+    const nextName = name.trim().slice(0, 80);
+    if (!nextName) return;
+    setStore((previous) => ({
+      ...previous,
+      sessions: previous.sessions.map((session) =>
+        session.id === id ? { ...session, name: nextName } : session,
+      ),
+    }));
+  };
+
+  const reorderSessions = (fromId: string, toId: string) => {
+    setStore((previous) => {
+      const from = previous.sessions.findIndex((session) => session.id === fromId);
+      const to = previous.sessions.findIndex((session) => session.id === toId);
+      if (from < 0 || to < 0 || from === to) return previous;
+      const sessions = [...previous.sessions];
+      const [moved] = sessions.splice(from, 1);
+      sessions.splice(to, 0, moved);
+      return { ...previous, sessions };
+    });
+  };
+
+  const addSession = (toolId: string) => {
+    const existing = store.sessions.find((session) => session.tool === toolId);
+    if (existing) {
+      activateSession(existing.id);
+      return;
+    }
+    if (store.sessions.length >= MAX_SESSIONS) return;
+    const tool = toolById(toolId);
+    if (!tool) return;
+    const session = newSession(tool.id);
+    setStore((previous) => {
+      if (previous.sessions.some((item) => item.tool === toolId)) return previous;
+      return { sessions: [...previous.sessions, session], activeId: session.id };
+    });
+    if (routeRef.current !== toolId) navigate(toolId);
+  };
+
+  /** Navigasi dari sidebar/palette: fokus sesi yang sudah ada atau buat baru. */
+  const openTool = (toolId: string) => {
+    const existing = store.sessions.find((session) => session.tool === toolId);
+    if (existing) activateSession(existing.id);
+    else addSession(toolId);
+  };
+
   const logout = async () => {
     await api.post('/auth/logout').catch(() => undefined);
     setAuth('anon');
@@ -196,8 +363,6 @@ function Shell() {
   if (auth === 'anon') return <Login onSuccess={(mustChange) => setAuth(mustChange ? 'must-change' : 'ready')} />;
   if (auth === 'must-change') return <ChangePassword forced onDone={() => setAuth('ready')} />;
 
-  const active = TOOLS.find((tool) => tool.id === route) ?? TOOLS[0];
-  const ActiveComponent = active.component;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -242,10 +407,10 @@ function Shell() {
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => navigate(tool.id)}
+                  onClick={() => openTool(tool.id)}
                   title={t(tool.key as 'nav.markdown', tool.label)}
-                  aria-current={active.id === tool.id ? 'page' : undefined}
-                  className={cn('nav-item w-full', active.id === tool.id && 'nav-item-active', !navOpen && 'justify-center px-0')}
+                  aria-current={activeToolId === tool.id ? 'page' : undefined}
+                  className={cn('nav-item w-full', activeToolId === tool.id && 'nav-item-active', !navOpen && 'justify-center px-0')}
                 >
                   <Icon name={tool.icon} className="shrink-0" />
                   {navOpen ? <span className="truncate">{t(tool.key as 'nav.markdown', tool.label)}</span> : null}
@@ -298,35 +463,71 @@ function Shell() {
         <ProjectPicker right={<PrayerWidget />} />
         {route === 'password' ? (
           <div className="flex-1 overflow-y-auto">
-            <ChangePassword forced={false} onDone={() => navigate('markdown')} />
+            <ChangePassword forced={false} onDone={() => openTool('markdown')} />
           </div>
         ) : (
-          <Suspense
-            fallback={
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner />
-              </div>
-            }
-          >
+          <>
+            <SessionTabs
+              tools={TOOLS}
+              sessions={store.sessions}
+              activeId={store.activeId}
+              max={MAX_SESSIONS}
+              onActivate={activateSession}
+              onClose={closeSession}
+              onRename={renameSession}
+              onReorder={reorderSessions}
+              onAdd={addSession}
+            />
             {/*
-              URL Viewer sengaja tetap ter-mount walau pindah tab: iframe di dalamnya
-              (terminal ssh, pm2 log, dsb) tidak boleh reload hanya karena menu lain dibuka.
+              URL Viewer tetap ter-mount saat sesi lain aktif: iframe di dalamnya
+              (terminal ssh, pm2 log, dsb) tidak boleh reload hanya karena pindah sesi.
+              Tool lain hanya di-mount saat aktif supaya polling tidak menumpuk.
             */}
-            {/* visibility (bukan display:none) supaya iframe tetap punya ukuran dan prosesnya jalan. */}
-            <div
-              className={cn(
-                'flex min-h-0 flex-1 flex-col',
-                route !== 'viewer' && 'pointer-events-none invisible absolute inset-0',
-              )}
+            <Suspense
+              fallback={
+                activeSession?.tool === 'viewer' ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <Spinner />
+                  </div>
+                ) : null
+              }
             >
-              <ViewerComponent />
-            </div>
-            {route !== 'viewer' ? (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <ActiveComponent />
+              {viewerSessions.map((session) => {
+                const active = session.id === store.activeId;
+                return (
+                  <div
+                    key={session.id}
+                    className={cn(
+                      'flex min-h-0 flex-1 flex-col',
+                      !active && 'pointer-events-none invisible absolute inset-0',
+                    )}
+                  >
+                    <ViewerComponent />
+                  </div>
+                );
+              })}
+            </Suspense>
+            <Suspense
+              fallback={
+                <div className="flex flex-1 items-center justify-center">
+                  <Spinner />
+                </div>
+              }
+            >
+              {activeSession && activeSession.tool !== 'viewer' && ActiveComponent ? (
+                <div key={activeSession.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <ActiveComponent />
+                </div>
+              ) : null}
+            </Suspense>
+            {!activeSession ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted">
+                <Icon name="panel" size={26} />
+                <div className="text-[13px] font-medium text-ink">{t('session.empty')}</div>
+                <div className="text-[11.5px]">{t('session.emptyHint')}</div>
               </div>
             ) : null}
-          </Suspense>
+          </>
         )}
       </main>
 
