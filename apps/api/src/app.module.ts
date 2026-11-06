@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './modules/auth/auth.guard';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FilesModule } from './modules/files/files.module';
 import { LlmModule } from './modules/llm/llm.module';
@@ -20,6 +21,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
   imports: [
+    AuditModule,
     AuthModule,
     NotesModule,
     FilesModule,

@@ -4,7 +4,9 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import { auditHttp } from './common/audit-http.middleware';
 import { cfg } from './config';
+import { AuditService } from './modules/audit/audit.service';
 import { AuthService } from './modules/auth/auth.service';
 import { handleProxyRequest, handleProxyUpgrade } from './modules/proxy/proxy.middleware';
 
@@ -55,6 +57,9 @@ async function bootstrap() {
     });
     req.on('error', () => next());
   });
+
+  // Catat semua request API sebelum parser body; payload dibaca saat respons selesai.
+  instance.use('/api', auditHttp(app.get(AuditService)));
 
   // Setelah proxy: baru parse JSON untuk endpoint sendiri.
   app.useBodyParser('json', { limit: '25mb' });

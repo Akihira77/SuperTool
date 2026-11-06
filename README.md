@@ -17,7 +17,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
 | 8 | File Explorer | Tree, thumbnail gambar/video di daftar, ukuran, viewer teks/kode (virtual untuk berkas besar)/gambar/PDF/Markdown, pratinjau + edit docx/xlsx, pemutar audio & video global, pencarian nama/isi berkas (grep, bisa dibatalkan, exclude lewat dialog centang tipe berkas & folder), upload, rename, hapus |
 | 9 | Kompresor | Kompres gambar & PDF, konversi gambar↔PDF dan antar format gambar, drag & drop, proses latar belakang |
-| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus, cari & urutkan container/image), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer |
+| 10 | Dev Space | Regex tester, encode/decode + hash, HTTP client, log tailer (live), kontrol container Docker (start/stop/restart/hapus, cari & urutkan container/image), git status (grafik SVG + stage/unstage + diff), cron manager, DNS/IP lookup, SQLite viewer, Audit Log |
 | 11 | Webhook Receiver | Endpoint siap salin, daftar request masuk live (SSE), detail header + body (JSON dirapikan), tombol Bersihkan |
 | 12 | Calendar | Kalender visual bulan/minggu/agenda dari Google Calendar; tambah event, detail event, OAuth baca-tulis, auto-refresh 5 menit, pengingat pop-up + bell 1 jam/30/15 menit |
 | 13 | Downloader | Cek link dulu (judul, thumbnail, durasi), pilih resolusi/audio, unduh MP4/MP3; streaming ke perangkat, tanpa file permanen di server |
@@ -319,7 +319,7 @@ Menu **Downloader** mengunduh video/audio publik dari YouTube, Facebook, dan Bil
 
 Bot Telegram berjalan di backend dengan **long polling** (tanpa webhook, tanpa membuka port tambahan). Isi `TELEGRAM_BOT_TOKEN` dari BotFather di `apps/api/.env`, lalu restart API.
 
-- **Download**: kirim URL YouTube/Facebook/Bilibili. Bot membalas "Sedang mengunduh...", mengunduh video 720p lewat Downloader yang sama, lalu mengirim file.
+- **Download**: kirim URL YouTube/Facebook/Bilibili. Bot membalas "Sedang mengunduh...", mengunduh video 720p lewat Downloader yang sama, lalu mengirim video sebagai dokumen agar tidak auto-play.
 - **Batas file**: file ≤45 MB dikirim langsung. File lebih besar diunggah ke `https://0x0.st`, lalu bot mengirim link. 0x0.st adalah layanan publik dan sementara; jangan kirim file sensitif. Jika 0x0.st menolak (mis. 503), bot melaporkan error dan file tidak terkirim.
 - **Kompres**: kirim gambar atau PDF dengan caption `/compress`. Bot mengunduh file dari Telegram (maks. 20 MB), menjalankan `CompressService` yang sama dengan halaman Kompresor, lalu mengirim hasilnya.
 - **Perintah**: `/start` dan `/help` untuk bantuan, `/compress` untuk petunjuk kompres, `/id` untuk melihat chat ID.
@@ -327,6 +327,14 @@ Bot Telegram berjalan di backend dengan **long polling** (tanpa webhook, tanpa m
 - **Temp**: file kerja memakai `ST_TEMP_DIR`; untuk fitur `/compress`, folder itu harus berada di dalam `ST_FS_ROOTS` karena `CompressService` memakai `jailPath`.
 
 Saat pertama kali dipakai, kirim `/id` ke bot, salin ID ke `TELEGRAM_ALLOWED_CHAT_IDS`, lalu restart API.
+
+## Audit Log
+
+Semua request `/api` dan aksi Telegram dicatat ke tabel `audit_log` di SQLite: timestamp, sumber (`web` / `telegram_bot`), actor, fitur, aksi, status, durasi, IP/user agent, payload, dan error. Lihat di **Dev Space → Audit Log**, atau `GET /api/audit` dengan filter `source`, `actor`, `feature`, `q`, `since`, `until`, `limit`, `offset`.
+
+- Payload disimpan sampai 64 KB; field sensitif seperti password, token, cookie, dan secret diredaksi.
+- Request proxy mentah dan file statis tidak masuk audit; request API yang ditolak auth tetap dicatat.
+- Audit ikut masuk backup SQLite. Tidak ada penghapusan otomatis, jadi bersihkan tabel secara berkala jika sudah terlalu besar.
 
 ## Widget Waktu & Jadwal Sholat
 

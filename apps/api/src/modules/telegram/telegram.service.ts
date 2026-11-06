@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { Input, Telegraf, type Context } from 'telegraf';
 import { cfg } from '../../config';
+import { AuditService } from '../audit/audit.service';
 import { CompressService, type CompressResult } from '../tools/compress.service';
 import { DownloaderService, isAllowedHost } from '../downloader/downloader.service';
 
@@ -36,7 +37,7 @@ const HELP = [
   '🤖 Super Tool Command Center',
   '',
   '📥 Download',
-  'Kirim link YouTube, Facebook, atau Bilibili. Bot akan mengunduh video 720p dan mengirimkannya ke chat ini.',
+  'Kirim link YouTube, Facebook, atau Bilibili. Bot akan mengunduh video 720p dan mengirimkannya sebagai dokumen (tidak auto-play).',
   'File ≤45 MB dikirim langsung. File lebih besar diunggah ke 0x0.st, lalu link download dikirim.',
   '',
   '🗜️ Kompres',
@@ -87,8 +88,9 @@ function mimeFor(name: string, fallback?: string): string {
 
 function safeExtension(name: string, mime: string): string {
   const ext = extname(name).toLowerCase();
-  if (/^\.[a-z0-9]{1,8}$/.test(ext)) return ext;
   const fromMime = Object.entries(MIME_BY_EXT).find(([, value]) => value === mime)?.[0];
+  if (fromMime && !MIME_BY_EXT[ext]) return fromMime;
+  if (/^\.[a-z0-9]{1,8}$/.test(ext)) return ext;
   return fromMime ?? '.bin';
 }
 
@@ -102,6 +104,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly downloader: DownloaderService,
     private readonly compress: CompressService,
+    private readonly audit: AuditService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -120,6 +123,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.register(bot);
     bot.catch((error, ctx) => {
       this.logger.error('Telegram update gagal: ' + errorMessage(error).slice(0, 500));
+      this.auditEvent(ctx, 'telegram.error', 'error', {}, 500, errorMessage(error));
       if (ctx.chat) void ctx.reply('❌ Terjadi kesalahan internal.').catch(() => undefined);
     });
 
@@ -154,6 +158,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const text = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
         const publicCommand = /^\/(?:start|help|id)(?:@\w+)?(?:\s|$)/i.test(text);
         if (chatId === undefined || (!this.allowed.has(String(chatId)) && !publicCommand)) {
+          this.auditEvent(ctx, 'telegram.access', 'deny', { reason: 'chat-not-allowed' }, 403);
           await ctx.reply('Chat ini belum diizinkan. Kirim /id untuk melihat chat ID, lalu tambahkan ke TELEGRAM_ALLOWED_CHAT_IDS.');
           return;
         }
@@ -161,12 +166,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       return next();
     });
 
-    bot.start((ctx) => ctx.reply(HELP));
-    bot.help((ctx) => ctx.reply(HELP));
-    bot.command('id', (ctx) => ctx.reply('Chat ID: ' + String(ctx.chat?.id ?? '-')));
-    bot.command('compress', (ctx) =>
-      ctx.reply('Kirim gambar atau PDF dengan caption /compress.'),
-    );
+    bot.start((ctx) => {
+      this.auditEvent(ctx, 'telegram.command', 'start');
+      return ctx.reply(HELP);
+    });
+    bot.help((ctx) => {
+      this.auditEvent(ctx, 'telegram.command', 'help');
+      return ctx.reply(HELP);
+    });
+    bot.command('id', (ctx) => {
+      this.auditEvent(ctx, 'telegram.command', 'id');
+      return ctx.reply('Chat ID: ' + String(ctx.chat?.id ?? '-'));
+    });
+    bot.command('compress', (ctx) => {
+      this.auditEvent(ctx, 'telegram.command', 'compress-help');
+      return ctx.reply('Kirim gambar atau PDF dengan caption /compress.');
+    });
 
     bot.on('text', (ctx) => this.handleText(ctx));
     bot.on('document', (ctx) => this.handleDocument(ctx));
@@ -180,6 +195,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (chatId === undefined) return;
 
     if (ctx.chat?.type !== 'private') {
+      this.auditEvent(ctx, 'telegram.download', 'reject', { reason: 'not-private' }, 403);
       await ctx.reply('Gunakan bot ini di chat pribadi.');
       return;
     }
@@ -188,12 +204,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (/^\/download(?:@\w+)?(?:\s|$)/i.test(text)) {
       text = text.replace(/^\/download(?:@\w+)?/i, '').trim();
     } else if (text.startsWith('/')) {
+      this.auditEvent(ctx, 'telegram.command', 'unknown', { text }, 400);
       await ctx.reply('Perintah tidak dikenal. Kirim /start untuk bantuan.');
       return;
     }
 
     const rawUrl = text.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[),.!?]+$/, '');
     if (!rawUrl) {
+      this.auditEvent(ctx, 'telegram.download', 'reject', { reason: 'no-url', text }, 400);
       await ctx.reply('Kirim link YouTube, Facebook, atau Bilibili. Ketik /start untuk bantuan.');
       return;
     }
@@ -202,10 +220,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     try {
       url = new URL(rawUrl);
     } catch {
+      this.auditEvent(ctx, 'telegram.download', 'reject', { reason: 'invalid-url', text }, 400);
       await ctx.reply('Link tidak valid.');
       return;
     }
     if (!isAllowedHost(url.hostname)) {
+      this.auditEvent(ctx, 'telegram.download', 'reject', { reason: 'host-not-allowed', url: url.toString() }, 400);
       await ctx.reply('Hanya link YouTube, Facebook, dan Bilibili yang didukung.');
       return;
     }
@@ -216,11 +236,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private async downloadVideo(ctx: Context, url: string): Promise<void> {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;
+    const started = Date.now();
+    let outcome = false;
+    let detail = '';
+    let statusCode = 500;
+    let info: Record<string, unknown> = {};
     const status = await ctx.reply('⏳ Sedang mengunduh video (720p)...');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
     try {
       const prepared = await this.downloader.prepare({ url, quality: '720' }, controller.signal);
+      info = { filename: prepared.filename, mime: prepared.contentType, size: prepared.size };
       try {
         await this.deliverFile(
           ctx,
@@ -235,10 +261,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await prepared.cleanup();
       }
       await this.deleteStatus(ctx, status.message_id);
+      outcome = true;
+      statusCode = 200;
     } catch (error) {
-      await this.editStatus(ctx, status.message_id, '❌ ' + errorMessage(error).slice(0, 1200));
+      detail = errorMessage(error);
+      statusCode = error instanceof BadRequestException ? 400 : 500;
+      await this.editStatus(ctx, status.message_id, '❌ ' + detail.slice(0, 1200));
     } finally {
       clearTimeout(timer);
+      this.auditEvent(
+        ctx,
+        'telegram.download',
+        'download',
+        { url, quality: '720', ...info, result: outcome ? 'ok' : 'error' },
+        statusCode,
+        detail,
+        Date.now() - started,
+      );
     }
   }
 
@@ -249,6 +288,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const document = message.document;
     const mime = document.mime_type || mimeFor(document.file_name ?? '');
     if (!mime.startsWith('image/') && mime !== 'application/pdf') {
+      this.auditEvent(ctx, 'telegram.compress', 'reject', { reason: 'unsupported-mime', mime, filename: document.file_name }, 400);
       await ctx.reply('Hanya gambar dan PDF yang bisa dikompres.');
       return;
     }
@@ -284,23 +324,32 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const chatId = ctx.chat?.id;
     if (chatId === undefined) return;
     if (ctx.chat?.type !== 'private') {
+      this.auditEvent(ctx, 'telegram.compress', 'reject', { reason: 'not-private', mime, filename: suggestedName }, 403);
       await ctx.reply('Gunakan bot ini di chat pribadi.');
       return;
     }
     if (fileSize && fileSize > MAX_TELEGRAM_DOWNLOAD) {
+      this.auditEvent(ctx, 'telegram.compress', 'reject', { reason: 'file-too-large', mime, fileSize }, 400);
       await ctx.reply('File terlalu besar untuk diunduh bot Telegram (maksimal 20 MB).');
       return;
     }
 
     await this.runExclusive(chatId, async () => {
-      const status = await ctx.reply('🗜️ Mengunduh file dari Telegram...');
+      const started = Date.now();
+      let outcome = false;
+      let detail = '';
+      let statusCode = 500;
+      let info: Record<string, unknown> = { filename: suggestedName, mime, fileSize };
+      let status: { message_id: number } | undefined;
       let dir = '';
       try {
+        status = await ctx.reply('🗜️ Mengunduh file dari Telegram...');
         await mkdir(cfg.tempDir, { recursive: true });
         dir = await mkdtemp(join(cfg.tempDir, 'telegram-'));
         const source = await this.downloadTelegramFile(fileId, mime, suggestedName, dir);
         await this.editStatus(ctx, status.message_id, '🗜️ Mengompres...');
         const result = await this.runCompressor(source.path, mime);
+        info = { ...info, inputSize: result.input.size, outputSize: result.output.size, percent: result.percent };
         await this.editStatus(ctx, status.message_id, '📤 Mengirim hasil...');
         const outMime = mimeFor(result.output.path, mime);
         const caption =
@@ -317,10 +366,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           status.message_id,
         );
         await this.deleteStatus(ctx, status.message_id);
+        outcome = true;
+        statusCode = 200;
       } catch (error) {
-        await this.editStatus(ctx, status.message_id, '❌ ' + errorMessage(error).slice(0, 1200));
+        detail = errorMessage(error);
+        statusCode = error instanceof BadRequestException ? 400 : 500;
+        if (status) await this.editStatus(ctx, status.message_id, '❌ ' + detail.slice(0, 1200));
       } finally {
         if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+        this.auditEvent(
+          ctx,
+          'telegram.compress',
+          'compress',
+          { ...info, result: outcome ? 'ok' : 'error' },
+          statusCode,
+          detail,
+          Date.now() - started,
+        );
       }
     });
   }
@@ -392,21 +454,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (statusMessageId !== undefined) {
       await this.editStatus(ctx, statusMessageId, '📤 Mengirim file...');
     }
-    const file = Input.fromLocalFile(path, filename);
-    try {
-      if (contentType === 'video/mp4' || contentType === 'video/quicktime') {
-        await ctx.replyWithVideo(file, { caption, supports_streaming: true });
-      } else {
-        await ctx.replyWithDocument(file, { caption });
-      }
-    } catch (error) {
-      // Video yang tidak didukung Telegram tetap dikirim sebagai dokumen.
-      if (contentType.startsWith('video/')) {
-        await ctx.replyWithDocument(Input.fromLocalFile(path, filename), { caption });
-      } else {
-        throw error;
-      }
-    }
+    // Selalu kirim sebagai dokumen: video tidak auto-play dan tetap utuh.
+    await ctx.replyWithDocument(Input.fromLocalFile(path, filename), { caption });
   }
 
   private async uploadTo0x0(path: string, filename: string): Promise<string> {
@@ -454,12 +503,66 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async replyBusy(chatId: number): Promise<void> {
+    this.auditEventById(chatId, 'telegram.busy', 'reject', {}, 429);
     try {
       const bot = this.bot;
       if (bot) await bot.telegram.sendMessage(chatId, '⏳ Masih ada proses lain. Tunggu sampai selesai.');
     } catch {
       // Abaikan bila chat sudah tidak tersedia.
     }
+  }
+
+  private auditEvent(
+    ctx: Context | undefined,
+    feature: string,
+    action: string,
+    payload: Record<string, unknown> = {},
+    status = 200,
+    error = '',
+    durationMs = 0,
+  ): void {
+    const chatId = ctx?.chat?.id;
+    const message = ctx?.message;
+    const text = message && 'text' in message ? message.text : message && 'caption' in message ? message.caption : undefined;
+    this.audit.record({
+      source: 'telegram_bot',
+      actor: chatId !== undefined ? 'telegram:' + chatId : 'telegram:unknown',
+      feature,
+      action,
+      method: 'TELEGRAM',
+      path: ctx?.updateType ?? 'telegram',
+      status,
+      durationMs,
+      ip: null,
+      userAgent: ctx?.from?.username ? '@' + ctx.from.username : null,
+      payload: {
+        ...payload,
+        ...(text ? { text: text.slice(0, 4000) } : {}),
+        chatId: chatId ?? null,
+        userId: ctx?.from?.id ?? null,
+        username: ctx?.from?.username ?? null,
+        firstName: ctx?.from?.first_name ?? null,
+        chatType: ctx?.chat?.type ?? null,
+      },
+      error: error || null,
+    });
+  }
+
+  private auditEventById(chatId: number, feature: string, action: string, payload: Record<string, unknown>, status: number): void {
+    this.audit.record({
+      source: 'telegram_bot',
+      actor: 'telegram:' + chatId,
+      feature,
+      action,
+      method: 'TELEGRAM',
+      path: 'telegram',
+      status,
+      durationMs: 0,
+      ip: null,
+      userAgent: null,
+      payload,
+      error: null,
+    });
   }
 
   private async editStatus(ctx: Context, messageId: number, text: string): Promise<void> {

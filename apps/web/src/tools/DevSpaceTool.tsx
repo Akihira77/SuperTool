@@ -14,6 +14,7 @@ const TABS: Tab[] = [
   { id: 'cron', key: 'dev.cron', label: 'Cron Job', icon: 'clock', component: lazy(() => import('./devspace/CronTab')) },
   { id: 'dns', key: 'dev.dns', label: 'DNS/IP Lookup', icon: 'url', component: lazy(() => import('./devspace/DnsTab')) },
   { id: 'sqlite', key: 'dev.sqlite', label: 'Database', icon: 'db', component: lazy(() => import('./devspace/SqliteTab')) },
+  { id: 'audit', key: 'dev.audit', label: 'Audit Log', icon: 'notes', component: lazy(() => import('./devspace/AuditTab')) },
 ];
 
 export default function DevSpaceTool() {

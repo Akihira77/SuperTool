@@ -103,7 +103,7 @@ function Shell() {
     nginx: [act('nginx', 'save', 'save'), act('nginx', 'new', 'plus')],
     ports: [act('ports', 'refresh', 'refresh'), act('ports', 'tabPorts', 'ports'), act('ports', 'tabProcs', 'dev'), act('ports', 'auto', 'play')],
     compress: [act('compress', 'pick', 'files'), act('compress', 'run', 'play'), act('compress', 'download', 'download')],
-    devspace: ['regex', 'encode', 'http', 'log', 'docker', 'git', 'cron', 'dns', 'sqlite'].map((tab) =>
+    devspace: ['regex', 'encode', 'http', 'log', 'docker', 'git', 'cron', 'dns', 'sqlite', 'audit'].map((tab) =>
       act('devspace', tab, 'chevronRight'),
     ),
     webhook: [act('webhook', 'pause', 'play'), act('webhook', 'clear', 'trash')],

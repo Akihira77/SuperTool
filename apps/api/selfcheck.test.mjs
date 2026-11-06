@@ -9,6 +9,7 @@ import calendarOauth from './dist/modules/calendar/oauth.js';
 import webhook from './dist/modules/webhook/webhook.service.js';
 import devService from './dist/modules/dev/dev.service.js';
 import storageUsage from './dist/modules/storage/storage-usage.service.js';
+import auditPayload from './dist/modules/audit/audit.payload.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
@@ -17,6 +18,7 @@ const { authPrompt } = calendarOauth;
 const { WebhookService } = webhook;
 const { dockerActionArgs } = devService;
 const { parseDuOutput, isCleanableFolder } = storageUsage;
+const { serializeAuditPayload } = auditPayload;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -84,6 +86,20 @@ test('downloader: allowlist host tidak bisa ditipu suffix', () => {
   assert.equal(isAllowedHost('youtube.com.evil.test'), false);
   assert.equal(isAllowedHost('evil-youtube.com'), false);
   assert.equal(isAllowedHost('127.0.0.1'), false);
+});
+
+test('audit: payload meredaksi rahasia dan membatasi ukuran', () => {
+  const out = serializeAuditPayload({
+    password: 'rahasia',
+    cookies: 'sesi',
+    body: { token: 'abc', ok: 'yes' },
+    big: 'x'.repeat(9000),
+  });
+  assert.match(out, /"password":"\[REDACTED\]"/);
+  assert.match(out, /"cookies":"\[REDACTED\]"/);
+  assert.match(out, /"token":"\[REDACTED\]"/);
+  assert.match(out, /truncated/);
+  assert.ok(out.length < 10_000);
 });
 
 test('downloader: URL /en/video Bilibili dinormalisasi ke /video', () => {

@@ -66,6 +66,25 @@ db.exec(`
     data TEXT NOT NULL,
     scanned_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    action TEXT NOT NULL,
+    method TEXT,
+    path TEXT,
+    status INTEGER,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    ip TEXT,
+    user_agent TEXT,
+    payload TEXT,
+    error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC);
 `);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */
@@ -122,6 +141,15 @@ export function replaceDatabase(source: string): { ok: true; path: string } {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA synchronous = NORMAL');
+  db.exec(
+    'CREATE TABLE IF NOT EXISTS audit_log (' +
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, source TEXT NOT NULL, actor TEXT NOT NULL, ' +
+      'feature TEXT NOT NULL, action TEXT NOT NULL, method TEXT, path TEXT, status INTEGER, ' +
+      'duration_ms INTEGER NOT NULL DEFAULT 0, ip TEXT, user_agent TEXT, payload TEXT, error TEXT)',
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC)');
   return { ok: true, path: file };
 }
 

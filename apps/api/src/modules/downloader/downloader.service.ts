@@ -136,6 +136,10 @@ function isFormatUnavailable(error: unknown): boolean {
   return /Requested format is not available|No video formats found|format is not available/i.test(detail);
 }
 
+function isCookieError(detail: string): boolean {
+  return /login|sign in|log in|cookie|premium|member-only|大会员|会员|需要登录|permission denied/i.test(detail);
+}
+
 function isBilibiliHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com');
@@ -262,7 +266,7 @@ export class DownloaderService implements OnModuleInit {
     for (let hop = 0; hop < 5; hop += 1) {
       const canonical = canonicalBilibiliUrl(current);
       if (canonical) return canonical;
-      let response;
+      let response: globalThis.Response;
       try {
         const timeout = AbortSignal.timeout(5000);
         response = await fetch(current, {
@@ -277,21 +281,35 @@ export class DownloaderService implements OnModuleInit {
         });
       } catch (error) {
         if (signal?.aborted) throw error;
-        return raw;
+        throw new BadRequestException(
+          'Tautan singkat Bilibili tidak bisa dibuka. Buka video di browser, lalu tempel URL lengkap bilibili.com/video/BV...',
+        );
       }
-      if (response.status < 300 || response.status >= 400) return raw;
+      if (response.status < 300 || response.status >= 400) {
+        throw new BadRequestException(
+          'Tautan singkat Bilibili tidak ditemukan atau sudah kedaluwarsa. Buka video di browser, lalu tempel URL lengkap bilibili.com/video/BV...',
+        );
+      }
       const location = response.headers.get('location');
-      if (!location) return raw;
+      if (!location) {
+        throw new BadRequestException(
+          'Tautan singkat Bilibili tidak mengarah ke video. Buka video di browser, lalu tempel URL lengkap bilibili.com/video/BV...',
+        );
+      }
       let next: URL;
       try {
         next = new URL(location, current);
       } catch {
-        return raw;
+        throw new BadRequestException('Tautan singkat Bilibili tidak valid.');
       }
-      if (next.protocol !== 'https:' || !isBilibiliHost(next.hostname)) return raw;
+      if (next.protocol !== 'https:' || !isBilibiliHost(next.hostname)) {
+        throw new BadRequestException('Tautan singkat Bilibili mengarah ke host yang tidak didukung.');
+      }
       current = next;
     }
-    return raw;
+    throw new BadRequestException(
+      'Tautan Bilibili terlalu panjang untuk dibuka. Buka video di browser, lalu tempel URL lengkap bilibili.com/video/BV...',
+    );
   }
 
   async prepare(input: DownloadRequest, signal: AbortSignal): Promise<PreparedDownload> {
@@ -413,10 +431,16 @@ export class DownloaderService implements OnModuleInit {
       if (signal.aborted) throw new BadRequestException('Unduhan dibatalkan.');
       this.logYtDlpFailure(error, 'yt-dlp gagal');
       const detail = ytDlpError(error);
+      const stderr = ytDlpStderr(error);
       const host = new URL(request.url).hostname;
-      const hint = isBilibiliHost(host) && !cookies
-        ? ' Bilibili resolusi tinggi sering butuh cookies; unggah cookies.txt di Settings.'
-        : '';
+      const generic = /\[generic\]|URL could be a direct video link/i.test(stderr);
+      const hint = !isBilibiliHost(host)
+        ? ''
+        : generic
+          ? ' Tautan Bilibili ini tidak bisa dibuka sebagai video. Buka di browser, lalu kirim URL lengkap bilibili.com/video/BV...'
+          : !cookies && isCookieError(detail)
+            ? ' Video ini kemungkinan butuh login; unggah cookies.txt di Settings.'
+            : '';
       throw new BadRequestException(
         detail ? 'Gagal memproses video: ' + detail + hint : 'Gagal memproses video. Pastikan tautan publik dan coba lagi.' + hint,
       );
