@@ -342,6 +342,20 @@ export default function NotesTool() {
                   className="min-w-0 flex-1 border-0 bg-transparent px-1 text-[16px] font-semibold tracking-tight outline-none"
                   placeholder={t('notes.titlePlaceholder')}
                 />
+                <span
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    'flex shrink-0 items-center gap-1 text-[10.5px]',
+                    status === 'error' ? 'text-bad' : status === 'saving' ? 'text-warn' : 'text-ok/80',
+                  )}
+                  title={status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
+                >
+                  {status === 'saving' ? <Spinner /> : <Icon name={status === 'error' ? 'bell' : 'check'} size={11} />}
+                  <span className="hidden sm:inline">
+                    {status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
+                  </span>
+                </span>
                 <span className="text-[11px] text-muted">{active.body.length} {t('notes.characters')}</span>
                 {bodyMatchCount ? (
                   <div className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-panel2/50 px-1.5 py-0.5">
@@ -381,7 +395,7 @@ export default function NotesTool() {
                   onScroll={syncHighlight}
                   placeholder={t('notes.bodyPlaceholder')}
                   spellCheck={false}
-                  className="relative h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
+                  className="relative block h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
                 />
               </div>
             </>
