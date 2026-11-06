@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
@@ -31,14 +31,14 @@ function countMatches(text: string, query: string): number {
 }
 
 /** Sorot semua kemunculan kata pencarian di potongan isi catatan. */
-function Highlight({ text, query, editor = false, activeIndex }: { text: string; query: string; editor?: boolean; activeIndex?: number }) {
+function Highlight({ text, query, editor = false, activeIndex, startMatch = 0 }: { text: string; query: string; editor?: boolean; activeIndex?: number; startMatch?: number }) {
   const needle = query.trim();
   if (!needle) return <>{text}</>;
   const haystack = text.toLowerCase();
   const target = needle.toLowerCase();
   const parts: ReactNode[] = [];
   let cursor = 0;
-  let match = 0;
+  let match = startMatch;
   let index = haystack.indexOf(target);
   while (index >= 0) {
     if (index > cursor) parts.push(text.slice(cursor, index));
@@ -86,11 +86,24 @@ export default function NotesTool() {
   const scopeRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const [lineHeights, setLineHeights] = useState<number[]>([]);
+  const bodyLines = useMemo(() => (active ? active.body.split('\n') : []), [active]);
+  const editorQuery = scope === 'title' ? '' : query;
+  const lineMatchOffsets = useMemo(() => {
+    let offset = 0;
+    return bodyLines.map((line) => {
+      const start = offset;
+      offset += editorQuery.trim() ? countMatches(line, editorQuery) : 0;
+      return start;
+    });
+  }, [bodyLines, editorQuery]);
   const bodyMatchCount = useMemo(
     () => (active && query.trim() && scope !== 'title' ? countMatches(active.body, query) : 0),
     [active, query, scope],
   );
   const activeMatch = bodyMatchCount ? matchIndex % bodyMatchCount : 0;
+  const gutterHeights = lineHeights.length === bodyLines.length ? lineHeights : bodyLines.map(() => 28);
 
   const open = useCallback(async (id: string) => {
     const note = await api.get<Note>('/notes/' + id);
@@ -136,6 +149,7 @@ export default function NotesTool() {
     layer.style.height = textarea.clientHeight + 'px';
     layer.scrollTop = textarea.scrollTop;
     layer.scrollLeft = textarea.scrollLeft;
+    if (gutterRef.current) gutterRef.current.scrollTop = textarea.scrollTop;
   }, []);
 
   useEffect(() => {
@@ -146,6 +160,26 @@ export default function NotesTool() {
     observer?.observe(textarea);
     return () => observer?.disconnect();
   }, [active?.id, query, scope, syncHighlight]);
+
+  useLayoutEffect(() => {
+    const layer = highlightRef.current;
+    if (!layer) {
+      setLineHeights([]);
+      return;
+    }
+    const measure = () => {
+      const next = Array.from(layer.querySelectorAll<HTMLElement>('[data-line]'), (node) => node.offsetHeight);
+      setLineHeights((prev) =>
+        prev.length === next.length && prev.every((height, index) => Math.abs(height - next[index]) < 0.5)
+          ? prev
+          : next,
+      );
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(layer);
+    return () => observer?.disconnect();
+  }, [active?.body]);
 
   useEffect(() => {
     setMatchIndex(0);
@@ -378,25 +412,46 @@ export default function NotesTool() {
                   <Icon name="trash" />
                 </button>
               </div>
-              <div className="relative min-h-0 flex-1">
-                {query.trim() && scope !== 'title' ? (
+              <div className="relative flex min-h-0 flex-1">
+                <div
+                  ref={gutterRef}
+                  aria-hidden="true"
+                  className="mono w-10 shrink-0 overflow-hidden border-r border-line bg-panel/20 py-5 text-right text-[10.5px] leading-7 text-muted/45 select-none md:py-6"
+                >
+                  {gutterHeights.map((height, index) => (
+                    <div key={index} className="pr-2 tabular-nums" style={{ height }}>
+                      {index + 1}
+                    </div>
+                  ))}
+                </div>
+                <div className="relative min-h-0 min-w-0 flex-1">
                   <div
                     ref={highlightRef}
                     aria-hidden="true"
                     className="pointer-events-none absolute top-0 left-0 w-full overflow-hidden p-5 text-[14px] leading-7 break-words whitespace-pre-wrap text-transparent md:p-6"
                   >
-                    <Highlight text={active.body} query={query} editor activeIndex={activeMatch} />
+                    {bodyLines.map((line, index) => (
+                      <div key={index} data-line className="min-h-7 whitespace-pre-wrap break-words">
+                        <Highlight
+                          text={line}
+                          query={editorQuery}
+                          editor
+                          activeIndex={activeMatch}
+                          startMatch={lineMatchOffsets[index] ?? 0}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ) : null}
-                <textarea
-                  ref={textareaRef}
-                  value={active.body}
-                  onChange={(e) => patch({ body: e.target.value })}
-                  onScroll={syncHighlight}
-                  placeholder={t('notes.bodyPlaceholder')}
-                  spellCheck={false}
-                  className="relative block h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
-                />
+                  <textarea
+                    ref={textareaRef}
+                    value={active.body}
+                    onChange={(e) => patch({ body: e.target.value })}
+                    onScroll={syncHighlight}
+                    placeholder={t('notes.bodyPlaceholder')}
+                    spellCheck={false}
+                    className="relative block h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
+                  />
+                </div>
               </div>
             </>
           ) : (
