@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { readdir, readFile, stat, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, readdir, readFile, stat, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
@@ -508,11 +508,29 @@ export class FilesService {
     return { bytes, files, truncated: visited >= 50000 };
   }
 
-  async saveUpload(dirInput: string, name: string, data: Buffer) {
+  async saveUpload(dirInput: string, name: string, tempPath: string) {
     if (!name) throw new NotFoundException('Nama file kosong');
+    if (!tempPath) throw new BadRequestException('Berkas upload kosong');
     const dir = await jailPath(dirInput);
     const target = await jailPath(join(dir, basename(name)));
-    await writeFile(target, data);
-    return { ok: true, path: target, size: data.length };
+    let copied: string | null = null;
+    try {
+      try {
+        await rename(tempPath, target);
+      } catch (err) {
+        // Folder temp dan target bisa beda filesystem (mis. /tmp tmpfs).
+        // copyFile streaming ke disk, lalu rename agar target lama tidak rusak
+        // kalau penyalinan gagal di tengah jalan.
+        if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err;
+        copied = target + '.upload-' + process.pid + '-' + Date.now();
+        await copyFile(tempPath, copied);
+        await rename(copied, target);
+      }
+    } finally {
+      await unlink(tempPath).catch(() => undefined);
+      if (copied) await unlink(copied).catch(() => undefined);
+    }
+    const info = await stat(target);
+    return { ok: true, path: target, size: info.size };
   }
 }

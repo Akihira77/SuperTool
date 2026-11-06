@@ -219,7 +219,7 @@ curl -b cookies.txt -X POST http://127.0.0.1:3001/api/llm/explain \
 | GET | `/compress/info` | – | `{ image, pdf, pdfToImage, convert }` |
 | GET | `/compress/job` | `id` | `{ id, state, result?, error? }` |
 | POST | `/compress/image` | `{ path, quality?, maxWidth?, format? }` | `{ jobId }` |
-| POST | `/compress/pdf` | `{ path, mode? }` | `{ jobId }` |
+| POST | `/compress/pdf` | `{ path, mode? }` | `{ jobId }`; ghostscript streaming tanpa batas 200 MB, fallback pdf-lib ≤50 MB |
 | POST | `/compress/convert` | `{ path, target, quality?, dpi? }` | `{ jobId }` |
 
 Proses berjalan di latar belakang: `state` bergerak `running` lalu `done` (ada `result`) atau `error` (ada `error`).

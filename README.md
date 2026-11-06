@@ -53,7 +53,7 @@ sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 
 | Binary | Dipakai untuk | Kalau tidak ada |
 |--------|---------------|-----------------|
-| `gs` (ghostscript) | kompres PDF besar (streaming, hemat RAM) | PDF hanya disimpan ulang lewat pdf-lib, penghematan kecil |
+| `gs` (ghostscript) | kompres PDF besar (streaming ke disk, tanpa batas 200 MB) | hanya PDF ≤50 MB yang bisa disimpan ulang lewat pdf-lib; PDF besar ditolak dengan pesan jelas |
 | `pdftoppm` (poppler-utils) | konversi PDF → gambar | tab Konversi untuk PDF dinonaktifkan |
 | `docker` | tab Docker (ps/images/logs + kontrol container) | tab menampilkan pesan error; aksi start/stop/restart/hapus gagal dengan pesan jelas |
 | `git` | tab Git Status | tab menampilkan pesan error |
@@ -65,7 +65,7 @@ sudo apt install -y ghostscript poppler-utils ffmpeg cron iproute2 docker.io
 
 Downloader memakai `ffmpeg-static` bawaannya sendiri; tidak perlu `ffmpeg` sistem.
 
-**Ghostscript di WSL:** instal lewat apt (perintah di atas). Cek dengan `gs --version`. Kalau server dijalankan lewat systemd/PM2 di dalam WSL, PATH biasanya sudah memuat `/usr/bin`. Setelah terpasang, `GET /api/compress/info` berubah menjadi `"pdf": "ghostscript"` dan kompresor otomatis memakai jalur streaming (berkas tidak dimuat penuh ke RAM).
+**Ghostscript di WSL:** instal lewat apt (perintah di atas). Cek dengan `gs --version`. Kalau server dijalankan lewat systemd/PM2 di dalam WSL, PATH biasanya sudah memuat `/usr/bin`. Setelah terpasang, `GET /api/compress/info` berubah menjadi `"pdf": "ghostscript"` dan kompresor otomatis memakai jalur streaming (berkas tidak dimuat penuh ke RAM). Tanpa ghostscript, fallback pdf-lib tetap dibatasi 50 MB agar RAM server tidak habis.
 
 ## Menjalankan
 
@@ -108,7 +108,8 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_LLM_MODEL` | kosong | Model default; bisa juga dipilih dari UI |
 | `ST_LLM_API_KEY` | kosong | API key bila provider mewajibkan |
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
-| `ST_TEMP_DIR` | `temp/` di root repo | Folder kerja sementara yt-dlp; dibersihkan otomatis setelah streaming |
+| `ST_TEMP_DIR` | `temp/` di root repo | Folder kerja sementara yt-dlp dan upload besar; berkas upload dipindahkan, bukan disalin ke RAM |
+| `ST_MAX_UPLOAD_BYTES` | `21474836480` (20 GB) | Batas maksimum satu berkas upload di File Explorer/Kompresor |
 | `ST_DEV_ORIGIN` | `http://localhost:5173` | Origin yang diizinkan CORS saat dev |
 | `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
 | `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
@@ -198,7 +199,8 @@ Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas dipu
 - **Kompres**: gambar (kualitas + lebar maksimum + format keluaran) dan PDF. Hasil ditulis sebagai `<nama>-min.<ext>`.
 - **Konversi**: gambar → PDF, PDF → PNG/JPG, dan antar format gambar. Hasil `<nama>-conv.<ext>` atau `<nama>-page-N.png`.
 - Proses berjalan sebagai job di latar belakang: `POST /api/compress/*` langsung mengembalikan `jobId`, UI memantau `GET /api/compress/job?id=`. Halaman tidak terkunci dan ada indikator progres.
-- Berkas dipilih lewat kotak drop (klik untuk membuka dialog file) atau ditarik ke sana; hasil unggahan masuk ke `<root>/.super-tool-drop`.
+- Berkas dipilih lewat kotak drop (klik untuk membuka dialog file) atau ditarik ke sana; hasil unggahan masuk ke `<root>/.super-tool-drop`. Upload ditulis bertahap ke disk (bukan Buffer di RAM), menampilkan persen unggah; batas default 20 GB, ubah lewat `ST_MAX_UPLOAD_BYTES`.
+- PDF besar diproses satu per satu agar dua file GB tidak berebut RAM; output ditulis ke berkas `.part-*` lalu di-rename setelah ghostscript sukses.
 - Berkas rusak atau terkunci password menghasilkan pesan seperti "Berkas terkunci password, tidak bisa diproses", bukan halaman kosong.
 
 Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil di kanan, masing-masing dengan pratinjau besar (gambar tampil penuh, klik untuk ukuran asli), ukuran berkas, dan tombol unduh. Konversi yang melibatkan PDF tidak menampilkan isi, hanya info berkas.
@@ -429,7 +431,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **Nginx**: setiap penyimpanan pertama membuat `<file>.bak`; tombol *Kembalikan asli* memulihkan dari cadangan itu lalu menghapusnya.
 - **File Explorer**: daftar folder dibatasi 2000 entri dan pencarian 200 hasil agar UI tetap responsif. Kolom Nama/Ukuran/Diubah bisa diurutkan (folder selalu di atas), dan tiap baris punya aksi unduh, salin path, ganti nama, hapus. Pencarian isi berkas memakai `ripgrep` bila tersedia (fallback `grep -rIn`), jadi jauh lebih cepat dan otomatis menghormati `.gitignore`; data tetap disaring per folder sampah (node_modules, .git, dist, .cache). Kolom **"hanya di dalam" (include)** dipakai sebagai titik mulai pencarian — folder lain tidak ditelusuri sama sekali — dan pencarian nama juga berhenti menelusuri di luar folder itu. Berkas biner dilewati (docx/xlsx tidak ikut), isi dibatasi 300 hasil, nama 200 hasil.
 - **Edit Office**: hanya teks paragraf (docx) dan nilai sel (xlsx). Jumlah paragraf tidak boleh berubah — menambah atau menghapus paragraf belum didukung, dan aplikasinya menolak dengan pesan jelas. Format pptx/odt/ods/odp hanya bisa dibaca.
-- **Kompres PDF**: tanpa ghostscript, pdf-lib memuat seluruh berkas ke memori (batas 200 MB) dan penghematannya kecil. Dengan ghostscript proses berjalan sebagai subprocess streaming. Instalasi ghostscript ada di bagian *Alat eksternal*.
+- **Kompres PDF**: dengan ghostscript, proses streaming ke disk, tanpa batas 200 MB; cocok untuk file ratusan MB/GB. Tanpa ghostscript hanya PDF ≤50 MB yang diproses lewat pdf-lib (memori); PDF besar ditolak dengan pesan agar RAM tidak habis. Instalasi ghostscript ada di bagian *Alat eksternal*.
 - **Konversi PDF → gambar**: memecah 3 halaman pertama per proses, butuh `pdftoppm`. Hasilnya gambar per halaman, bukan PDF baru.
 - **Cron**: mengubah crontab user yang menjalankan server; butuh izin tulis ke `/var/spool/cron`. Di sandbox/container tanpa cron, penulisan ditolak dengan pesan jelas.
 - **DNS lookup**: lokasi server memakai ip-api.com (HTTP, tanpa API key) sehingga butuh internet; tanpa internet record DNS tetap tampil.

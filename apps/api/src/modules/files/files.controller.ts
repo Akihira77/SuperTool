@@ -13,14 +13,25 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
-import { createReadStream } from 'node:fs';
+import { createReadStream, mkdirSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
 import { FilesService } from './files.service';
 import { mimeOf } from './mime';
 
-type Uploaded = { originalname: string; buffer: Buffer };
+type Uploaded = { originalname: string; path?: string; size?: number };
+
+// Upload besar ditulis ke disk oleh multer, bukan ditampung di RAM. Folder
+// sementara berada di data user agar biasanya satu filesystem dengan target.
+const UPLOAD_TMP = join(cfg.tempDir, 'uploads');
+mkdirSync(UPLOAD_TMP, { recursive: true });
+const configuredUploadMax = Number(process.env.ST_MAX_UPLOAD_BYTES);
+const MAX_UPLOAD_BYTES =
+  Number.isFinite(configuredUploadMax) && configuredUploadMax > 0
+    ? configuredUploadMax
+    : 20 * 1024 * 1024 * 1024;
 
 /** "*.log, *.map" -> ['*.log', '*.map'] */
 function parseInclude(raw?: string): string[] {
@@ -184,9 +195,11 @@ export class FilesController {
   }
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { dest: UPLOAD_TMP, limits: { fileSize: MAX_UPLOAD_BYTES } }),
+  )
   upload(@Query('path') path: string, @UploadedFile() file: Uploaded) {
-    return this.files.saveUpload(path, file?.originalname ?? '', file?.buffer ?? Buffer.alloc(0));
+    return this.files.saveUpload(path, file?.originalname ?? '', file?.path ?? '');
   }
 
   @Delete()

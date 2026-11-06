@@ -97,6 +97,7 @@ export default function CompressTool() {
   const [caps, setCaps] = useState<{ pdf: string; pdfToImage: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Result | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -196,6 +197,7 @@ export default function CompressTool() {
     setDragging(false);
     if (!file || !rootRef.current) return;
     setBusy(true);
+    setUploadProgress(0);
     setError('');
     setResult(null);
     try {
@@ -203,18 +205,38 @@ export default function CompressTool() {
       await api.post('/fs/mkdir', { path: dir }).catch(() => undefined);
       const form = new FormData();
       form.append('file', file);
-      const response = await fetch('/api/fs/upload' + qs({ path: dir }), {
-        method: 'POST',
-        headers: { 'x-st-csrf': '1' },
-        body: form,
+      const data = await new Promise<{ path?: string; message?: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/fs/upload' + qs({ path: dir }));
+        xhr.setRequestHeader('x-st-csrf', '1');
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            setUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          }
+        };
+        xhr.onload = () => {
+          let body: { path?: string; message?: string } = {};
+          try {
+            body = JSON.parse(xhr.responseText) as { path?: string; message?: string };
+          } catch {
+            // respons bukan JSON (mis. 413 dari proxy)
+          }
+          if (xhr.status < 200 || xhr.status >= 300 || !body.path) {
+            reject(new Error(body.message ?? 'Upload gagal (HTTP ' + xhr.status + ')'));
+            return;
+          }
+          resolve(body);
+        };
+        xhr.onerror = () => reject(new Error('Upload gagal: koneksi terputus'));
+        xhr.onabort = () => reject(new Error('Upload dibatalkan'));
+        xhr.send(form);
       });
-      const data = (await response.json()) as { path?: string; message?: string };
-      if (!response.ok || !data.path) throw new Error(data.message ?? 'Upload gagal');
-      setPath(data.path);
-      setBusy(false);
+      setPath(data.path as string);
     } catch (err) {
-      setBusy(false);
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
+      setUploadProgress(null);
     }
   };
 
@@ -225,6 +247,7 @@ export default function CompressTool() {
       <PageHeader title={t('compress.title')} subtitle={t('compress.subtitle')} icon="compress">
         <span className="text-[11px] text-muted">
           PDF: {caps?.pdf === 'ghostscript' ? 'ghostscript' : 'pdf-lib'}
+          {caps && caps.pdf !== 'ghostscript' ? ' · ' + t('compress.gsLarge') : ''}
           {caps?.pdfToImage ? ' · poppler' : ' · poppler tidak ada'}
         </span>
       </PageHeader>
@@ -248,7 +271,11 @@ export default function CompressTool() {
             ref={fileRef}
             type="file"
             className="hidden"
-            onChange={(event) => void upload(event.target.files?.[0])}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              void upload(file);
+            }}
           />
           <button
             type="button"
@@ -270,7 +297,13 @@ export default function CompressTool() {
             <span className="grid size-11 place-items-center rounded-2xl border border-line bg-panel2/60 text-muted">
               {busy ? <Spinner /> : <Icon name="upload" size={20} />}
             </span>
-            <span className="text-[12.5px] text-muted">{path ? path.split('/').pop() : t('compress.drop')}</span>
+            <span className="text-[12.5px] text-muted">
+              {uploadProgress !== null
+                ? t('compress.uploading') + ' ' + uploadProgress + '%'
+                : path
+                  ? path.split('/').pop()
+                  : t('compress.drop')}
+            </span>
             {path ? <span className="mono max-w-full truncate text-[11px] text-muted/70">{path}</span> : null}
           </button>
 
@@ -380,9 +413,17 @@ export default function CompressTool() {
                 {busy ? (
                   <div className="flex min-w-40 flex-1 items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
-                      <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
+                      <div
+                        className={cn(
+                          'h-full rounded-full bg-accent',
+                          uploadProgress === null ? 'w-1/2 animate-pulse' : 'transition-[width] duration-200',
+                        )}
+                        style={uploadProgress === null ? undefined : { width: uploadProgress + '%' }}
+                      />
                     </div>
-                    <span className="text-[11px] text-muted">{elapsed}s</span>
+                    <span className="text-[11px] text-muted">
+                      {uploadProgress === null ? elapsed + 's' : uploadProgress + '%'}
+                    </span>
                   </div>
                 ) : null}
                 {error ? <span className="text-[12px] text-bad">{error}</span> : null}

@@ -68,7 +68,12 @@ async function bootstrap() {
     });
   }
 
-  app.getHttpServer().on('upgrade', (req: any, socket: any, head: Buffer) => {
+  const server = app.getHttpServer();
+  // Upload multipart berukuran GB tidak boleh diputus requestTimeout 5 menit
+  // bawaan Node. Batas ukuran tetap dijaga di FileInterceptor.
+  server.requestTimeout = 0;
+  server.headersTimeout = 120_000;
+  server.on('upgrade', (req: any, socket: any, head: Buffer) => {
     if (!handleProxyUpgrade(req, socket, head, auth)) socket.destroy();
   });
 

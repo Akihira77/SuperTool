@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { execFile } from 'node:child_process';
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { PDFDocument } from 'pdf-lib';
@@ -12,6 +12,9 @@ const exec = promisify(execFile);
 const IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'tif', 'tiff']);
 const PDF_EXT = new Set(['pdf']);
 const CONVERT_TARGETS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'webp']);
+const MAX_PDF_FALLBACK = 50 * 1024 * 1024;
+const GS_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+const GS_MAX_BUFFER = 4 * 1024 * 1024;
 
 export type CompressResult = {
   input: { path: string; size: number };
@@ -49,6 +52,9 @@ export class CompressService {
   private jobs = new Map<string, Job>();
   private counter = 0;
   private tools: Promise<Record<Tool, boolean>> | null = null;
+  // Ghostscript pdfwrite memakai RAM besar untuk PDF kompleks. Satu proses
+  // besar pada satu waktu supaya dua file GB tidak saling menghabiskan memori.
+  private pdfQueue: Promise<void> = Promise.resolve();
 
   private detect(): Promise<Record<Tool, boolean>> {
     if (!this.tools) {
@@ -118,7 +124,22 @@ export class CompressService {
   }
 
   pdf(input: string, options: { mode?: string }) {
-    return this.queue('kompres pdf', () => this.runPdf(input, options));
+    return this.queue('kompres pdf', () => this.serializePdf(() => this.runPdf(input, options)));
+  }
+
+  private serializePdf<T>(work: () => Promise<T>): Promise<T> {
+    const previous = this.pdfQueue;
+    let release!: () => void;
+    this.pdfQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return previous.then(async () => {
+      try {
+        return await work();
+      } finally {
+        release();
+      }
+    });
   }
 
   convert(input: string, options: { target?: string; quality?: number; dpi?: number }) {
@@ -156,37 +177,53 @@ export class CompressService {
     const source = await jailPath(input);
     if (!PDF_EXT.has(extname(source).slice(1).toLowerCase())) throw new BadRequestException('Bukan berkas PDF');
     const info = await stat(source);
-    if (info.size > 200 * 1024 * 1024) throw new BadRequestException('PDF terlalu besar (>200 MB)');
 
     const dest = replaceName(source, '-min', 'pdf');
     const tools = await this.detect();
 
     if (tools.gs) {
-      await exec(
-        'gs',
-        [
-          '-sDEVICE=pdfwrite',
-          '-dCompatibilityLevel=1.5',
-          '-dPDFSETTINGS=' + (options.mode === 'max' ? '/ebook' : '/printer'),
-          '-dNOPAUSE',
-          '-dBATCH',
-          '-dQUIET',
-          '-sOutputFile=' + dest,
-          source,
-        ],
-        { timeout: 600_000, maxBuffer: 2 * 1024 * 1024 },
-      );
-      return this.result(source, dest, 'Dikompres dengan ghostscript');
+      // Output ditulis ke berkas sementara di folder yang sama, lalu di-rename
+      // setelah sukses. Tidak ada PDF yang dimuat ke memori Node.
+      const temp = dest + '.part-' + process.pid + '-' + Date.now();
+      try {
+        await exec(
+          'gs',
+          [
+            '-sDEVICE=pdfwrite',
+            '-dCompatibilityLevel=1.5',
+            '-dPDFSETTINGS=' + (options.mode === 'max' ? '/ebook' : '/printer'),
+            '-dSAFER',
+            '-dPDFSTOPONERROR',
+            '-dNOPAUSE',
+            '-dBATCH',
+            '-dQUIET',
+            '-sOutputFile=' + temp,
+            source,
+          ],
+          { timeout: GS_TIMEOUT_MS, maxBuffer: GS_MAX_BUFFER },
+        );
+        await rename(temp, dest);
+      } catch (err) {
+        await unlink(temp).catch(() => undefined);
+        throw err;
+      }
+      return this.result(source, dest, 'Dikompres streaming dengan ghostscript');
     }
 
-    // Tanpa ghostscript: pdf-lib memuat seluruh berkas ke memori.
+    // Tanpa ghostscript: pdf-lib memuat seluruh berkas ke memori. Batasi
+    // ukuran agar PDF ratusan MB/GB tidak menghabiskan RAM server.
+    if (info.size > MAX_PDF_FALLBACK) {
+      throw new BadRequestException(
+        'PDF >50 MB membutuhkan ghostscript. Pasang ghostscript lalu coba lagi (lihat README bagian Alat eksternal).',
+      );
+    }
     const bytes = await readFile(source);
     const doc = await PDFDocument.load(bytes, { updateMetadata: false, throwOnInvalidObject: false });
     await writeFile(dest, await doc.save({ useObjectStreams: true, addDefaultPage: false }));
     return this.result(
       source,
       dest,
-      'Disimpan ulang dengan object stream. Pasang ghostscript untuk kompresi besar (lihat README).',
+      'Disimpan ulang dengan object stream. Pasang ghostscript untuk PDF besar (lihat README).',
     );
   }
 
