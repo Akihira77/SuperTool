@@ -130,6 +130,12 @@ function isMergeError(error: unknown): boolean {
   return /postprocessing:|Error opening input files|Invalid data found when processing input|Conversion failed/i.test(detail);
 }
 
+/** Facebook sering hanya menyediakan satu format progresif, tanpa stream video/audio terpisah. */
+function isFormatUnavailable(error: unknown): boolean {
+  const detail = ytDlpStderr(error) + '\n' + (error instanceof Error ? error.message : '');
+  return /Requested format is not available|No video formats found|format is not available/i.test(detail);
+}
+
 function isBilibiliHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com');
@@ -379,7 +385,7 @@ export class DownloaderService implements OnModuleInit {
           lastError = error;
           if (signal.aborted) throw error;
           const noFile = error instanceof Error && /tidak menghasilkan file/i.test(error.message);
-          const canFallback = !request.audioOnly && attempt < formats.length - 1 && (isMergeError(error) || noFile);
+          const canFallback = !request.audioOnly && attempt < formats.length - 1 && (isMergeError(error) || isFormatUnavailable(error) || noFile);
           if (!canFallback) throw error;
           await rm(attemptDir, { recursive: true, force: true }).catch(() => undefined);
           this.logger.warn(
