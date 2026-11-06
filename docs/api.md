@@ -76,7 +76,7 @@ Root scan adalah folder pertama `ST_FS_ROOTS` (default home). Kedalaman 2 level;
 
 | Metode | Path | Query/Body | Hasil |
 |--------|------|------------|-------|
-| GET | `/storage/usage` | `refresh=1` (opsional) | `{ root, total, scannedAt, truncated, warning?, count, disk, tree[] }` |
+| GET | `/storage/usage` | `refresh=1` (opsional) | `{ root, total, scannedAt, truncated, warning?: { code, path? }, count, disk, tree[] }` |
 | POST | `/storage/delete` | `{ path }` | `{ ok, path }`; hanya nama folder allowlist, path di dalam root |
 | POST | `/storage/docker-prune` | – | `{ ok, output }` dari `docker system prune -f` |
 

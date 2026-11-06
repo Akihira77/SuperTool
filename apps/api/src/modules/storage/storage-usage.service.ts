@@ -51,12 +51,17 @@ export type UsageNode = {
   children?: UsageNode[];
 };
 
+export type UsageWarning = {
+  code: 'timeout' | 'unreadable' | 'truncated' | 'partial';
+  path?: string;
+};
+
 export type UsageResult = {
   root: string;
   total: number;
   scannedAt: number;
   truncated: boolean;
-  warning?: string;
+  warning?: UsageWarning;
   count: number;
   disk?: { total: number; free: number };
   tree: UsageNode[];
@@ -130,6 +135,9 @@ export class StorageUsageService {
       if (!row || !Number.isFinite(row.scannedAt)) return null;
       const data = JSON.parse(row.data) as UsageResult;
       if (!data || !Array.isArray(data.tree) || typeof data.total !== 'number') return null;
+      // Cache lama menyimpan warning sebagai string; buang agar scan ulang
+      // menghasilkan warning terstruktur yang bisa diterjemahkan frontend.
+      if (data.warning !== undefined && (typeof data.warning !== 'object' || data.warning === null)) return null;
       return { at: row.scannedAt, data };
     } catch {
       return null;
@@ -191,18 +199,20 @@ export class StorageUsageService {
     const byPath = new Map<string, UsageNode>();
     let timedOut = false;
     let unreadable = false;
-    let unreadableDetail = '';
+    let unreadablePath = '';
     for (let index = 0; index < dirs.length; index += 1) {
       const run = runs[index];
       if (!run) continue;
       if (run.timedOut) timedOut = true;
       if (run.code !== 0) {
         unreadable = true;
-        if (!unreadableDetail) {
-          unreadableDetail = run.stderr
+        if (!unreadablePath) {
+          const line = run.stderr
             .split('\n')
-            .map((line) => line.trim())
+            .map((text) => text.trim())
             .find(Boolean) ?? '';
+          // Ambil path saja; teks pesan du tetap bahasa Inggris dari sistem.
+          unreadablePath = /(?:cannot read directory|cannot access|cannot open directory) '([^']+)'/.exec(line)?.[1] ?? '';
         }
       }
       for (const entry of parseDuOutput(run.raw, dirs[index])) {
@@ -250,16 +260,10 @@ export class StorageUsageService {
     };
     walk(tree);
 
-    let warning: string | undefined;
-    if (timedOut) {
-      warning = 'Sebagian folder terlalu lama dipindai; ukuran bisa belum lengkap.';
-      if (unreadable) warning += ' Sebagian folder juga tidak bisa dibaca.';
-    } else if (unreadable) {
-      const detail = unreadableDetail.replace(/^du:\s*/, '').slice(0, 220);
-      warning = 'Sebagian folder tidak bisa dibaca' + (detail ? ': ' + detail : '') + '; ukuran bisa belum lengkap.';
-    } else if (truncated) {
-      warning = 'Daftar dipotong agar UI tetap responsif; ukuran total tetap dihitung.';
-    }
+    let warning: UsageWarning | undefined;
+    if (timedOut) warning = { code: unreadable ? 'partial' : 'timeout' };
+    else if (unreadable) warning = { code: 'unreadable', path: unreadablePath || undefined };
+    else if (truncated) warning = { code: 'truncated' };
 
     const disk = await statfs(root)
       .then((info) => ({

@@ -15,12 +15,17 @@ type UsageNode = {
   children?: UsageNode[];
 };
 
+type UsageWarning = {
+  code: 'timeout' | 'unreadable' | 'truncated' | 'partial';
+  path?: string;
+};
+
 type Usage = {
   root: string;
   total: number;
   scannedAt: number;
   truncated: boolean;
-  warning?: string;
+  warning?: UsageWarning | string;
   count: number;
   disk?: { total: number; free: number };
   tree: UsageNode[];
@@ -305,6 +310,21 @@ export default function StorageTool() {
 
   const tree = data ? ordered(data.tree, sort) : [];
   const diskPct = data?.disk && data.disk.total > 0 ? ((data.disk.total - data.disk.free) / data.disk.total) * 100 : 0;
+  const warningText = (() => {
+    if (!data?.warning) return '';
+    if (typeof data.warning === 'string') return t('storage.warningGeneric');
+    const warning = data.warning;
+    const key =
+      warning.code === 'timeout'
+        ? 'storage.warningTimeout'
+        : warning.code === 'unreadable'
+          ? 'storage.warningUnreadable'
+          : warning.code === 'partial'
+            ? 'storage.warningPartial'
+            : 'storage.truncated';
+    const base = t(key);
+    return warning.path ? base + ' ' + t('storage.warningPath') + ' ' + warning.path : base;
+  })();
 
   return (
     <div className="flex h-full flex-col">
@@ -355,7 +375,7 @@ export default function StorageTool() {
               {data.warning ? (
                 <div className="card border-warn/30 p-3">
                   <div className="text-[10.5px] uppercase tracking-wide text-warn">{t('storage.warning')}</div>
-                  <div className="mt-1 text-[11.5px] text-warn/90">{data.warning}</div>
+                  <div className="mt-1 text-[11.5px] text-warn/90 break-words">{warningText}</div>
                 </div>
               ) : null}
             </div>
