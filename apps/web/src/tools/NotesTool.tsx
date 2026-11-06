@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
+import TextCompare from './TextCompare';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string; matches?: number };
 type Note = NoteMeta & { body: string };
@@ -72,6 +73,7 @@ export default function NotesTool() {
   const confirm = useConfirm();
   const toast = useToast();
   const [panelOpen, togglePanel] = useSidebar('notes', true);
+  const [tab, setTab] = useState<'notes' | 'compare'>('notes');
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -267,17 +269,45 @@ export default function NotesTool() {
         title={t('notes.title')}
         icon="notes"
         subtitle={
-          status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : status === 'saved' ? t('notes.saved') : notes.length + ' ' + t('notes.count')
+          tab === 'compare'
+            ? t('compare.subtitle')
+            : status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : status === 'saved' ? t('notes.saved') : notes.length + ' ' + t('notes.count')
         }
       >
-        <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
-          <Icon name="panel" />
-        </button>
-        <button type="button" className="btn btn-primary" data-action="notes:new" onClick={create}>
-          <Icon name="plus" /> {t('notes.new')}
-        </button>
+        {tab === 'notes' ? (
+          <>
+            <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
+              <Icon name="panel" />
+            </button>
+            <button type="button" className="btn btn-primary" data-action="notes:new" onClick={create}>
+              <Icon name="plus" /> {t('notes.new')}
+            </button>
+          </>
+        ) : null}
       </PageHeader>
 
+      <div className="flex shrink-0 items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
+        <button
+          type="button"
+          data-action="notes:tab-notes"
+          className={cn('btn px-2 py-1 text-[11px]', tab === 'notes' ? 'border-accent/40 text-accent' : '')}
+          onClick={() => setTab('notes')}
+        >
+          {t('notes.tabNotes')}
+        </button>
+        <button
+          type="button"
+          data-action="notes:tab-compare"
+          className={cn('btn px-2 py-1 text-[11px]', tab === 'compare' ? 'border-accent/40 text-accent' : '')}
+          onClick={() => setTab('compare')}
+        >
+          {t('notes.tabCompare')}
+        </button>
+      </div>
+
+      {tab === 'compare' ? (
+        <TextCompare />
+      ) : (
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
         <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
@@ -459,6 +489,7 @@ export default function NotesTool() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
