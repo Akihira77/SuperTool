@@ -136,7 +136,7 @@ export function SessionTabs({
                 setOverId(null);
               }}
               className={cn(
-                'group flex h-7 max-w-[210px] shrink-0 cursor-grab items-center gap-1.5 rounded-md border px-2 text-[11px] transition-colors active:cursor-grabbing',
+                'group flex h-7 max-w-[210px] shrink-0 select-none items-center gap-1.5 rounded-md border px-2 text-[11px] transition-colors',
                 active
                   ? 'border-accent/50 bg-accent/10 text-ink shadow-[inset_0_-2px_0_rgb(107_150_255/0.55)]'
                   : 'border-transparent text-muted hover:border-line hover:bg-panel2/60 hover:text-ink',

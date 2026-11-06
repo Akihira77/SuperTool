@@ -33,7 +33,7 @@ Bar tab di atas area kerja menyimpan beberapa tool sekaligus, seperti tmux untuk
 - Susunan sesi (daftar, urutan, nama, sesi aktif) disimpan di `localStorage` `st:sessions:v1` dan dipulihkan saat URL Super Tool dibuka lagi.
 - Perubahan tab disinkronkan antar-tab browser lewat event `storage`, tanpa polling.
 - Klik dua kali nama untuk mengganti nama, seret tab untuk mengurutkan, klik `x` atau klik tengah untuk menutup. Tombol `+` membuka tool baru.
-- Hanya sesi aktif yang di-mount. URL Viewer tetap di-mount tersembunyi supaya iframe/terminal di dalamnya tidak reload saat pindah sesi.
+- Sesi yang sudah pernah aktif tetap di-mount (tersembunyi) saat pindah tab, jadi scan, unduhan, SSE, atau terminal di sesi lama tidak batal. Sesi yang belum pernah dibuka baru di-mount saat pertama kali diaktifkan.
 - Tool di dalam sesi tidak punya tab bertingkat. State internal tiap tool tidak disimpan per sesi; datanya tetap memakai sumber aslinya (server atau `localStorage` tool).
 
 ## Tech stack

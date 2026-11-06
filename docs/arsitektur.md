@@ -89,7 +89,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 |------|-------|
 | `App.tsx` | Gate auth (loading/anonymous/wajib-ganti/siap), sidebar, routing hash, pemilik state sesi |
 | `lib/sessions.ts` | Kontainer multi sesi di `localStorage` (`st:sessions:v1`): daftar, urutan, nama, sesi aktif; normalisasi data rusak; sinkron antar-tab lewat event `storage` |
-| `components/SessionTabs.tsx` | Bar tab sesi: aktifkan, rename (klik dua kali), tutup (`x`/klik tengah), drag urutkan, tombol `+` buka tool |
+| `components/SessionTabs.tsx` | Bar tab sesi: aktifkan, rename (klik dua kali), tutup (`x`/klik tengah), drag urutkan, tombol `+` buka tool; cursor tab default seperti browser |
 | `lib/router.ts` | Router hash ~15 baris — tanpa react-router; query di hash (`#/calendar?google=connected`) dibuang saat mencocokkan id tool |
 | `lib/api.ts` | `fetch` wrapper: JSON, cookie, header CSRF, `ApiError` |
 | `lib/project.tsx` | Konteks folder proyek aktif (localStorage `st:project`) + riwayat `st:project:recent`; `useProject()` dipakai File Explorer dan Git |

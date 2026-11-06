@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { Fragment, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
@@ -114,8 +114,10 @@ function Shell() {
   const { t, lang, setLang } = useI18n();
   const [store, setStore] = useState<SessionStore>(() => initialSessionStore(route));
   const [booted, setBooted] = useState(false);
+  const [mounted, setMounted] = useState<Set<string>>(
+    () => new Set(store.activeId ? [store.activeId] : []),
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const ViewerComponent = TOOLS.find((tool) => tool.id === 'viewer')!.component;
   const routeRef = useRef(route);
   const lastRoute = useRef(route);
   const lastSaved = useRef('');
@@ -123,9 +125,6 @@ function Shell() {
 
   const activeSession = store.sessions.find((session) => session.id === store.activeId) ?? null;
   const activeToolId = activeSession?.tool ?? null;
-  const activeTool = activeToolId ? toolById(activeToolId) ?? null : null;
-  const ActiveComponent = activeTool?.component;
-  const viewerSessions = store.sessions.filter((session) => session.tool === 'viewer');
 
   // Ctrl/Cmd + K membuka command palette.
   useEffect(() => {
@@ -232,6 +231,14 @@ function Shell() {
       alive = false;
     };
   }, []);
+
+  // Sesi yang sudah pernah aktif tetap di-mount saat pindah tab, jadi scan,
+  // unduhan, SSE, atau proses lain di sesi lama tidak ikut dibatalkan.
+  useLayoutEffect(() => {
+    const id = store.activeId;
+    if (!id) return;
+    setMounted((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
+  }, [store.activeId]);
 
   useEffect(() => {
     const serialized = JSON.stringify({ sessions: store.sessions, activeId: store.activeId });
@@ -479,47 +486,38 @@ function Shell() {
               onAdd={addSession}
             />
             {/*
-              URL Viewer tetap ter-mount saat sesi lain aktif: iframe di dalamnya
-              (terminal ssh, pm2 log, dsb) tidak boleh reload hanya karena pindah sesi.
-              Tool lain hanya di-mount saat aktif supaya polling tidak menumpuk.
+              Sesi yang sudah pernah aktif tetap di-mount walau tidak aktif, supaya
+              proses yang sedang jalan (scan, unduh, SSE, terminal) tidak batal.
+              Sesi baru pertama kali baru di-mount saat dibuka.
             */}
-            <Suspense
-              fallback={
-                activeSession?.tool === 'viewer' ? (
-                  <div className="flex flex-1 items-center justify-center">
-                    <Spinner />
-                  </div>
-                ) : null
-              }
-            >
-              {viewerSessions.map((session) => {
-                const active = session.id === store.activeId;
-                return (
+            {store.sessions.map((session) => {
+              const active = session.id === store.activeId;
+              const Component = toolById(session.tool)?.component;
+              if (!Component) return null;
+              if (!active && !mounted.has(session.id)) return null;
+              return (
+                <Suspense
+                  key={session.id}
+                  fallback={
+                    active ? (
+                      <div className="flex flex-1 items-center justify-center">
+                        <Spinner />
+                      </div>
+                    ) : null
+                  }
+                >
                   <div
-                    key={session.id}
                     className={cn(
-                      'flex min-h-0 flex-1 flex-col',
+                      'flex min-h-0 min-w-0 flex-1 flex-col',
                       !active && 'pointer-events-none invisible absolute inset-0',
                     )}
+                    aria-hidden={active ? undefined : true}
                   >
-                    <ViewerComponent />
+                    <Component />
                   </div>
-                );
-              })}
-            </Suspense>
-            <Suspense
-              fallback={
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner />
-                </div>
-              }
-            >
-              {activeSession && activeSession.tool !== 'viewer' && ActiveComponent ? (
-                <div key={activeSession.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
-                  <ActiveComponent />
-                </div>
-              ) : null}
-            </Suspense>
+                </Suspense>
+              );
+            })}
             {!activeSession ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted">
                 <Icon name="panel" size={26} />
