@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { Fragment, Suspense, lazy, memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
@@ -59,6 +59,15 @@ const GROUPS: Array<{ id: ToolGroup; key: 'nav.group.workspace' | 'nav.group.bui
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
+
+/** Isi sesi tidak ikut re-render saat tab lain diaktifkan; elemennya tetap sama. */
+const SessionContent = memo(function SessionContent({
+  component: Component,
+}: {
+  component: LazyExoticComponent<ComponentType>;
+}) {
+  return <Component />;
+});
 
 function toolById(id: string): Tool | undefined {
   return TOOLS.find((tool) => tool.id === id);
@@ -488,43 +497,47 @@ function Shell() {
             {/*
               Sesi yang sudah pernah aktif tetap di-mount walau tidak aktif, supaya
               proses yang sedang jalan (scan, unduh, SSE, terminal) tidak batal.
-              Sesi baru pertama kali baru di-mount saat dibuka.
+              Sesi yang belum pernah aktif baru di-mount saat pertama dibuka.
             */}
-            {store.sessions.map((session) => {
-              const active = session.id === store.activeId;
-              const Component = toolById(session.tool)?.component;
-              if (!Component) return null;
-              if (!active && !mounted.has(session.id)) return null;
-              return (
-                <Suspense
-                  key={session.id}
-                  fallback={
-                    active ? (
-                      <div className="flex flex-1 items-center justify-center">
-                        <Spinner />
-                      </div>
-                    ) : null
-                  }
-                >
-                  <div
-                    className={cn(
-                      'flex min-h-0 min-w-0 flex-1 flex-col',
-                      !active && 'pointer-events-none invisible absolute inset-0',
-                    )}
-                    aria-hidden={active ? undefined : true}
+            <div className="relative min-h-0 min-w-0 flex-1">
+              {store.sessions.map((session) => {
+                const active = session.id === store.activeId;
+                const Component = toolById(session.tool)?.component;
+                if (!Component) return null;
+                if (!active && !mounted.has(session.id)) return null;
+                return (
+                  <Suspense
+                    key={session.id}
+                    fallback={
+                      active ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Spinner />
+                        </div>
+                      ) : null
+                    }
                   >
-                    <Component />
-                  </div>
-                </Suspense>
-              );
-            })}
-            {!activeSession ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted">
-                <Icon name="panel" size={26} />
-                <div className="text-[13px] font-medium text-ink">{t('session.empty')}</div>
-                <div className="text-[11.5px]">{t('session.emptyHint')}</div>
-              </div>
-            ) : null}
+                    {/* Kotak sesi selalu absolute dengan ukuran sama; pindah tab
+                        hanya mengubah visibility, bukan layout flex/absolute. */}
+                    <div
+                      className={cn(
+                        'absolute inset-0 flex min-h-0 min-w-0 flex-col',
+                        !active && 'pointer-events-none invisible',
+                      )}
+                      aria-hidden={active ? undefined : true}
+                    >
+                      <SessionContent component={Component} />
+                    </div>
+                  </Suspense>
+                );
+              })}
+              {!activeSession ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-muted">
+                  <Icon name="panel" size={26} />
+                  <div className="text-[13px] font-medium text-ink">{t('session.empty')}</div>
+                  <div className="text-[11.5px]">{t('session.emptyHint')}</div>
+                </div>
+              ) : null}
+            </div>
           </>
         )}
       </main>
