@@ -40,6 +40,15 @@ function statusTone(status: number | null): string {
   return 'bg-bad/10 text-bad';
 }
 
+function formatTime(ts: number): { date: string; time: string; iso: string } {
+  const value = new Date(ts);
+  return {
+    date: value.toLocaleDateString(),
+    time: value.toLocaleTimeString(undefined, { hour12: false }),
+    iso: value.toISOString(),
+  };
+}
+
 export default function AuditTab() {
   const { t } = useI18n();
   const [source, setSource] = useState('');
@@ -81,40 +90,60 @@ export default function AuditTab() {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    setAppliedQuery(query.trim());
-    void load(true, source, query.trim());
+    const nextQuery = query.trim();
+    setAppliedQuery(nextQuery);
+    void load(true, source, nextQuery);
+  };
+
+  const reset = () => {
+    setSource('');
+    setQuery('');
+    setAppliedQuery('');
+    setExpanded(null);
+    void load(true, '', '');
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 md:p-4">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="card flex flex-wrap items-center gap-2 p-2.5">
           <form onSubmit={submit} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <select
               value={source}
               onChange={(event) => {
                 const next = event.target.value;
                 setSource(next);
+                setExpanded(null);
                 void load(true, next, appliedQuery);
               }}
-              className="input w-40 py-1.5 text-[12px]"
+              className="input w-36 py-1.5 text-[12px]"
               aria-label={t('audit.source')}
             >
               <option value="">{t('audit.allSources')}</option>
               <option value="web">{t('audit.web')}</option>
               <option value="telegram_bot">{t('audit.telegram')}</option>
             </select>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="input min-w-48 flex-1 py-1.5 text-[12px]"
-              placeholder={t('audit.searchPlaceholder')}
-              aria-label={t('audit.searchPlaceholder')}
-            />
+            <div className="relative min-w-44 flex-1">
+              <Icon
+                name="search"
+                size={13}
+                className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted/70"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="input py-1.5 pl-8 text-[12px]"
+                placeholder={t('audit.searchPlaceholder')}
+                aria-label={t('audit.searchPlaceholder')}
+              />
+            </div>
             <button type="submit" className="btn btn-primary py-1.5 text-[12px]">
               <Icon name="search" size={13} /> {t('audit.search')}
             </button>
           </form>
+          <button type="button" className="btn btn-ghost py-1.5 text-[12px]" onClick={reset} disabled={loading}>
+            {t('audit.reset')}
+          </button>
           <button
             type="button"
             className="btn py-1.5 text-[12px]"
@@ -123,7 +152,7 @@ export default function AuditTab() {
           >
             {loading ? <Spinner /> : <Icon name="refresh" size={13} />} {t('audit.refresh')}
           </button>
-          <span className="text-[11px] text-muted">{total} {t('audit.total')}</span>
+          <span className="chip">{total.toLocaleString()} {t('audit.total')}</span>
         </div>
 
         {error ? (
@@ -136,47 +165,67 @@ export default function AuditTab() {
           <div className="flex flex-col gap-1.5">
             {items.map((item) => {
               const open = expanded === item.id;
+              const when = formatTime(item.ts);
               return (
-                <div key={item.id} className={cn('card overflow-hidden', open && 'border-accent/35')}>
+                <div
+                  key={item.id}
+                  className={cn(
+                    'card overflow-hidden transition-colors',
+                    open ? 'border-accent/35 bg-panel' : 'hover:border-line/80',
+                  )}
+                >
                   <button
                     type="button"
-                    className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left"
+                    className="group flex w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-left outline-none transition-colors hover:bg-panel2/55 focus-visible:bg-panel2/55"
                     onClick={() => setExpanded(open ? null : item.id)}
                     aria-expanded={open}
                   >
-                    <span className="mono w-40 shrink-0 text-[10px] text-muted" title={new Date(item.ts).toISOString()}>
-                      {new Date(item.ts).toLocaleString('id-ID')}
+                    <span className="mono w-24 shrink-0 leading-4" title={when.iso}>
+                      <span className="block text-[10.5px] text-ink/85">{when.time}</span>
+                      <span className="block text-[9.5px] text-muted">{when.date}</span>
                     </span>
                     <span
                       className={cn(
-                        'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                        'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
                         item.source === 'telegram_bot' ? 'bg-accent/10 text-accent' : 'bg-panel2 text-muted',
                       )}
                     >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          item.source === 'telegram_bot' ? 'bg-accent' : 'bg-muted/70',
+                        )}
+                      />
                       {item.source === 'telegram_bot' ? t('audit.telegram') : t('audit.web')}
                     </span>
-                    <span className="min-w-0 max-w-56 truncate text-[11.5px] font-medium" title={item.actor}>
+                    <span className="min-w-0 max-w-52 truncate text-[11.5px] font-medium" title={item.actor}>
                       {item.actor}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={item.action}>
-                      {item.feature} · {item.action}
+                      <span className="text-ink/80">{item.feature}</span> · {item.action}
                     </span>
-                    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', statusTone(item.status))}>
+                    <span className={cn('mono rounded px-1.5 py-0.5 text-[10px] font-medium', statusTone(item.status))}>
                       {item.status ?? '—'}
                     </span>
-                    <span className="mono w-14 text-right text-[10px] text-muted">{item.durationMs} ms</span>
-                    <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} className="shrink-0 text-muted" />
+                    <span className="mono w-16 text-right text-[10px] text-muted">{item.durationMs} ms</span>
+                    <Icon
+                      name={open ? 'chevronDown' : 'chevronRight'}
+                      size={12}
+                      className="shrink-0 text-muted transition-transform group-hover:text-ink/80"
+                    />
                   </button>
                   {open ? (
-                    <div className="border-t border-line bg-panel/20 px-3 py-2.5">
-                      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10.5px] text-muted">
-                        <span>{item.method ?? '—'} {item.path ?? ''}</span>
-                        {item.ip ? <span>IP {item.ip}</span> : null}
-                        {item.userAgent ? <span className="max-w-full truncate" title={item.userAgent}>{item.userAgent}</span> : null}
-                        <span className="mono">{item.id}</span>
+                    <div className="border-t border-line bg-panel/25 px-3 py-2.5">
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="chip">{item.method ?? '—'} {item.path ?? ''}</span>
+                        {item.ip ? <span className="chip">IP {item.ip}</span> : null}
+                        {item.userAgent ? (
+                          <span className="chip max-w-full truncate" title={item.userAgent}>{item.userAgent}</span>
+                        ) : null}
+                        <span className="chip">#{item.id}</span>
                       </div>
                       {item.error ? (
-                        <div className="mb-2 rounded border border-bad/30 bg-bad/10 px-2 py-1.5 text-[11px] text-bad">
+                        <div className="mb-2 rounded-lg border border-bad/30 bg-bad/10 px-2.5 py-2 text-[11px] text-bad">
                           {item.error}
                         </div>
                       ) : null}

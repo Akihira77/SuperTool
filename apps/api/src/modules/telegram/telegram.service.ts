@@ -21,6 +21,8 @@ const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 const TELEGRAM_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 const UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const COMPRESS_TIMEOUT_MS = 15 * 60_000;
+// Unduh + unggah file besar bisa melewati batas default Telegraf (90 detik).
+const HANDLER_TIMEOUT_MS = 65 * 60_000;
 
 const MIME_BY_EXT: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -118,7 +120,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('TELEGRAM_ALLOWED_CHAT_IDS kosong; bot menerima chat dari siapa saja.');
     }
 
-    const bot = new Telegraf(token);
+    const bot = new Telegraf(token, { handlerTimeout: HANDLER_TIMEOUT_MS });
     this.bot = bot;
     this.register(bot);
     bot.catch((error, ctx) => {
