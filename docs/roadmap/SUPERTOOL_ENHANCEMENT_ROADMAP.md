@@ -304,7 +304,7 @@ Uji manual keamanan yang sudah dilakukan:
 
 ## 12. Ringkasan implementasi
 
-Baseline audit: commit `bf88478`. Implementasi incremental hingga `db27a0c`.
+Baseline audit: commit `bf88478`. Implementasi incremental hingga `a3ed036`.
 
 | Fase | Hasil | Commit utama |
 | --- | --- | --- |
