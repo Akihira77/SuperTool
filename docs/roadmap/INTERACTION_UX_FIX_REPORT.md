@@ -23,7 +23,7 @@ Verifikasi akhir: `pnpm check` EXIT 0, 9/9 test frontend, 37/37 test API, dan 16
 
 | Defect | Akar masalah | Bukti | Perbaikan |
 |---|---|---|---|
-| Enter saat Cancel menyetujui operasi destruktif | `window.keydown` global memanggil `close(true)` untuk setiap Enter, mengabaikan tombol yang fokus | inspeksi `confirm.tsx` baseline; skenario F sebelum/sesudah | handler global dihapus; aktivasi native tombol; Cancel fokus awal; trap + restore |
+| Enter saat Cancel menyetujui operasi destruktif | `window.keydown` global memanggil `close(true)` untuk setiap Enter, mengabaikan tombol yang fokus | inspeksi `confirm.tsx` baseline; skenario F setelah perbaikan | handler global dihapus; aktivasi native tombol; Cancel fokus awal; trap + restore |
 | Fokus palette tidak sampai ke tujuan | `onRun` dipanggil sebelum palette ditutup; cleanup focus trap memulihkan fokus lama setelahnya | urutan kode baseline; skenario A | palette ditutup dulu; aksi masuk antrean; effect menunggu palette tertutup |
 | Fokus bisa masuk sesi tidak aktif | `document.querySelector` global tanpa cek visibilitas/sesi | mode sesi ter-mount + `aria-hidden` | root sesi aktif di-scope lewat ref; target wajib terlihat |
 | Fokus Notes Search gagal saat panel tertutup | input hanya dirender jika `panelOpen` | skenario C | intent Notes membuka tab Notes + panel sebelum fokus |
