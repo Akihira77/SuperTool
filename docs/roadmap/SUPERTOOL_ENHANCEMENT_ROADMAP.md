@@ -178,7 +178,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [ ] Action registry terpusat: id, label, ikon, shortcut, handler, guard.
 - [x] Command palette memakai registry `apps/web/src/lib/actions.ts` (bukan daftar manual).
 - [x] Workflow lintas tool: File Explorer → Kompresor lewat event `st:workflow` + `usePaletteIntent`; tool lain memakai jalur yang sama.
-- [ ] HTTP collections: simpan request, environment, riwayat.
+- [x] HTTP collections: request tersimpan + koleksi, environment `{{variabel}}`, riwayat 20 terakhir; disimpan di SQLite, header sensitif tidak dipersistensi.
 - [ ] Workspace: root proyek, session, preferensi per workspace.
 - Acceptance:
   - Semua aksi utama muncul di palette tanpa duplikasi kode.

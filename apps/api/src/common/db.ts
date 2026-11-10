@@ -16,6 +16,51 @@ mkdirSync(cfg.dataDir, { recursive: true });
 /** Versi skema yang dipahami build ini; backup dengan versi lebih baru ditolak. */
 export const SCHEMA_VERSION = 1;
 
+// Skema ringan untuk HTTP workspace (koleksi, environment, riwayat).
+const HTTP_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS http_collections (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS http_requests (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT,
+    name TEXT NOT NULL,
+    method TEXT NOT NULL,
+    url TEXT NOT NULL,
+    headers TEXT NOT NULL DEFAULT '[]',
+    body TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (collection_id) REFERENCES http_collections(id) ON DELETE SET NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_http_requests_updated ON http_requests(updated_at DESC);
+  CREATE TABLE IF NOT EXISTS http_environments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    variables TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS http_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    method TEXT NOT NULL,
+    url TEXT NOT NULL,
+    status INTEGER,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    size INTEGER NOT NULL DEFAULT 0,
+    error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_http_history_ts ON http_history(ts DESC);
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+`;
+
 
 // Pulihkan DB lama bila proses sebelumnya berhenti di tengah replaceDatabase().
 const restoreOld = file + '.restore-old';
@@ -129,6 +174,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
   CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status);
 `);
+db.exec(HTTP_SCHEMA);
 db.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */
@@ -209,6 +255,7 @@ function ensureExtraSchema(target: DatabaseSync): void {
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)');
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at)');
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status)');
+  target.exec(HTTP_SCHEMA);
   target.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 }
 

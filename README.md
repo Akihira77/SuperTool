@@ -500,7 +500,7 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 - **DNS lookup**: lokasi server memakai ip-api.com (HTTP, tanpa API key) sehingga butuh internet; tanpa internet record DNS tetap tampil.
 - **Storage Monitor**: scan pertama membaca metadata seluruh isi home, jadi di home puluhan GB butuh puluhan detik; hasil di-cache 5 menit. Kedalaman tree 2 level, folder yang tidak bisa dibaca ditandai peringatan, dan angka memakai blok disk (bukan ukuran logis). Docker prune hanya menghapus objek tidak terpakai (tanpa volume).
 - **Docker**: start/stop/restart/hapus container tersedia langsung dari daftar. Tab Container bisa dicari berdasarkan name/image/port dan diurutkan berdasarkan name/image; tab Image bisa dicari berdasarkan repository dan diurutkan berdasarkan repository/ukuran/dibuat. Hapus memakai `docker rm -f` dan minta konfirmasi; aksi hanya menerima ID/nama container yang tervalidasi, tanpa shell. Pembuatan container, pull image, dan Docker Compose belum termasuk.
-- **HTTP Client**: mengizinkan host publik seperti curl, kecuali alamat metadata cloud. Cookie dan otentikasi tidak disimpan antar request.
+- **HTTP Client**: mengizinkan host publik seperti curl, kecuali alamat metadata cloud. Request bisa disimpan ke koleksi di SQLite, lengkap dengan environment variabel (`{{baseUrl}}`) dan riwayat 20 request terakhir. Header `Authorization`, `Cookie`, `Proxy-Authorization`, `X-Api-Key`, `Api-Key`, dan `X-Auth-Token` tidak pernah disimpan (nilainya dikosongkan); variabel environment disimpan lokal apa adanya, jadi jangan menyimpan kredensial produksi di sana.
 
 ## Lisensi
 

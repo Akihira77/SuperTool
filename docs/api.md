@@ -280,6 +280,17 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 |--------|------|------------|-------|
 | POST | `/dev/hash` | `{ text, algo, hmacKey? }` | `{ algo, hex }` |
 | POST | `/dev/http` | `{ method, url, headers[], body, timeoutMs }` | `{ status, ms, size, headers, body, truncated }` |
+| GET | `/dev/http/saved` | `query?` | request tersimpan `{ id, name, collectionId, method, url, headers[], body, updatedAt }[]` |
+| POST | `/dev/http/saved` | `{ id?, name, collectionId?, method, url, headers[], body }` | request tersimpan; header sensitif dikosongkan |
+| DELETE | `/dev/http/saved/:id` | – | `{ ok }` |
+| GET | `/dev/http/collections` | – | `{ id, name, count }[]` |
+| POST | `/dev/http/collections` | `{ id?, name }` | koleksi |
+| DELETE | `/dev/http/collections/:id` | – | `{ ok }`; request terkait menjadi tanpa koleksi |
+| GET | `/dev/http/environments` | – | `{ id, name, variables[{key,value}] }[]` |
+| POST | `/dev/http/environments` | `{ id?, name, variables[] }` | environment |
+| DELETE | `/dev/http/environments/:id` | – | `{ ok }` |
+| GET | `/dev/http/history` | `limit` (maks 100) | `{ id, ts, method, url, status, durationMs, size, error }[]` |
+| DELETE | `/dev/http/history` | – | `{ ok }` |
 | GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`) |
 | GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
 | GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
@@ -295,7 +306,7 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 `algo`: `md5`, `sha1`, `sha256`, `sha512`, `sha3-256`, `sha3-512`. Bila `hmacKey` diisi, dipakai HMAC. Regex tester dan encode/decode dasar jalan di browser, tidak butuh endpoint.
 
-`/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB.
+`/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB. Setiap request (berhasil/gagal) dicatat ke `http_history`, disimpan maksimal 200 baris dan hanya berisi method, URL, status, durasi, ukuran, dan pesan error — tanpa header, body, atau token. Header sensitif pada request tersimpan dikosongkan sebelum masuk SQLite; variabel environment disimpan apa adanya di database lokal.
 
 `/dev/git`: `log` diambil dari `git log --all` (60 commit) atau `ref` tertentu, lengkap dengan parent untuk menghitung lane grafik di browser; `graph` tetap dikirim sebagai teks `git log --graph --oneline --decorate` untuk kompatibilitas. `branches` = daftar branch lokal (maks 30). `git stage` memakai `git add --` / `git restore --staged --`, maksimal 200 berkas per request.
 

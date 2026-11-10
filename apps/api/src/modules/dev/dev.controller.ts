@@ -1,10 +1,14 @@
-import { Body, Controller, Delete, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { DevService } from './dev.service';
+import { HttpStoreService } from './http-store.service';
 
 @Controller('dev')
 export class DevController {
-  constructor(private readonly dev: DevService) {}
+  constructor(
+    private readonly dev: DevService,
+    private readonly store: HttpStoreService,
+  ) {}
 
   @Post('hash')
   hash(@Body() body: { text?: string; algo?: string; hmacKey?: string }) {
@@ -12,11 +16,75 @@ export class DevController {
   }
 
   @Post('http')
-  http(
+  async http(
     @Body()
     body: { method?: string; url?: string; headers?: Array<{ key?: string; value?: string }>; body?: string; timeoutMs?: number },
   ) {
-    return this.dev.http(body ?? {});
+    const method = String(body?.method ?? 'GET').toUpperCase();
+    const url = String(body?.url ?? '');
+    try {
+      const result = await this.dev.http(body ?? {});
+      this.store.record({ method, url: result.url, status: result.status, durationMs: result.ms, size: result.size });
+      return result;
+    } catch (error) {
+      this.store.record({ method, url, error: error instanceof Error ? error.message : 'Request gagal' });
+      throw error;
+    }
+  }
+
+  @Get('http/saved')
+  saved(@Query('query') query = '') {
+    return this.store.list(query);
+  }
+
+  @Post('http/saved')
+  saveRequest(@Body() body: Record<string, unknown>) {
+    return this.store.save(body ?? {});
+  }
+
+  @Delete('http/saved/:id')
+  removeSaved(@Param('id') id: string) {
+    return this.store.remove(id);
+  }
+
+  @Get('http/collections')
+  collections() {
+    return this.store.collections();
+  }
+
+  @Post('http/collections')
+  saveCollection(@Body() body: Record<string, unknown>) {
+    return this.store.saveCollection(body ?? {});
+  }
+
+  @Delete('http/collections/:id')
+  removeCollection(@Param('id') id: string) {
+    return this.store.removeCollection(id);
+  }
+
+  @Get('http/environments')
+  environments() {
+    return this.store.environments();
+  }
+
+  @Post('http/environments')
+  saveEnvironment(@Body() body: Record<string, unknown>) {
+    return this.store.saveEnvironment(body ?? {});
+  }
+
+  @Delete('http/environments/:id')
+  removeEnvironment(@Param('id') id: string) {
+    return this.store.removeEnvironment(id);
+  }
+
+  @Get('http/history')
+  history(@Query('limit') limit?: string) {
+    return this.store.history(Number(limit) || 30);
+  }
+
+  @Delete('http/history')
+  clearHistory() {
+    return this.store.clearHistory();
   }
 
   @Get('logs')
