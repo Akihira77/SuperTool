@@ -11,6 +11,7 @@ import devService from './dist/modules/dev/dev.service.js';
 import storageUsage from './dist/modules/storage/storage-usage.service.js';
 import auditPayload from './dist/modules/audit/audit.payload.js';
 import netGuard from './dist/common/net-guard.js';
+import textChunk from './dist/common/text-chunk.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
@@ -21,6 +22,7 @@ const { dockerActionArgs } = devService;
 const { parseDuOutput, isCleanableFolder } = storageUsage;
 const { serializeAuditPayload } = auditPayload;
 const { isPrivateAddress, isMetadataAddress } = netGuard;
+const { utf8Cut } = textChunk;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -130,4 +132,14 @@ test('downloader: URL /en/video Bilibili dinormalisasi ke /video', () => {
   );
   assert.equal(canonicalBilibiliUrl(new URL('https://b23.tv/KHQdMVt')), null);
   assert.equal(canonicalBilibiliUrl(new URL('https://www.bilibili.com/bangumi/play/ss123')), null);
+});
+
+test('text chunk: potong di batas UTF-8, bukan di tengah karakter', () => {
+  const buffer = Buffer.from('a\u20acb');
+  assert.equal(utf8Cut(buffer, 0), 0);
+  assert.equal(utf8Cut(buffer, 1), 1);
+  assert.equal(utf8Cut(buffer, 2), 1);
+  assert.equal(utf8Cut(buffer, 3), 1);
+  assert.equal(utf8Cut(buffer, 4), 4);
+  assert.equal(utf8Cut(buffer, buffer.length), buffer.length);
 });

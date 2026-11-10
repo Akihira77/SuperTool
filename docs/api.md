@@ -92,7 +92,7 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 |--------|------|------------|-------|
 | GET | `/fs/roots` | – | `[{ path, label }]` |
 | GET | `/fs/list` | `path` | `{ path, parent, entries[], truncated }` |
-| GET | `/fs/read` | `path` | `{ text, binary, size, mtime, ext, truncated }` |
+| GET | `/fs/read` | `path`, `offset` (byte, opsional) | `{ text, binary, size, mtime, ext, offset, returned, more, truncated }` |
 | GET | `/fs/raw` | `path`, `download=1` | isi file mentah, mendukung HTTP Range (206) |
 | GET | `/fs/thumb` | `path` | thumbnail `image/webp` 96×96 (gambar via sharp, video via ffmpeg); 400 jika tidak didukung |
 | GET | `/fs/office` | `path` | pratinjau docx/xlsx/pptx/odt/ods/odp |
@@ -108,7 +108,7 @@ Root yang diizinkan berasal dari `ST_FS_ROOTS`. Path di luar root → `403`.
 | POST | `/fs/upload` | multipart `file` + query `path` | `{ ok, path, size }` |
 | DELETE | `/fs` | `path` | `{ ok }` |
 
-Entri berisi `{ name, path, dir, size, mtime, ext, hidden }`. File > 2 MB dipotong (`truncated: true`), file biner mengembalikan `binary: true` tanpa isi.
+Entri berisi `{ name, path, dir, size, mtime, ext, hidden }`. `fs/read` membaca maksimal 2 MB per chunk; kirim `offset` = `offset + returned` untuk chunk berikutnya (`more: true`). `truncated` tetap ada untuk kompatibilitas dan bernilai sama dengan `more`. File biner mengembalikan `binary: true` tanpa isi; deteksi biner hanya membaca 8 KB pertama.
 
 **Pratinjau Office** mengembalikan `{ kind, blocks[], editable, size, mtime }`. `blocks` berisi `{ type: "text", lines[] }` atau `{ type: "table", name, rows[][], refs[][] }` (`refs` = alamat sel seperti `B3`). `editable`: `text` untuk docx, `sheet` untuk xlsx, `none` untuk sisanya.
 

@@ -7,7 +7,7 @@ const ROW = 22;
 const MAX_WIDTH_CH = 2000;
 
 /** Penampil kode read-only yang hanya merender baris di viewport (untuk berkas besar). */
-export function VirtualCode({ value, ext = '', className }: { value: string; ext?: string; className?: string }) {
+export function VirtualCode({ value, ext = '', className, resetKey }: { value: string; ext?: string; className?: string; resetKey?: string }) {
   const lines = useMemo(() => value.split('\n'), [value]);
   const maxLen = useMemo(() => lines.reduce((max, line) => Math.max(max, line.length), 0), [lines]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -18,9 +18,10 @@ export function VirtualCode({ value, ext = '', className }: { value: string; ext
     overscan: 20,
   });
 
+  // Reset hanya saat berpindah berkas; chunk tambahan tidak boleh menggeser posisi baca.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [value]);
+  }, [resetKey]);
 
   const width = Math.min(Math.max(maxLen + 10, 40), MAX_WIDTH_CH) + 'ch';
 

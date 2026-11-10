@@ -15,7 +15,7 @@ import { useSidebar } from '../lib/useSidebar';
 
 type Entry = { name: string; path: string; dir: boolean; size: number; mtime: number; ext: string; hidden: boolean };
 type Listing = { path: string; parent: string | null; entries: Entry[]; truncated: boolean };
-type FileData = { path: string; binary: boolean; size: number; mtime: number; ext: string; text: string; truncated: boolean };
+type FileData = { path: string; binary: boolean; size: number; mtime: number; ext: string; text: string; truncated: boolean; offset: number; returned: number; more: boolean };
 type OfficeBlock =
   | { type: 'text'; lines: string[] }
   | { type: 'table'; name?: string; rows: string[][]; refs?: string[][] };
@@ -142,6 +142,7 @@ export default function FilesTool() {
   const [excludeOpen, setExcludeOpen] = useState(false);
   const searchAbort = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
+  const [chunkBusy, setChunkBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
   const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
@@ -291,6 +292,20 @@ export default function FilesTool() {
       setError(err instanceof ApiError ? err.message : t('err.openFile'));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadChunk = async () => {
+    if (!file || !file.more || chunkBusy || file.binary) return;
+    setChunkBusy(true);
+    setError('');
+    try {
+      const data = await api.get<FileData>('/fs/read' + qs({ path: file.path, offset: file.offset + file.returned }));
+      setFile({ ...data, text: file.text + data.text });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('err.openFile'));
+    } finally {
+      setChunkBusy(false);
     }
   };
 
@@ -828,7 +843,17 @@ export default function FilesTool() {
                   {file.binary ? '' : ' · ' + lineCount + ' baris'}
                   {largeFile ? ' · mode baca (berkas besar)' : ''}
                 </span>
+                {largeFile ? (
+                  <span className="text-[10.5px] text-muted">
+                    {bytes(file.offset + file.returned)} / {bytes(file.size)}
+                  </span>
+                ) : null}
                 <div className="ml-auto flex items-center gap-1.5">
+                  {largeFile && file.more ? (
+                    <button type="button" className="btn" onClick={() => void loadChunk()} disabled={chunkBusy}>
+                      <Icon name="download" size={12} /> {chunkBusy ? '…' : t('files.loadMore')}
+                    </button>
+                  ) : null}
                   {!file.binary && fileExt === 'md' ? (
                     <button type="button" className={cn('btn', preview && 'btn-primary')} onClick={() => setPreview(!preview)}>
                       <Icon name="eye" /> Preview
@@ -882,7 +907,7 @@ export default function FilesTool() {
                     </div>
                   )
                 ) : largeFile ? (
-                  <VirtualCode value={file.text} ext={fileExt} />
+                  <VirtualCode value={file.text} ext={fileExt} resetKey={file.path} />
                 ) : preview ? (
                   <div className="md h-full overflow-y-auto rounded-lg border border-line bg-[#070d14] p-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(file.text) }} />
                 ) : (

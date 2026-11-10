@@ -6,6 +6,7 @@ import { jailPath } from '../../common/fs-jail';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { touchPath } from '../../common/db';
+import { utf8Cut } from '../../common/text-chunk';
 import { isOffice, previewOffice, saveOfficeEdits } from './office';
 import sharp from 'sharp';
 
@@ -207,36 +208,51 @@ export class FilesService {
     return { path, parent, entries, truncated };
   }
 
-  async readText(input: string) {
+  async readText(input: string, offsetInput?: string) {
     const path = await jailPath(input);
     const info = await stat(path);
     if (!info.isFile()) throw new BadRequestException('Bukan file');
+    const offset = offsetInput === undefined || offsetInput === '' ? 0 : Number(offsetInput);
+    if (!Number.isInteger(offset) || offset < 0 || offset > info.size) {
+      throw new BadRequestException('Offset tidak valid');
+    }
     touchPath('file', path);
-    // Baca maksimal TEXT_LIMIT + 1 byte supaya berkas raksasa tidak masuk memori.
-    const take = Math.min(info.size, TEXT_LIMIT + 1);
+    const meta = { path, size: info.size, mtime: info.mtimeMs, ext: extname(path).slice(1).toLowerCase() };
+
     const handle = await open(path, 'r');
-    let buffer: Buffer;
+    let head = Buffer.alloc(0);
+    let buffer = Buffer.alloc(0);
     try {
-      buffer = Buffer.alloc(take);
-      const { bytesRead } = await handle.read(buffer, 0, take, 0);
-      buffer = buffer.subarray(0, bytesRead);
+      // Deteksi biner hanya dari 8 KB awal, tanpa membaca seluruh berkas.
+      const headSize = Math.min(info.size, 8192);
+      if (headSize > 0) {
+        head = Buffer.alloc(headSize);
+        await handle.read(head, 0, headSize, 0);
+      }
+      if (head.includes(0)) {
+        return { ...meta, binary: true, offset: 0, returned: 0, more: false, text: '', truncated: false };
+      }
+      // Baca satu chunk + sisa maksimal 3 byte untuk memotong di batas UTF-8.
+      const take = Math.min(TEXT_LIMIT + 4, info.size - offset);
+      if (take > 0) {
+        buffer = Buffer.alloc(take);
+        const { bytesRead } = await handle.read(buffer, 0, take, offset);
+        buffer = buffer.subarray(0, bytesRead);
+      }
     } finally {
       await handle.close();
     }
-    const head = buffer.subarray(0, 8192);
-    const binary = head.includes(0);
-    if (binary) {
-      return { path, binary: true, size: info.size, mtime: info.mtimeMs, ext: extname(path).slice(1).toLowerCase(), text: '', truncated: false };
-    }
-    const truncated = info.size > TEXT_LIMIT;
+
+    const returned = utf8Cut(buffer, Math.min(buffer.length, TEXT_LIMIT));
+    const more = offset + returned < info.size;
     return {
-      path,
+      ...meta,
       binary: false,
-      size: info.size,
-      mtime: info.mtimeMs,
-      ext: extname(path).slice(1).toLowerCase(),
-      text: buffer.subarray(0, TEXT_LIMIT).toString('utf8'),
-      truncated,
+      offset,
+      returned,
+      more,
+      text: buffer.subarray(0, returned).toString('utf8'),
+      truncated: more,
     };
   }
 

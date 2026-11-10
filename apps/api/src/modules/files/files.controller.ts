@@ -65,8 +65,8 @@ export class FilesController {
   }
 
   @Get('read')
-  read(@Query('path') path: string) {
-    return this.files.readText(path);
+  read(@Query('path') path: string, @Query('offset') offset?: string) {
+    return this.files.readText(path, offset);
   }
 
   @Get('office')

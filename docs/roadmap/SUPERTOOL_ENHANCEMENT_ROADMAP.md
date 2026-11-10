@@ -161,7 +161,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 ### Fase 2 — Keandalan dan resource (M/L)
 
-- [ ] Baca file besar per chunk + streaming download; batas ukuran eksplisit.
+- [x] Baca file besar per chunk (2 MB, offset byte) + streaming download; batas ukuran eksplisit.
 - [ ] Upload streaming ke disk (bukan buffer); batas per file dan total.
 - [ ] Backup/restore atomik: tulis ke `*.tmp`, fsync, rename; invalidasi cache.
 - [ ] Job runner: antrean persisten, status, cancel, retry, batas konkurensi.
