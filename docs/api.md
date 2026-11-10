@@ -291,11 +291,15 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | DELETE | `/dev/http/environments/:id` | – | `{ ok }` |
 | GET | `/dev/http/history` | `limit` (maks 100) | `{ id, ts, method, url, status, durationMs, size, error }[]` |
 | DELETE | `/dev/http/history` | – | `{ ok }` |
-| GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`) |
+| GET | `/dev/logs` | `path`, `lines` | `{ path, size, mtime, lines[] }` (`ST_LOG_ROOTS`, default `/var/log`, boleh di luar `ST_FS_ROOTS`); hanya 4 MB terakhir yang dibaca dan maksimal 2000 baris |
 | GET | `/dev/logs/stream` | `path` | SSE baris baru (event `{ line }` atau `{ reset }`) |
 | GET | `/dev/docker` | `view=containers` / `images` / `logs`, `id` | `{ rows[] }` atau `{ text }` |
 | POST | `/dev/docker/action` | `{ action: "start"\|"stop"\|"restart"\|"remove", id }` | `{ ok, action, output }`; `remove` memakai `docker rm -f` |
-| GET | `/dev/git` | `path`, `ref` (opsional) | `{ branch, head, ahead, behind, staged[], changed[], untracked[], log[], diffstat, tags[], branches[], graph, ref }` — `staged/changed/untracked` berisi `{ status, path }`, `log` berisi `{ hash, short, parents[], author, email, when, subject, refs[] }` |
+| GET | /dev/compose | – | { rows: [{ name, status, configFiles[], available }] } — project dibangun dari label container, jadi project stopped tetap terlihat |
+| GET | /dev/compose/project | name | { name, status, configFiles[], services: [{ service, state, health, status, image, ports }] } |
+| GET | /dev/compose/logs | name, service | { text } — tail 300 baris, maksimum 32 KB |
+| POST | /dev/compose/action | { name, action: "up"\|"down"\|"restart"\|"stop", service? } | { ok, action, output } — berkas Compose wajib ada di dalam ST_FS_ROOTS |
+| GET | /dev/git | `path`, `ref` (opsional) | `{ branch, head, ahead, behind, staged[], changed[], untracked[], log[], diffstat, tags[], branches[], graph, ref }` — `staged/changed/untracked` berisi `{ status, path }`, `log` berisi `{ hash, short, parents[], author, email, when, subject, refs[] }` |
 | POST | `/dev/git/stage` | `{ path, files[], action: "stage"\|"unstage" }` | `{ ok, files, action }` |
 | POST | /dev/git/commit | { path, message } | { ok, hash } — pesan 1–2000 karakter, hanya berkas yang sudah di-stage |
 | POST | /dev/git/branch | { path, action: "create"\|"switch", name } | { ok, action, branch } — nama harus ref aman (tanpa spasi, .., //, akhiran / atau .lock) |

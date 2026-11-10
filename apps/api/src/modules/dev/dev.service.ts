@@ -15,6 +15,8 @@ const HASHES = new Set(['md5', 'sha1', 'sha256', 'sha512', 'sha3-256', 'sha3-512
 const MAX_TEXT = 4 * 1024 * 1024;
 const DOCKER_ACTIONS = new Set(['start', 'stop', 'restart', 'remove']);
 const CONTAINER_REF = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/;
+const COMPOSE_ACTIONS = new Set(['up', 'down', 'restart', 'stop']);
+const MAX_COMPOSE_OUTPUT = 32 * 1024;
 
 export function dockerActionArgs(action: unknown, id: unknown): string[] {
   const verb = String(action ?? '');
@@ -24,7 +26,6 @@ export function dockerActionArgs(action: unknown, id: unknown): string[] {
   return verb === 'remove' ? ['rm', '-f', ref] : [verb, ref];
 }
 
-@Injectable()
 /** Branch hanya boleh nama ref yang aman; tidak pernah diteruskan sebagai opsi git. */
 export function safeBranchName(raw: unknown): string {
   const name = String(raw ?? '').trim();
@@ -34,6 +35,7 @@ export function safeBranchName(raw: unknown): string {
   return name;
 }
 
+@Injectable()
 export class DevService {
   hash(input: { text?: string; algo?: string; hmacKey?: string }) {
     const text = String(input?.text ?? '');
@@ -233,6 +235,122 @@ export class DevService {
     const args = dockerActionArgs(action, id);
     const output = await this.docker(args);
     return { ok: true, action, output: output.trim() };
+  }
+
+  private async composeProjects() {
+    // docker compose ls menyembunyikan project yang seluruh service-nya berhenti,
+    // jadi project dibangun dari label container agar project stopped tetap bisa
+    // di-restart atau di-down dari UI.
+    const stdout = await this.docker([
+      'ps',
+      '-a',
+      '--format',
+      '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.config_files"}}\t{{.State}}',
+    ]);
+    const map = new Map<string, { name: string; configFiles: Set<string>; running: number; total: number }>();
+    for (const line of stdout.split('\n')) {
+      const [name, files, state] = line.split('\t');
+      if (!name) continue;
+      const item = map.get(name) ?? { name, configFiles: new Set<string>(), running: 0, total: 0 };
+      item.total += 1;
+      if (state.trim() === 'running') item.running += 1;
+      for (const file of String(files ?? '').split(',')) {
+        const trimmed = file.trim();
+        if (trimmed) item.configFiles.add(trimmed);
+      }
+      map.set(name, item);
+    }
+    return Promise.all(
+      [...map.values()].slice(0, 100).map(async (item) => {
+        const configFiles = [...item.configFiles];
+        let available = configFiles.length > 0;
+        for (const file of configFiles) {
+          try {
+            available = available && (await stat(await jailPath(file))).isFile();
+          } catch {
+            available = false;
+          }
+        }
+        const status = item.running > 0 ? `running(${item.running})` : `stopped(${item.total})`;
+        return { name: item.name, status, configFiles, available };
+      }),
+    );
+  }
+
+  private async composeProject(name: string) {
+    const project = (await this.composeProjects()).find((item) => item.name === name);
+    if (!project) throw new NotFoundException('Project Compose tidak ditemukan');
+    const files: string[] = [];
+    for (const file of project.configFiles) {
+      const abs = await jailPath(file);
+      const info = await stat(abs).catch(() => null);
+      if (!info?.isFile()) throw new BadRequestException('Berkas konfigurasi Compose tidak ditemukan');
+      files.push(abs);
+    }
+    if (!files.length) throw new BadRequestException('Project Compose tidak punya berkas konfigurasi');
+    return { ...project, files };
+  }
+
+  private composeArgs(project: { name: string; files: string[] }, tail: string[]): string[] {
+    return ['compose', '-p', project.name, ...project.files.flatMap((file) => ['-f', file]), ...tail];
+  }
+
+  async dockerComposeList() {
+    return { rows: await this.composeProjects() };
+  }
+
+  async dockerComposeProject(name: string) {
+    const project = await this.composeProject(String(name ?? '').trim());
+    const stdout = await this.docker(this.composeArgs(project, ['ps', '--format', 'json']));
+    const services = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          const raw = JSON.parse(line) as Record<string, unknown>;
+          return {
+            service: String(raw.Service ?? ''),
+            state: String(raw.State ?? ''),
+            health: String(raw.Health ?? ''),
+            status: String(raw.Status ?? ''),
+            image: String(raw.Image ?? ''),
+            ports: String(raw.Ports ?? ''),
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+    return { name: project.name, status: project.status, configFiles: project.files, services };
+  }
+
+  async dockerComposeLogs(name: string, service: string) {
+    const project = await this.composeProject(String(name ?? '').trim());
+    const detail = await this.dockerComposeProject(project.name);
+    const target = String(service ?? '').trim();
+    if (!detail.services.some((row) => row.service === target)) throw new BadRequestException('Service Compose tidak valid');
+    const stdout = await this.docker(this.composeArgs(project, ['logs', '--no-color', '--tail', '300', target]));
+    return { text: stdout.slice(0, MAX_COMPOSE_OUTPUT) };
+  }
+
+  async dockerComposeAction(name: string, action: string, service = '') {
+    const verb = String(action ?? '');
+    if (!COMPOSE_ACTIONS.has(verb)) throw new BadRequestException('Aksi Compose tidak didukung');
+    const project = await this.composeProject(String(name ?? '').trim());
+    const target = String(service ?? '').trim();
+    if (target && !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/.test(target)) throw new BadRequestException('Service Compose tidak valid');
+    if (verb !== 'up' && verb !== 'down' && !target) {
+      throw new BadRequestException('Pilih service untuk aksi ini');
+    }
+    const tail = verb === 'up' ? ['up', '-d', ...(target ? [target] : [])] : [verb, ...(target ? [target] : [])];
+    const { stdout, stderr } = await exec('docker', this.composeArgs(project, tail), {
+      timeout: 120_000,
+      maxBuffer: 16 * 1024 * 1024,
+    }).catch((err: unknown) => {
+      const failure = err as { stdout?: string; stderr?: string; message?: string };
+      throw new BadRequestException(String(failure.stderr || failure.message || 'Perintah Compose gagal').slice(0, 2000));
+    });
+    return { ok: true, action: verb, output: (stdout + stderr).trim().slice(0, MAX_COMPOSE_OUTPUT) };
   }
 
   // ---------- cron ----------

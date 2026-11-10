@@ -188,8 +188,8 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 ### Fase 4 — Advanced (L)
 
 - [x] Git workbench: status, diff, stage, commit, branch, log (stash save/pop/drop; branch name divalidasi).
-- [ ] Docker Compose: daftar project, up/down/restart, log.
-- [ ] Log explorer: tail, filter, level, pencarian.
+- [x] Docker Compose: daftar project (termasuk stopped), detail service, up/down/restart/stop, log per service; berkas Compose divalidasi di dalam `ST_FS_ROOTS`.
+- [x] Log explorer: tail, filter level, pencarian teks, batas 4 MB / 2000 baris.
 - [ ] AI kontekstual: ringkas file/log, saran aksi, dengan consent eksplisit.
 - Acceptance:
   - Operasi Git/Docker aman terhadap path traversal dan argumen injection.

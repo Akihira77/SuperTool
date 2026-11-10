@@ -97,6 +97,26 @@ export class DevController {
     return this.dev.streamLogs(path, req, res);
   }
 
+  @Get('compose')
+  composeList() {
+    return this.dev.dockerComposeList();
+  }
+
+  @Get('compose/project')
+  composeProject(@Query('name') name: string) {
+    return this.dev.dockerComposeProject(name);
+  }
+
+  @Get('compose/logs')
+  composeLogs(@Query('name') name: string, @Query('service') service: string) {
+    return this.dev.dockerComposeLogs(name, service);
+  }
+
+  @Post('compose/action')
+  composeAction(@Body() body: { name?: string; action?: string; service?: string }) {
+    return this.dev.dockerComposeAction(body?.name ?? '', body?.action ?? '', body?.service ?? '');
+  }
+
   @Get('docker')
   async docker(@Query('view') view: string, @Query('id') id: string) {
     if (view === 'images') return this.dev.dockerImages();

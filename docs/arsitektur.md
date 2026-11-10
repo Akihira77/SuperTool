@@ -105,7 +105,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | diagnostics | `diagnostics.service.ts`, `diagnostics.controller.ts`, `common/log-buffer.ts`, `common/app-logger.ts` | ringkasan runtime untuk Settings: versi, Node, uptime, memori, ukuran DB/WAL, `user_version`, sisa disk (`statfs`), error terakhir, dan ring buffer 400 log |
 | jobs | `jobs.service.ts`, `jobs.controller.ts` | antrean job persisten di tabel `jobs`: status queued/running/completed/failed/cancelled, batas konkurensi, cancel, dedupe, retensi 200/7 hari; handler didaftarkan modul pemakai |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (ghostscript streaming + antrean satu PDF besar; fallback `pdf-lib` ≤50 MB), job latar belakang |
-| dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker lifecycle (start/stop/restart/hapus), git status/diff/stage/commit/branch/stash, crontab, DNS + geo |
+| dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker lifecycle (start/stop/restart/hapus), Docker Compose (project/service/log/up/down), git status/diff/stage/commit/branch/stash, crontab, DNS + geo |
 | dev | `http-store.service.ts` | HTTP workspace di SQLite: request + koleksi, environment, riwayat; header sensitif dikosongkan, riwayat tanpa body/token |
 | workspaces | `workspaces.service.ts` | metadata proyek (root, repo, URL, tool, endpoint, shortcut) di SQLite; root lewat jail; ekspor/impor JSON |
 

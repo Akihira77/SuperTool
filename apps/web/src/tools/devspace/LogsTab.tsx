@@ -6,6 +6,17 @@ import { bytes } from '../../lib/format';
 
 type TailReply = { path: string; size: number; mtime: number; lines: string[] };
 
+const LEVELS = ['FATAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'] as const;
+type Level = (typeof LEVELS)[number] | '';
+function levelOf(line: string): Level {
+  const match = /\b(fatal|critical|error|warn(?:ing)?|info|debug|trace)\b/i.exec(line);
+  if (!match) return '';
+  const word = match[1].toLowerCase();
+  if (word === 'fatal' || word === 'critical') return 'FATAL';
+  if (word === 'warning') return 'WARN';
+  return word.toUpperCase() as Level;
+}
+
 export default function LogsTab() {
   const { t } = useI18n();
   const [path, setPath] = useState('');
@@ -13,6 +24,7 @@ export default function LogsTab() {
   const [info, setInfo] = useState<{ size: number; path: string } | null>(null);
   const [live, setLive] = useState(false);
   const [filter, setFilter] = useState('');
+  const [level, setLevel] = useState<Level>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [available, setAvailable] = useState<Array<{ path: string; openedAt: number }>>([]);
@@ -103,7 +115,12 @@ export default function LogsTab() {
     };
   };
 
-  const shown = filter ? lines.filter((line) => line.toLowerCase().includes(filter.toLowerCase())) : lines;
+  const counts = LEVELS.map((item) => ({ item, n: lines.filter((line) => levelOf(line) === item).length }));
+  const needle = filter.trim().toLowerCase();
+  const shown = lines.filter((line) => {
+    if (level && levelOf(line) !== level) return false;
+    return !needle || line.toLowerCase().includes(needle);
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-5">
@@ -166,10 +183,14 @@ export default function LogsTab() {
         <input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
-          placeholder="filter teks"
+          placeholder={t('logs.searchHint')}
           className="input mono w-56 py-1"
         />
-        <span>{shown.length} baris</span>
+        <select value={level} onChange={(event) => setLevel(event.target.value as Level)} className="input w-32 py-1 text-[11.5px]" aria-label={t('logs.level')}>
+          <option value="">{t('logs.allLevels')} ({lines.length})</option>
+          {counts.map((entry) => <option key={entry.item} value={entry.item}>{entry.item} ({entry.n})</option>)}
+        </select>
+        <span>{shown.length} {t('logs.rows')}</span>
         {info ? <span>· {bytes(info.size)} · {info.path}</span> : null}
         {live ? <span className="text-ok">● live</span> : null}
         {error ? <span className="text-bad">{error}</span> : null}
@@ -179,7 +200,7 @@ export default function LogsTab() {
         ref={boxRef}
         className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
       >
-        {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.empty')}
+        {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.emptyFiltered')}
       </pre>
     </div>
   );
