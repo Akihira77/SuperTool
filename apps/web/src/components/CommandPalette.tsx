@@ -143,8 +143,10 @@ export default function CommandPalette({
         }
         return;
       }
-      onRun([...stack, node], node);
+      // Tutup dulu agar focus-trap palette melepas fokus sebelum App
+      // mengirim intent/fokus ke sesi tujuan.
       close();
+      onRun([...stack, node], node);
     },
     [close, onRun, stack, t],
   );
@@ -166,8 +168,8 @@ export default function CommandPalette({
   const submitForm = useCallback(() => {
     if (!form) return;
     const filesNode: PaletteNode = { id: 'files:search', label: t('palette.searchFiles') };
-    onRun([filesNode], { id: 'files:search-run', label: t('palette.searchFiles') }, { ...form });
     close();
+    onRun([filesNode], { id: 'files:search-run', label: t('palette.searchFiles') }, { ...form });
   }, [close, form, onRun, t]);
 
   useEffect(() => {
@@ -247,6 +249,11 @@ export default function CommandPalette({
               className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-muted"
               autoComplete="off"
               spellCheck={false}
+              role="combobox"
+              aria-expanded
+              aria-controls="palette-results"
+              aria-autocomplete="list"
+              aria-activedescendant={entries.length ? 'palette-item-' + active : undefined}
             />
           )}
           <kbd className="kbd ml-auto">esc</kbd>
@@ -343,6 +350,7 @@ export default function CommandPalette({
                   id={'palette-item-' + index}
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   aria-selected={index === active}
                   data-active={index === active}
                   onMouseEnter={() => setActive(index)}

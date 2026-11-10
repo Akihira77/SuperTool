@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
@@ -6,6 +6,8 @@ import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
+import { usePaletteIntent } from '../lib/palette';
+import { useMenu } from '../lib/useMenu';
 import TextCompare from './TextCompare';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string; matches?: number };
@@ -72,8 +74,16 @@ export default function NotesTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
   const toast = useToast();
-  const [panelOpen, togglePanel, setPanelOpen] = useSidebar('notes', true);
+  const [panelOpen, togglePanel, setPanelOpen] = useSidebar('notes', typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches);
   const [tab, setTab] = useState<'notes' | 'compare'>('notes');
+
+  // Palette → Notes → Cari: pilih tab Notes, buka panel daftar, lalu App
+  // memfokuskan input cari setelah panel benar-benar terlihat.
+  usePaletteIntent('notes', (action) => {
+    if (action !== 'search') return;
+    setTab('notes');
+    setPanelOpen(true);
+  });
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -85,11 +95,26 @@ export default function NotesTool() {
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
   const searchStarted = useRef(false);
-  const scopeRef = useRef<HTMLDivElement>(null);
+  const scopeTriggerRef = useRef<HTMLButtonElement>(null);
+  const scopeMenuRef = useRef<HTMLDivElement>(null);
+  const { onTriggerKeyDown: onScopeKeyDown } = useMenu(scopeOpen, setScopeOpen, scopeTriggerRef, scopeMenuRef);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const tabNotesRef = useRef<HTMLButtonElement>(null);
+  const tabCompareRef = useRef<HTMLButtonElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const [lineHeights, setLineHeights] = useState<number[]>([]);
+  const selectTab = (next: 'notes' | 'compare') => {
+    setTab(next);
+    requestAnimationFrame(() => (next === 'notes' ? tabNotesRef : tabCompareRef).current?.focus());
+  };
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const next = event.key === 'ArrowLeft' || event.key === 'Home' ? 'notes' : event.key === 'ArrowRight' || event.key === 'End' ? 'compare' : null;
+    if (!next) return;
+    event.preventDefault();
+    selectTab(next);
+  };
   const bodyLines = useMemo(() => (active ? active.body.split('\n') : []), [active]);
   const editorQuery = scope === 'title' ? '' : query;
   const lineMatchOffsets = useMemo(() => {
@@ -116,7 +141,8 @@ export default function NotesTool() {
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
     const close = () => { if (mq.matches) setPanelOpen(false); };
-    close();
+    // Jangan menutup panel saat mount: intent palette bisa baru saja membukanya
+    // (termasuk di viewport sempit). Hanya perubahan viewport yang menutup panel.
     mq.addEventListener('change', close);
     return () => mq.removeEventListener('change', close);
   }, [setPanelOpen]);
@@ -217,22 +243,6 @@ export default function NotesTool() {
     syncHighlight();
   }, [jumpTick, activeMatch, bodyMatchCount, syncHighlight]);
 
-  useEffect(() => {
-    if (!scopeOpen) return;
-    const onPointer = (event: PointerEvent) => {
-      if (!scopeRef.current?.contains(event.target as Node)) setScopeOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setScopeOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [scopeOpen]);
-
   const save = useCallback((note: Note) => {
     setStatus('saving');
     api
@@ -256,6 +266,11 @@ export default function NotesTool() {
     await fetchNotes(query, scope);
     setActive(note);
     setStatus('idle');
+    // Catatan baru langsung siap diganti namanya, tanpa klik tambahan.
+    requestAnimationFrame(() => {
+      titleRef.current?.focus();
+      titleRef.current?.select();
+    });
   };
 
   const download = () => {
@@ -306,7 +321,7 @@ export default function NotesTool() {
       >
         {tab === 'notes' ? (
           <>
-            <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
+            <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? t('notes.hideList') : t('notes.showList')}>
               <Icon name="panel" />
             </button>
             <button type="button" className="btn btn-primary" data-action="notes:new" onClick={create}>
@@ -316,29 +331,45 @@ export default function NotesTool() {
         ) : null}
       </PageHeader>
 
-      <div className="flex shrink-0 items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
+      <div role="tablist" aria-label={t('notes.tabs')} className="flex shrink-0 items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
         <button
+          ref={tabNotesRef}
           type="button"
+          role="tab"
+          id="notes-tab-notes"
+          aria-selected={tab === 'notes'}
+          aria-controls="notes-panel-notes"
+          tabIndex={tab === 'notes' ? 0 : -1}
           data-action="notes:tab-notes"
           className={cn('btn px-2 py-1 text-[12px]', tab === 'notes' ? 'border-accent/40 text-accent' : '')}
-          onClick={() => setTab('notes')}
+          onClick={() => selectTab('notes')}
+          onKeyDown={onTabKeyDown}
         >
           {t('notes.tabNotes')}
         </button>
         <button
+          ref={tabCompareRef}
           type="button"
+          role="tab"
+          id="notes-tab-compare"
+          aria-selected={tab === 'compare'}
+          aria-controls="notes-panel-compare"
+          tabIndex={tab === 'compare' ? 0 : -1}
           data-action="notes:tab-compare"
           className={cn('btn px-2 py-1 text-[12px]', tab === 'compare' ? 'border-accent/40 text-accent' : '')}
-          onClick={() => setTab('compare')}
+          onClick={() => selectTab('compare')}
+          onKeyDown={onTabKeyDown}
         >
           {t('notes.tabCompare')}
         </button>
       </div>
 
       {tab === 'compare' ? (
-        <TextCompare />
+        <div role="tabpanel" id="notes-panel-compare" aria-labelledby="notes-tab-compare" className="flex min-h-0 flex-1 flex-col">
+          <TextCompare />
+        </div>
       ) : (
-      <div className="relative flex min-h-0 flex-1">
+      <div role="tabpanel" id="notes-panel-notes" aria-labelledby="notes-tab-notes" className="relative flex min-h-0 flex-1">
         {panelOpen ? (
         <div className="flex max-md:absolute max-md:inset-0 max-md:z-30 max-md:w-full max-md:bg-panel max-md:border-r-0 flex-col border-r border-line bg-panel/25 md:w-64 md:shrink-0">
           <div className="flex flex-col gap-1.5 p-2.5">
@@ -346,11 +377,14 @@ export default function NotesTool() {
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} aria-label={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13.5px]" />
             </div>
-            <div ref={scopeRef} className="relative">
+            <div className="relative">
               <button
+                ref={scopeTriggerRef}
                 type="button"
                 onClick={() => setScopeOpen((prev) => !prev)}
+                onKeyDown={onScopeKeyDown}
                 aria-haspopup="listbox"
+                aria-controls={scopeOpen ? 'notes-scope-menu' : undefined}
                 aria-expanded={scopeOpen}
                 aria-label={t('notes.searchScope')}
                 className="input flex cursor-pointer items-center gap-1.5 py-1 text-left text-[12.5px]"
@@ -360,7 +394,7 @@ export default function NotesTool() {
                 <Icon name="chevronDown" size={11} className={cn('shrink-0 text-muted transition-transform', scopeOpen && 'rotate-180')} />
               </button>
               {scopeOpen ? (
-                <div role="listbox" aria-label={t('notes.searchScope')} className="absolute top-full right-0 left-0 z-30 mt-1 rounded-lg border border-line bg-panel p-1 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)]">
+                <div ref={scopeMenuRef} id="notes-scope-menu" role="listbox" aria-label={t('notes.searchScope')} className="absolute top-full right-0 left-0 z-30 mt-1 rounded-lg border border-line bg-panel p-1 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)]">
                   {SCOPE_OPTIONS.map((item) => {
                     const selected = scope === item.value;
                     return (
@@ -372,6 +406,7 @@ export default function NotesTool() {
                         onClick={() => {
                           setScope(item.value);
                           setScopeOpen(false);
+                          scopeTriggerRef.current?.focus();
                         }}
                         className={cn(
                           'flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[12.5px] transition-colors',
@@ -431,6 +466,7 @@ export default function NotesTool() {
             <>
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel/25 px-4 py-2.5 sm:flex-nowrap">
                 <input
+                  ref={titleRef}
                   value={active.title}
                   onChange={(e) => patch({ title: e.target.value })}
                   className="min-w-0 basis-full border-0 bg-transparent px-1 text-[16px] font-semibold tracking-tight outline-none sm:flex-1 sm:basis-auto"

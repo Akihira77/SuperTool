@@ -34,6 +34,7 @@ export function PrayerWidget() {
   const [open, setOpen] = useState(false);
   const [alert, setAlert] = useState<PrayerTime | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const fired = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -101,7 +102,9 @@ export function PrayerWidget() {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
     };
     document.addEventListener('mousedown', onPointer);
     window.addEventListener('keydown', onKey);
@@ -147,12 +150,14 @@ export function PrayerWidget() {
         )}
       >
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="btn min-h-7 cursor-pointer gap-1.5 px-2 py-1"
         title={dateText + ' · ' + clockText}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? 'prayer-popover' : undefined}
       >
         <Icon name="clock" size={13} className="shrink-0 text-accent/80" />
         <span className="hidden text-[12.5px] text-muted lg:inline">{dateText}</span>
@@ -174,7 +179,7 @@ export function PrayerWidget() {
       </div>
 
       {open ? (
-        <div className="absolute top-full right-0 z-50 mt-1.5 w-72 rounded-xl border border-line bg-panel p-2 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]" role="dialog" aria-label={t('prayer.title')}>
+        <div id="prayer-popover" className="absolute top-full right-0 z-50 mt-1.5 w-72 rounded-xl border border-line bg-panel p-2 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]" role="dialog" aria-label={t('prayer.title')}>
           <div className="flex items-start gap-2 rounded-lg bg-panel2/45 px-2 py-2">
             <Icon name="bell" size={14} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">

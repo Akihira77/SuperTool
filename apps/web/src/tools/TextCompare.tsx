@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Icon, cn } from '../components/ui';
+import { useConfirm } from '../components/confirm';
 import { api, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { buildDiff, type Diff, type Row, type Segment } from '../lib/textDiff';
@@ -285,6 +286,7 @@ function CompareHistory({
 
 export default function TextCompare() {
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [left, setLeft] = useState('');
   const [right, setRight] = useState('');
   const [diff, setDiff] = useState<Diff | null>(null);
@@ -447,7 +449,7 @@ export default function TextCompare() {
   };
 
   const deleteHistory = async (item: HistoryItem): Promise<void> => {
-    if (!window.confirm(t('compare.deleteConfirm'))) return;
+    if (!(await confirm({ title: t('compare.deleteConfirm'), danger: true, confirmLabel: t('common.delete') }))) return;
     setDeletingId(item.id);
     try {
       await api.del('/compare/' + item.id);

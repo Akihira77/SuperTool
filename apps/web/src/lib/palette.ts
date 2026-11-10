@@ -4,11 +4,13 @@ import { useEffect, useRef } from 'react';
  * Jembatan command palette → tool yang sedang aktif.
  *
  * Palette tidak memegang state tiap tool. Ia hanya:
- * 1. `inject` intent (tool + aksi + payload), lalu
+ * 1. mengirim intent (tool + aksi + payload), lalu
  * 2. menunggu tool yang bersangkutan mendaftar lewat `usePaletteIntent`.
  *
- * Untuk aksi sederhana (format, refresh, buka tab) cukup tandai tombol dengan
- * `data-action="tool:aksi"`; palette akan mengkliknya setelah tool tampil.
+ * Tool yang belum ter-mount menyimpan intent sebagai pending; tool tersebut
+ * mengambilnya sekali saat mount. Fokus dan klik elemen `data-action` tidak
+ * lagi dilakukan di sini: App menunggu sesi tujuan aktif dan terlihat, lalu
+ * memakai target yang dibatasi ke root sesi itu (lihat App.tsx).
  */
 export type PaletteIntent = { tool: string; action: string; payload?: unknown };
 
@@ -18,6 +20,11 @@ const handlers = new Set<(intent: PaletteIntent) => void>();
 export function dispatchIntent(intent: PaletteIntent) {
   pending = intent;
   for (const handler of handlers) handler(intent);
+}
+
+/** Buang intent yang belum diambil, misalnya saat pengguna membatalkan aksi. */
+export function clearPendingIntent() {
+  pending = null;
 }
 
 /** Dipakai tool: daftarkan satu handler; intent yang tertunda langsung dijalankan. */
@@ -36,29 +43,6 @@ export function usePaletteIntent(tool: string, handler: (action: string, payload
       handlers.delete(run);
     };
   }, [tool]);
-}
-
-async function waitFor(selector: string, tries = 40) {
-  for (let index = 0; index < tries; index += 1) {
-    const node = document.querySelector<HTMLElement>(selector);
-    if (node) return node;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return null;
-}
-
-/** Klik elemen ber-atribut data-action="tool:aksi" setelah halaman tool muncul. */
-export async function runClick(tool: string, action: string) {
-  const node = await waitFor('[data-action="' + tool + ':' + action + '"]');
-  node?.click();
-  return Boolean(node);
-}
-
-/** Fokus elemen (input/textarea) ber-atribut data-action. */
-export async function runFocus(tool: string, action: string) {
-  const node = await waitFor('[data-action="' + tool + ':' + action + '"]');
-  node?.focus();
-  return Boolean(node);
 }
 
 export type FilesSearchPayload = { query: string; mode: 'name' | 'content'; include: string; exclude: string };

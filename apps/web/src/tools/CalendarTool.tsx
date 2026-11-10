@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useFocusTrap } from '../lib/useFocusTrap';
 import {
   Calendar as BigCalendar,
   dayjsLocalizer,
@@ -264,6 +265,12 @@ export default function CalendarTool() {
   const booted = useRef(false);
   const fetching = useRef(false);
   const notified = useRef<Set<string>>(new Set());
+  const detailRef = useRef<HTMLDivElement>(null);
+  const detailCloseRef = useRef<HTMLButtonElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
+  const composerTitleRef = useRef<HTMLInputElement>(null);
+  useFocusTrap(Boolean(selected), detailRef, detailCloseRef);
+  useFocusTrap(composer, composerRef, composerTitleRef);
   const locale = lang === 'id' ? 'id-ID' : 'en-US';
 
   const errorText = (message: string): string => {
@@ -804,10 +811,17 @@ export default function CalendarTool() {
           }}
         >
           <div
+            ref={detailRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-detail-title"
             className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                setSelected(null);
+              }
+            }}
           >
             <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-line bg-panel px-5 py-4">
               <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
@@ -842,12 +856,12 @@ export default function CalendarTool() {
                 </div>
               </div>
               <button
+                ref={detailCloseRef}
                 type="button"
                 className="btn btn-ghost shrink-0 cursor-pointer px-1.5 py-0.5"
                 onClick={() => setSelected(null)}
                 title={t('common.close')}
                 aria-label={t('common.close')}
-                autoFocus
               >
                 <Icon name="x" size={14} />
               </button>
@@ -999,11 +1013,18 @@ export default function CalendarTool() {
           }}
         >
           <form
+            ref={composerRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-create-title"
             className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
             onSubmit={createEvent}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !saving) {
+                event.stopPropagation();
+                setComposer(false);
+              }
+            }}
           >
             <div className="sticky top-0 flex items-center gap-2.5 border-b border-line bg-panel p-4">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
@@ -1028,10 +1049,10 @@ export default function CalendarTool() {
               <label className="flex flex-col">
                 <span className="label">{t('calendar.eventTitle')}</span>
                 <input
+                  ref={composerTitleRef}
                   className="input mt-1"
                   value={form.summary}
                   onChange={(event) => setField('summary', event.target.value)}
-                  autoFocus
                   required
                   maxLength={1024}
                   placeholder={t('calendar.eventTitlePlaceholder')}

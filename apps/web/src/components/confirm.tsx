@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon, cn } from './ui';
 import { useI18n } from '../lib/i18n';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 export type ConfirmOptions = {
   title: string;
@@ -13,17 +14,22 @@ export type ConfirmOptions = {
 const ConfirmContext = createContext<(options: ConfirmOptions) => Promise<boolean>>(() => Promise.resolve(false));
 
 /**
- * Konfirmasi pengganti window.confirm: modal sendiri, bisa ditutup Esc,
- * Enter = setuju, dan fokus awal ada di tombol batal supaya aman.
+ * Konfirmasi pengganti window.confirm: modal sendiri, fokus awal di tombol
+ * batal, Enter/Space mengaktifkan tombol yang sedang fokus (bukan selalu setuju),
+ * Escape membatalkan, dan fokus kembali ke pemicu setelah ditutup.
  */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const [state, setState] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const messageId = useId();
+  useFocusTrap(Boolean(state), dialogRef, cancelRef);
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
+      resolver.current?.(false);
       resolver.current = resolve;
       setState(options);
     });
@@ -35,44 +41,34 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     setState(null);
   }, []);
 
-  useEffect(() => {
-    if (!state) return;
-    const timer = setTimeout(() => cancelRef.current?.focus(), 20);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        close(false);
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        close(true);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [close, state]);
-
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
       {state ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={() => close(false)}>
           <div
+            ref={dialogRef}
             className="flex w-full max-w-md flex-col gap-3 rounded-xl border border-line bg-panel p-4 shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                close(false);
+              }
+            }}
             role="alertdialog"
             aria-modal="true"
-            aria-label={state.title}
+            aria-labelledby={"confirm-title"}
+            aria-describedby={state.message ? messageId : undefined}
           >
             <div className="flex items-start gap-2">
               <span className={cn('mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg', state.danger ? 'bg-bad/15 text-bad' : 'bg-accent/15 text-accent')}>
                 <Icon name={state.danger ? 'trash' : 'check'} size={14} />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-medium text-ink">{state.title}</div>
-                {state.message ? <p className="mt-1 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-muted">{state.message}</p> : null}
+                <div id="confirm-title" className="text-[14px] font-medium text-ink">{state.title}</div>
+                {state.message ? <p id={messageId} className="mt-1 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-muted">{state.message}</p> : null}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-1">

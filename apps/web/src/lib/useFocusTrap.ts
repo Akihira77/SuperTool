@@ -6,6 +6,8 @@ const FOCUSABLE =
 /**
  * Jebak Tab di dalam dialog dan kembalikan fokus ke elemen pemicu saat ditutup.
  * Escape tetap ditangani pemilik dialog karena perilakunya berbeda-beda.
+ * Jika fokus sudah pindah ke dialog lain, fokus tidak dikembalikan (mencegah
+ * overlay yang baru dibuka kehilangan fokus).
  */
 export function useFocusTrap(
   open: boolean,
@@ -48,7 +50,11 @@ export function useFocusTrap(
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKeyDown);
-      previous?.focus();
+      const active = document.activeElement;
+      const otherDialog = active instanceof HTMLElement ? active.closest('[role="dialog"],[role="alertdialog"]') : null;
+      if (!otherDialog || otherDialog === containerRef.current) {
+        if (previous?.isConnected) previous.focus();
+      }
     };
   }, [open, containerRef, initialFocusRef]);
 }

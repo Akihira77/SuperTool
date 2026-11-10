@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { activeWorkspaceRoot, onWorkspace } from '../lib/workspace';
 import { CodeEditor } from '../components/CodeEditor';
 import { VirtualCode } from '../components/VirtualCode';
@@ -14,6 +14,7 @@ import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { renderMarkdown } from '../lib/markdown';
 import { useSidebar } from '../lib/useSidebar';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 type Entry = { name: string; path: string; dir: boolean; size: number; mtime: number; ext: string; hidden: boolean };
 type Listing = { path: string; parent: string | null; entries: Entry[]; truncated: boolean };
@@ -149,8 +150,17 @@ export default function FilesTool() {
   const [preview, setPreview] = useState(false);
   const [recents, setRecents] = useState<Array<{ path: string; openedAt: number }>>([]);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [nameDialog, setNameDialog] = useState<{ mode: 'rename' | 'mkdir'; entry?: Entry } | null>(null);
+  const [nameValue, setNameValue] = useState('');
+  const [nameError, setNameError] = useState('');
   const uploadRef = useRef<HTMLInputElement>(null);
+  const recentDialogRef = useRef<HTMLDivElement>(null);
+  const recentCloseRef = useRef<HTMLButtonElement>(null);
+  const nameDialogRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const lastProject = useRef<string | null>(null);
+  useFocusTrap(recentOpen, recentDialogRef, recentCloseRef);
+  useFocusTrap(Boolean(nameDialog), nameDialogRef, nameInputRef);
 
   const loadListing = useCallback(async (path: string) => {
     setBusy(true);
@@ -351,37 +361,47 @@ export default function FilesTool() {
     }
   };
 
-  const rename = async (entry: Entry) => {
-    const name = window.prompt('Nama baru', entry.name)?.trim();
-    if (!name || name === entry.name) return;
-    if (name === '.' || name === '..' || /[\\/]/.test(name)) {
-      setError('Nama tidak valid: jangan pakai / atau \\');
-      return;
-    }
-    try {
-      await api.post('/fs/rename', { path: entry.path, name });
-      toast(t('common.renamed'), 'ok');
-      if (file?.path === entry.path) setFile(null);
-      if (listing) await loadListing(listing.path);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('err.rename'));
-    }
+  const rename = (entry: Entry) => {
+    setNameError('');
+    setNameValue(entry.name);
+    setNameDialog({ mode: 'rename', entry });
   };
 
-  const makeFolder = async () => {
+  const makeFolder = () => {
     if (!listing) return;
-    const name = window.prompt('Nama folder baru')?.trim();
+    setNameError('');
+    setNameValue('');
+    setNameDialog({ mode: 'mkdir' });
+  };
+
+  const submitName = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!nameDialog || !listing) return;
+    const name = nameValue.trim();
     if (!name) return;
     if (name === '.' || name === '..' || /[\\/]/.test(name)) {
-      setError('Nama folder tidak valid: jangan pakai / atau \\');
+      setNameError(t('files.nameInvalid'));
+      nameInputRef.current?.focus();
+      return;
+    }
+    if (nameDialog.mode === 'rename' && name === nameDialog.entry?.name) {
+      setNameDialog(null);
       return;
     }
     try {
-      await api.post('/fs/mkdir', { path: listing.path + '/' + name });
-      toast(t('common.created'), 'ok');
+      if (nameDialog.mode === 'rename' && nameDialog.entry) {
+        await api.post('/fs/rename', { path: nameDialog.entry.path, name });
+        toast(t('common.renamed'), 'ok');
+        if (file?.path === nameDialog.entry.path) setFile(null);
+      } else {
+        await api.post('/fs/mkdir', { path: listing.path + '/' + name });
+        toast(t('common.created'), 'ok');
+      }
+      setNameDialog(null);
       await loadListing(listing.path);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('err.mkdir'));
+      setNameError(err instanceof ApiError ? err.message : t(nameDialog.mode === 'rename' ? 'err.rename' : 'err.mkdir'));
+      nameInputRef.current?.focus();
     }
   };
 
@@ -611,6 +631,7 @@ export default function FilesTool() {
             onKeyDown={(e) => e.key === 'Enter' && void search()}
             placeholder={deep ? t('files.searchContent') : t('files.searchName')}
             aria-label={deep ? t('files.searchContent') : t('files.searchName')}
+            data-action="files:search"
             className="input w-36 py-1.5 pl-7 text-[12px] sm:w-44"
           />
         </div>
@@ -1092,11 +1113,24 @@ export default function FilesTool() {
 
       {recentOpen ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4" onMouseDown={() => setRecentOpen(false)}>
-          <div className="flex max-h-[70vh] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('files.recentTitle')}>
+          <div
+            ref={recentDialogRef}
+            className="flex max-h-[70vh] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                setRecentOpen(false);
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('files.recentTitle')}
+          >
             <div className="flex items-center gap-2">
               <Icon name="files" size={14} className="text-accent" />
               <span className="text-[13px] font-medium">{t('files.recentTitle')}</span>
-              <button type="button" className="btn btn-ghost btn-sm ml-auto cursor-pointer px-1" onClick={() => setRecentOpen(false)} title={t('common.close')}>
+              <button ref={recentCloseRef} type="button" className="btn btn-ghost btn-sm ml-auto cursor-pointer px-1" onClick={() => setRecentOpen(false)} title={t('common.close')} aria-label={t('common.close')}>
                 <Icon name="x" size={13} />
               </button>
             </div>
@@ -1121,6 +1155,59 @@ export default function FilesTool() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      ) : null}
+      {nameDialog ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={() => setNameDialog(null)}>
+          <div
+            ref={nameDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="files-name-title"
+            className="w-full max-w-sm rounded-xl border border-line bg-panel p-4 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                setNameDialog(null);
+              }
+            }}
+          >
+            <h2 id="files-name-title" className="text-[15px] font-semibold">
+              {t(nameDialog.mode === 'rename' ? 'files.rename' : 'files.newFolder')}
+            </h2>
+            <form className="mt-3 flex flex-col gap-3" onSubmit={(event) => void submitName(event)}>
+              <label className="flex flex-col gap-1.5">
+                <span className="label">{t('files.name')}</span>
+                <input
+                  ref={nameInputRef}
+                  value={nameValue}
+                  onChange={(event) => {
+                    setNameValue(event.target.value);
+                    setNameError('');
+                  }}
+                  aria-invalid={Boolean(nameError)}
+                  aria-describedby={nameError ? 'files-name-error' : undefined}
+                  className="input"
+                  autoComplete="off"
+                />
+              </label>
+              {nameError ? (
+                <p id="files-name-error" role="alert" className="text-[12.5px] text-bad">
+                  {nameError}
+                </p>
+              ) : null}
+              <div className="flex justify-end gap-2">
+                <button type="button" className="btn cursor-pointer" onClick={() => setNameDialog(null)}>
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" className="btn btn-primary cursor-pointer" disabled={!nameValue.trim()}>
+                  {t('common.save')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}
@@ -1160,6 +1247,9 @@ function ExcludeDialog({
   const { t } = useI18n();
   const [picked, setPicked] = useState<string[]>(value);
   const [custom, setCustom] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useFocusTrap(open, dialogRef, closeRef);
 
   useEffect(() => {
     if (open) {
@@ -1207,8 +1297,15 @@ function ExcludeDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={onClose}>
       <div
+        ref={dialogRef}
         className="flex w-full max-w-lg flex-col gap-3 rounded-xl border border-line bg-panel p-4 shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            onClose();
+          }
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={t('files.excludeTitle')}
@@ -1219,7 +1316,7 @@ function ExcludeDialog({
           <span className="ml-auto text-[11.5px] text-muted">
             {picked.length} {t('files.excludeSelected')}
           </span>
-          <button type="button" className="btn cursor-pointer px-1" onClick={onClose} aria-label={t('common.close')}>
+          <button ref={closeRef} type="button" className="btn cursor-pointer px-1" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="x" size={13} />
           </button>
         </div>
@@ -1251,7 +1348,8 @@ function ExcludeDialog({
             value={custom}
             onChange={(event) => setCustom(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && addCustom()}
-            placeholder="*.csv atau vendor/"
+            placeholder={t('files.excludePlaceholder')}
+            aria-label={t('files.excludePlaceholder')}
             className="input flex-1 py-1 text-[12px]"
           />
           <button type="button" className="btn cursor-pointer" onClick={addCustom} disabled={!custom.trim()}>

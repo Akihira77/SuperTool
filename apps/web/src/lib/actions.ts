@@ -1,16 +1,21 @@
 /**
  * Registry aksi lintas tool untuk command palette.
  *
- * Metadata tinggal di sini (id, tool, ikon, target fokus). Eksekusi tetap
- * generik: palette membuka sesi tool lalu mengklik tombol ber-atribut
- * data-action="tool:aksi", sehingga tiap tool tidak perlu tahu soal palette.
+ * Metadata tinggal di sini (id, tool, ikon, target fokus, intent). Eksekusi
+ * generik ada di App: buka sesi, kirim intent bila ada, lalu fokus target atau
+ * klik tombol ber-atribut data-action="tool:aksi". Tool tetap tidak perlu tahu
+ * soal palette.
  */
 export type ToolAction = {
   tool: string;
   action: string;
   icon: string;
-  /** Fokus elemen setelah tool tampil, bukan klik tombol. */
+  /** Fokus elemen (suffix data-action) setelah tool tampil, bukan klik tombol. */
   focus?: string;
+  /** Intent tool-level yang harus dijalankan lebih dulu (mis. buka panel). */
+  intent?: string;
+  /** Pilih seluruh isi input target agar bisa langsung diganti. */
+  select?: boolean;
 };
 
 export const TOOL_ACTIONS: readonly ToolAction[] = [
@@ -27,7 +32,7 @@ export const TOOL_ACTIONS: readonly ToolAction[] = [
   { tool: 'json', action: 'download', icon: 'download' },
   { tool: 'types', action: 'download', icon: 'download' },
   { tool: 'notes', action: 'new', icon: 'plus' },
-  { tool: 'notes', action: 'search', icon: 'search', focus: 'search' },
+  { tool: 'notes', action: 'search', icon: 'search', focus: 'search', intent: 'search', select: true },
   { tool: 'notes', action: 'delete', icon: 'trash' },
   { tool: 'notes', action: 'list', icon: 'notes' },
   { tool: 'nginx', action: 'save', icon: 'save' },
@@ -43,7 +48,7 @@ export const TOOL_ACTIONS: readonly ToolAction[] = [
   { tool: 'webhook', action: 'clear', icon: 'trash' },
   { tool: 'settings', action: 'backup', icon: 'download' },
   { tool: 'settings', action: 'restore', icon: 'upload' },
-  ...['regex', 'encode', 'http', 'log', 'docker', 'git', 'cron', 'dns', 'sqlite', 'audit'].map<ToolAction>((action) => ({
+  ...['regex', 'encode', 'http', 'logs', 'docker', 'git', 'cron', 'dns', 'sqlite', 'audit'].map<ToolAction>((action) => ({
     tool: 'devspace',
     action,
     icon: 'chevronRight',

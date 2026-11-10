@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap';
+import { useMenu } from '../lib/useMenu';
 import { Icon, Spinner, cn } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -21,10 +22,14 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const requestRef = useRef(0);
   const dialogOpen = Boolean(picker || busy || error);
-  useFocusTrap(dialogOpen, dialogRef);
+  const { onTriggerKeyDown } = useMenu(open, setOpen, triggerRef, menuRef);
+  useFocusTrap(dialogOpen, dialogRef, closeRef);
 
   const browse = useCallback(async (path: string) => {
     const request = ++requestRef.current;
@@ -51,6 +56,7 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
 
   const openPicker = async () => {
     setOpen(false);
+    triggerRef.current?.focus();
     closePicker();
     if (!roots.length) {
       try {
@@ -67,22 +73,6 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
       if (list[0]) void browse(list[0].path);
     }
   };
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [open]);
 
   const pick = (path: string) => {
     setProject(path);
@@ -118,9 +108,14 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
         {/* Dropdown di pojok kanan atas */}
         <div ref={rootRef} className="relative ml-auto">
           <button
+            ref={triggerRef}
             type="button"
             data-action="project:toggle"
             onClick={() => setOpen((prev) => !prev)}
+            onKeyDown={onTriggerKeyDown}
+            aria-haspopup="menu"
+            aria-controls="project-menu"
+            aria-expanded={open}
             className={cn('btn min-h-7 cursor-pointer px-2 py-1 text-[12.5px]', projectPath && 'border-accent/40 text-accent')}
             title={t('project.pick')}
           >
@@ -129,24 +124,24 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} />
           </button>
           {open ? (
-            <div className="absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1 rounded-lg border border-line bg-panel p-1.5 shadow-2xl" role="menu">
+            <div ref={menuRef} id="project-menu" aria-label={t('project.choose')} className="absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1 rounded-lg border border-line bg-panel p-1.5 shadow-2xl" role="menu">
               <div className="px-1.5 pt-1 pb-0.5 label">{t('project.choose')}</div>
-              <button type="button" className="nav-item w-full" onClick={() => void openPicker()}>
+              <button type="button" role="menuitem" className="nav-item w-full" onClick={() => void openPicker()}>
                 <Icon name="folderPlus" size={14} /> {t('project.pick')}
               </button>
               {projectPath ? (
-                <button type="button" className="nav-item w-full text-muted" onClick={() => { clearProject(); setOpen(false); }}>
+                <button type="button" role="menuitem" className="nav-item w-full text-muted" onClick={() => { clearProject(); setOpen(false); }}>
                   <Icon name="x" size={13} /> {t('project.clear')}
                 </button>
               ) : null}
               {recent.length ? <div className="mt-1 border-t border-line px-1.5 pt-1.5 pb-0.5 label">{t('project.recent')}</div> : null}
               {recent.map((path) => (
                 <div key={path} className={cn('group flex items-center gap-1 rounded-md px-1.5 py-1 text-[12.5px]', path === projectPath ? 'bg-accent/10 text-ink' : 'text-muted hover:bg-panel2')}>
-                  <button type="button" className="min-w-0 flex-1 cursor-pointer text-left" onClick={() => { setProject(path); setOpen(false); }} title={path}>
+                  <button type="button" role="menuitem" className="min-w-0 flex-1 cursor-pointer text-left" onClick={() => { setProject(path); setOpen(false); }} title={path}>
                     <span className="block truncate text-ink/85">{projectName(path)}</span>
                     <span className="mono block truncate text-[12.5px] text-muted/70">{path}</span>
                   </button>
-                  <button type="button" className="cursor-pointer px-1 text-muted opacity-0 group-hover:opacity-100 hover:text-bad" onClick={() => forget(path)} title={t('project.forget')}>
+                  <button type="button" role="menuitem" className="cursor-pointer px-1 text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-bad" onClick={() => forget(path)} title={t('project.forget')} aria-label={t('project.forget')}>
                     <Icon name="x" size={11} />
                   </button>
                 </div>
@@ -159,11 +154,25 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
 
       {dialogOpen ? (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/55 p-3 sm:p-4" onMouseDown={closePicker}>
-          <div ref={dialogRef} tabIndex={-1} className="flex max-h-[min(80vh,42rem)] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl outline-none sm:p-4" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="project-picker-title">
+          <div
+            ref={dialogRef}
+            tabIndex={-1}
+            className="flex max-h-[min(80vh,42rem)] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl outline-none sm:p-4"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                closePicker();
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="project-picker-title"
+          >
             <div className="flex items-center gap-2">
               <Icon name="files" size={15} className="text-accent" />
               <span id="project-picker-title" className="text-[14px] font-medium">{t('project.pickTitle')}</span>
-              <button type="button" className="btn btn-ghost btn-icon ml-auto" onClick={closePicker} title={t('common.close')} aria-label={t('common.close')}>
+              <button ref={closeRef} type="button" className="btn btn-ghost btn-icon ml-auto" onClick={closePicker} title={t('common.close')} aria-label={t('common.close')}>
                 <Icon name="x" size={13} />
               </button>
             </div>

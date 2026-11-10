@@ -15,7 +15,7 @@ import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
 import { useFocusTrap } from './lib/useFocusTrap';
-import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
+import { dispatchIntent, type FilesSearchPayload } from './lib/palette';
 import { actionsFor, findAction } from './lib/actions';
 import { onWorkflow } from './lib/workflow';
 import {
@@ -62,6 +62,66 @@ const GROUPS: Array<{ id: ToolGroup; key: 'nav.group.workspace' | 'nav.group.bui
 ];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
+
+type PendingAction = {
+  id: number;
+  tool: string;
+  /** Suffix data-action yang dituju, relatif terhadap root sesi aktif. */
+  selector?: string;
+  /** Intent tool-level yang dikirim setelah sesi aktif (mis. buka panel cari). */
+  intent?: string;
+  payload?: unknown;
+  select?: boolean;
+  /** Klik tombol alih-alih memfokuskan target. */
+  click?: boolean;
+  /** Fokus root sesi (navigasi tool tanpa aksi lanjutan). */
+  focusSession?: boolean;
+};
+
+/** Elemen dianggap siap difokuskan hanya jika benar-benar terlihat. */
+function isVisible(node: HTMLElement): boolean {
+  if (!node.getClientRects().length) return false;
+  const style = getComputedStyle(node);
+  return style.visibility !== 'hidden' && style.display !== 'none';
+}
+
+/**
+ * Tunggu target muncul dan terlihat, dibatasi MutationObserver + interval ringan,
+ * tanpa rantai setTimeout dan tanpa selector global. AbortSignal membatalkan
+ * permintaan lama saat pengguna berpindah konteks.
+ */
+function waitForVisibleTarget(
+  root: HTMLElement,
+  selector: string,
+  signal: AbortSignal,
+  timeoutMs = 5000,
+): Promise<HTMLElement | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (node: HTMLElement | null) => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      window.clearInterval(interval);
+      window.clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve(node);
+    };
+    // Selector yang dikirim registry adalah sufiks data-action, bukan selector CSS.
+    const query = '[data-action="' + CSS.escape(selector) + '"]';
+    const check = () => {
+      const node = root.querySelector<HTMLElement>(query);
+      if (node && isVisible(node)) finish(node);
+    };
+    const onAbort = () => finish(null);
+    const observer = new MutationObserver(check);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    const interval = window.setInterval(check, 120);
+    const timer = window.setTimeout(() => finish(null), timeoutMs);
+    signal.addEventListener('abort', onAbort, { once: true });
+    check();
+  });
+}
 
 /** Isi sesi tidak ikut re-render saat tab lain diaktifkan; elemennya tetap sama. */
 const SessionContent = memo(function SessionContent({
@@ -134,6 +194,12 @@ function Shell() {
     () => new Set(store.activeId ? [store.activeId] : []),
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [rootTick, setRootTick] = useState(0);
+  const actionSeq = useRef(0);
+  const intentSent = useRef(0);
+  const sessionNodes = useRef(new Map<string, HTMLDivElement>());
+  const rootSeen = useRef(new Set<string>());
   const routeRef = useRef(route);
 
   useEffect(() => {
@@ -200,19 +266,25 @@ function Shell() {
     { id: 'action:logout', label: t('nav.logout'), desc: t('palette.act.logoutDesc'), icon: 'logout' },
   ];
 
+  const queueAction = (action: Omit<PendingAction, 'id'>) => {
+    actionSeq.current += 1;
+    setPendingAction({ ...action, id: actionSeq.current });
+  };
+
   const runPalette = (path: PaletteNode[], node: PaletteNode, payload?: FilesSearchPayload) => {
     if (node.id === 'files:search-run' && payload) {
+      queueAction({ tool: 'files', intent: 'search', payload, selector: 'files:search' });
       openTool('files');
-      dispatchIntent({ tool: 'files', action: 'search', payload });
       return;
     }
     if (node.id.startsWith('viewer:open:') || node.id.startsWith('viewer:edit:')) {
       const [, action, target] = node.id.split(':');
+      queueAction({ tool: 'viewer', intent: action === 'edit' ? 'edit' : 'open', payload: target, focusSession: true });
       openTool('viewer');
-      dispatchIntent({ tool: 'viewer', action: action === 'edit' ? 'edit' : 'open', payload: target });
       return;
     }
     if (node.id.startsWith('tool:')) {
+      queueAction({ tool: node.id.slice(5), focusSession: true });
       openTool(node.id.slice(5));
       return;
     }
@@ -223,10 +295,15 @@ function Shell() {
       return;
     }
     const [tool, action] = node.id.split(':');
-    openTool(tool);
     const spec = findAction(tool, action);
-    if (spec?.focus) void runFocus(tool, spec.focus);
-    else void runClick(tool, action);
+    queueAction({
+      tool,
+      intent: spec?.intent,
+      select: spec?.select,
+      selector: tool + ':' + (spec?.focus ?? action),
+      click: !spec?.focus,
+    });
+    openTool(tool);
     void path;
   };
 
@@ -363,6 +440,71 @@ function Shell() {
     if (existing) activateSession(existing.id);
     else addSession(toolId);
   };
+
+  // Membuka palette lagi membatalkan permintaan fokus yang belum selesai.
+  useEffect(() => {
+    if (paletteOpen) setPendingAction(null);
+  }, [paletteOpen]);
+
+  useLayoutEffect(() => {
+    const pending = pendingAction;
+    if (!pending || paletteOpen || auth !== 'ready') return;
+    const active = store.sessions.find((session) => session.id === store.activeId);
+    if (!active || active.tool !== pending.tool) return;
+    const root = sessionNodes.current.get(active.id);
+    if (!root) return;
+
+    const controller = new AbortController();
+    const finish = () => setPendingAction((current) => (current?.id === pending.id ? null : current));
+    const onUser = () => {
+      controller.abort();
+      finish();
+    };
+    window.addEventListener('pointerdown', onUser, true);
+    window.addEventListener('keydown', onUser, true);
+
+    const run = async () => {
+      // Dua frame: beri kesempatan focus-trap palette melepas fokus lama dulu.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (controller.signal.aborted) return;
+
+      if (pending.intent && intentSent.current !== pending.id) {
+        intentSent.current = pending.id;
+        dispatchIntent({ tool: pending.tool, action: pending.intent, payload: pending.payload });
+      }
+
+      let target: HTMLElement | null = null;
+      if (!pending.focusSession && pending.selector) {
+        target = await waitForVisibleTarget(root, pending.selector, controller.signal);
+      }
+      if (controller.signal.aborted) return;
+
+      if (target && pending.click) {
+        target.click();
+      } else if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        if (pending.select && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+          target.select();
+        }
+      } else if (pending.focusSession) {
+        root.focus({ preventScroll: true });
+      } else {
+        // Target tidak pernah muncul: tetap pindahkan fokus ke konteks sesi.
+        root.focus({ preventScroll: true });
+      }
+      finish();
+    };
+    void run();
+
+    return () => {
+      controller.abort();
+      window.removeEventListener('pointerdown', onUser, true);
+      window.removeEventListener('keydown', onUser, true);
+    };
+    // Sesi/tool dan status palette menentukan kapan target aman difokuskan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction, paletteOpen, auth, store.activeId, store.sessions, mounted, rootTick]);
 
   // Workflow lintas tool: buka sesi tujuan lalu teruskan aksi + payload.
   const openToolRef = useRef(openTool);
@@ -581,8 +723,25 @@ function Shell() {
                     {/* Kotak sesi selalu absolute dengan ukuran sama; pindah tab
                         hanya mengubah visibility, bukan layout flex/absolute. */}
                     <div
+                      ref={(node) => {
+                        if (node) {
+                          // Sesi lazy baru benar-benar ter-commit setelah chunk-nya siap.
+                          // Tick memicu ulang permintaan fokus yang menunggu root ini.
+                          if (!rootSeen.current.has(session.id)) {
+                            rootSeen.current.add(session.id);
+                            setRootTick((tick) => tick + 1);
+                          }
+                          sessionNodes.current.set(session.id, node);
+                        } else {
+                          sessionNodes.current.delete(session.id);
+                        }
+                      }}
+                      id={'session-panel-' + session.id}
+                      role="tabpanel"
+                      aria-labelledby={'session-tab-' + session.id}
+                      tabIndex={-1}
                       className={cn(
-                        'absolute inset-0 flex min-h-0 min-w-0 flex-col',
+                        'absolute inset-0 flex min-h-0 min-w-0 flex-col outline-none',
                         !active && 'pointer-events-none invisible',
                       )}
                       aria-hidden={active ? undefined : true}
