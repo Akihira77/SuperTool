@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import type { Request, Response } from 'express';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
+import { requestLocal } from '../../common/http-client';
 
 const exec = promisify(execFile);
 const HASHES = new Set(['md5', 'sha1', 'sha256', 'sha512', 'sha3-256', 'sha3-512']);
@@ -51,41 +52,34 @@ export class DevService {
       throw new BadRequestException('URL tidak valid');
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new BadRequestException('Hanya http/https');
-    if (url.hostname === '169.254.169.254') throw new BadRequestException('Alamat metadata cloud diblokir');
 
     const headers: Record<string, string> = {};
     for (const item of input?.headers ?? []) {
       const key = String(item?.key ?? '').trim();
       if (key) headers[key] = String(item?.value ?? '');
     }
-    const method = String(input?.method ?? 'GET').toUpperCase();
-    const hasBody = !['GET', 'HEAD'].includes(method);
-    const started = Date.now();
-    let response: globalThis.Response;
     try {
-      response = await fetch(url, {
-        method,
+      const response = await requestLocal(url.href, {
+        method: String(input?.method ?? 'GET'),
         headers,
-        body: hasBody ? String(input?.body ?? '') : undefined,
-        redirect: 'follow',
-        signal: AbortSignal.timeout(Math.min(60_000, Math.max(1000, Number(input?.timeoutMs ?? 20_000)))),
+        body: String(input?.body ?? ''),
+        timeoutMs: Number(input?.timeoutMs ?? 20_000),
+        maxResponseBytes: 1_000_000,
       });
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        ms: response.ms,
+        size: response.size,
+        headers: response.headers,
+        body: response.body.toString('utf8'),
+        truncated: response.truncated,
+        url: response.url,
+      };
     } catch (err) {
+      if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Request gagal: ' + (err as Error).message);
     }
-    const ms = Date.now() - started;
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const limit = 1_000_000;
-    return {
-      status: response.status,
-      statusText: response.statusText,
-      ms,
-      size: buffer.length,
-      headers: Object.fromEntries(response.headers),
-      body: buffer.subarray(0, limit).toString('utf8'),
-      truncated: buffer.length > limit,
-      url: response.url,
-    };
   }
 
   async logs(path: string, lines = 300) {

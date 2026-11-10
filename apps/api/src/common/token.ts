@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export type TokenPayload = { exp: number; pv: number };
+export type TokenPayload = { exp: number; pv: number; origin?: string };
 
 export function signToken(payload: TokenPayload, secret: string): string {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');

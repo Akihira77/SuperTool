@@ -51,6 +51,28 @@ Kenapa `mustChange` dicek di guard, bukan di frontend? Karena frontend bisa dile
 3. `realpath` dicek untuk mencegah symlink keluar area. Untuk path yang belum ada (file baru), realpath dilakukan pada parent terdekat yang ada.
 4. Root itu sendiri tidak boleh dihapus.
 
+Pencarian isi (`grep`) memakai jail yang sama untuk setiap include path, termasuk path absolut dan `../`, sebelum `stat`.
+
+## Isolasi proxy
+
+- **Subdomain** (`<hex-target>.localhost`) adalah mode default: origin terpisah, cookie target tidak bercampur dengan cookie aplikasi. Setiap origin memerlukan tiket bertanda tangan (`{exp, pv, origin}`) yang diterbitkan `POST /api/proxy/ticket` setelah target divalidasi net guard. HTTP tanpa tiket → 401; tiket di query langsung dipindah ke cookie `HttpOnly; SameSite=None; Secure` lewat 302.
+- **Path** (`/api/proxy/b/<token>/`) adalah fallback same-origin. Respons HTML diberi `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`), dan iframe memakai atribut `sandbox` yang sama. Skrip target berjalan di origin opak sehingga tidak bisa membaca API atau cookie aplikasi.
+- **WebSocket** mengikuti aturan mode: subdomain wajib tiket, path wajib sesi; keduanya memanggil `assertLocalUrl` sebelum connect.
+- **Batas tulis-ulang** 8 MB; respons lebih besar dijawab 502 alih-alih ditahan di memori.
+
+## Net guard dan HTTP client
+
+`common/net-guard.ts` mengklasifikasikan alamat IPv4/IPv6 (termasuk IPv4-mapped) dan memblokir loopback, privat, CGNAT, link-local, ULA, dokumentasi, multicast, serta metadata cloud. `resolveLocalAddress()` mengunci alamat hasil resolusi pertama.
+
+`common/http-client.ts` dipakai fitur server-side (Dev Space HTTP client, proxy probe, proxy fetch): metode di-allowlist, header terlarang ditolak, redirect manual maksimal 5 hop dengan validasi ulang tiap hop, body ≤ 1 MB, respons ≤ 1 MB (maks 10 MB), timeout 1–60 detik, dan `accept-encoding: identity` agar ukuran terprediksi.
+
+## Operasional
+
+- `GET /api/health` mengembalikan `{ok, uptime}` setelah `SELECT 1`; gagal → 503.
+- `main.ts` memasang `trust proxy` hanya untuk loopback, mengaktifkan shutdown hook, dan mencatat `unhandledRejection`/`uncaughtException`.
+- CORS hanya aktif bila `ST_DEV_ORIGIN` diisi.
+- Cookie sesi memakai `Secure` hanya saat request datang lewat HTTPS (`req.secure`), sehingga deployment HTTP loopback tetap bisa login.
+
 ## Penyimpanan data
 
 `common/db.ts`: buka `super-tool.db` (`node:sqlite`, WAL), buat skema, simpan salinan `VACUUM INTO` ke `.bak` setiap start, dan impor sekali dari `auth.json`/`notes.json` versi lama. Penulisan lewat SQLite, jadi tidak ada tulis-separuh: transaksi sqlite yang menjamin.
@@ -70,8 +92,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | storage | `storage-usage.service.ts`, `storage-usage.controller.ts` | scan home 2 level on-demand dengan `du` per folder paralel (timeout 5 menit) + cache 6 jam di tabel `storage_cache`, tree/treemap klik-ke-daftar, salin path, hapus folder allowlist, `docker system prune -f` |
 | ports | `ports.service.ts` | `ss -ltnpH` + `ps` + hitung koneksi established |
 | nginx | `nginx.service.ts` | daftar `*.conf`, baca/tulis, `nginx -t` |
-| proxy | `proxy.controller.ts` | mode sederhana `?u=` + probe koneksi |
-| proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`) dan subdomain (`<hex>.localhost`): aset, cookie, POST body, WebSocket, tulis-ulang origin absolut di HTML/JS/JSON |
+| proxy | `proxy.controller.ts` | mode sederhana `?u=`, probe koneksi, dan `POST /proxy/ticket` (tiket per-origin 12 jam) |
+| proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`) dan subdomain (`<hex>.localhost`): aset, cookie, POST body, WebSocket, tulis-ulang origin absolut di HTML/JS/JSON; subdomain wajib tiket, path-mode diberi CSP `sandbox`, body tulis-ulang dibatasi 8 MB |
 | sqlite | `sqlite.controller.ts` | viewer read-only database aplikasi (info tabel, isi tabel, query SELECT) |
 | backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip` lalu ganti DB aktif |
 | webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |

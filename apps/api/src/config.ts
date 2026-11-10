@@ -34,7 +34,8 @@ export const cfg = {
     .map((item) => resolve(item)),
   nginxDir: resolve(env.ST_NGINX_DIR ?? '/etc/nginx'),
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
-  devOrigin: env.ST_DEV_ORIGIN ?? 'http://localhost:5173',
+  // Kosong = CORS mati. Vite dev/preview sudah mem-proxy /api, jadi tidak perlu CORS.
+  devOrigin: env.ST_DEV_ORIGIN,
   webDist: resolve(env.ST_WEB_DIST ?? join(process.cwd(), '..', 'web', 'dist')),
   // File sementara yt-dlp. Default: temp/ di root repo, stabil dari src maupun dist.
   tempDir: resolve(env.ST_TEMP_DIR || join(__dirname, '..', '..', 'temp')),

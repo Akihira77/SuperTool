@@ -3,12 +3,16 @@ import type { Request, Response } from 'express';
 import { Public } from '../../common/public.decorator';
 import { AuthService, COOKIE_NAME } from './auth.service';
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  path: '/',
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-};
+function cookieOptions(req: Request) {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    path: '/',
+    // Loopback HTTP tidak boleh memaksa Secure; di belakang HTTPS proxy aktif.
+    secure: req.secure,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -18,13 +22,13 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: { password?: string }, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { token, mustChange } = await this.auth.login(String(body?.password ?? ''), clientIp(req));
-    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    res.cookie(COOKIE_NAME, token, cookieOptions(req));
     return { ok: true, mustChange };
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(COOKIE_NAME, { path: '/' });
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    res.clearCookie(COOKIE_NAME, { path: '/', secure: req.secure, sameSite: 'lax', httpOnly: true });
     return { ok: true };
   }
 
@@ -37,13 +41,14 @@ export class AuthController {
   @Post('change-password')
   async changePassword(
     @Body() body: { current?: string; next?: string },
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { token, mustChange } = await this.auth.changePassword(
       String(body?.current ?? ''),
       String(body?.next ?? ''),
     );
-    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    res.cookie(COOKIE_NAME, token, cookieOptions(req));
     return { ok: true, mustChange };
   }
 }

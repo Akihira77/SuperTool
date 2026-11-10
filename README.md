@@ -11,7 +11,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 1 | Markdown | Editor + live preview, toolbar format, auto simpan ke browser |
 | 2 | JSON | Formatter, minify, urutkan kunci, highlight, unduh |
 | 3 | JSON ke TypeScript | Generate `interface` otomatis, array objek digabung |
-| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, tab Text Compare dengan sorotan perbedaan baris/kata, riwayat hasil bandingkan (infinite scroll) |
+| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, unduh catatan aktif sebagai `.md`, tab Text Compare dengan sorotan perbedaan baris/kata, riwayat hasil bandingkan (infinite scroll) |
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
@@ -124,7 +124,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
 | `ST_TEMP_DIR` | `temp/` di root repo | Folder kerja sementara yt-dlp dan upload besar; berkas upload dipindahkan, bukan disalin ke RAM |
 | `ST_MAX_UPLOAD_BYTES` | `21474836480` (20 GB) | Batas maksimum satu berkas upload di File Explorer/Kompresor |
-| `ST_DEV_ORIGIN` | `http://localhost:5173` | Origin yang diizinkan CORS saat dev |
+| `ST_DEV_ORIGIN` | kosong | Origin yang diizinkan CORS saat dev; kosong = CORS mati |
 | `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
 | `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
 | `GOOGLE_REDIRECT_URI` | `http://127.0.0.1:<ST_PORT>/api/calendar/callback` | Redirect URI yang sama persis dengan Google Cloud Console |
@@ -254,14 +254,16 @@ Ada dua cara membuka tool lain: langsung (iframe biasa) atau lewat server ini (`
 
 | Mode | URL iframe | Kapan dipakai |
 |------|-----------|---------------|
-| Subdomain | `http://<token>.localhost:3001/` | **Default.** Tiap tool dapat origin sendiri, jadi cookie, `localStorage`, redirect, dan panggilan `/api/...` bekerja seperti aslinya |
-| Path | `/api/proxy/b/<token>/...` | Satu origin, HTML ditulis ulang. Cukup untuk halaman statis; app yang memanggil `/api/...` absolut akan gagal login |
+| Subdomain | `http://<token>.localhost:3001/?st_ticket=...` | **Default.** Tiap tool dapat origin sendiri, jadi cookie, `localStorage`, redirect, dan panggilan `/api/...` bekerja seperti aslinya. Wajib tiket per-origin |
+| Path | `/api/proxy/b/<token>/...` | Fallback satu origin, HTML ditulis ulang, respons diberi CSP `sandbox`. Cukup untuk halaman statis; app yang memanggil `/api/...` absolut akan gagal login |
 
 Kenapa subdomain: aplikasi modern memanggil API dengan path absolut dan menyimpan sesi di cookie. Di mode path, cookie itu menempel ke origin Super Tool dan `/api/...` nyasar ke server ini — akibatnya login selalu gagal walau halaman tampil. Dengan subdomain, semuanya kembali normal karena origin-nya memang milik tool tersebut.
 
 Yang perlu diketahui:
 
 - `*.localhost` otomatis menunjuk ke 127.0.0.1 di Chromium, jadi tidak perlu mengubah `/etc/hosts`.
+- Mode subdomain meminta tiket 12 jam yang terikat pada origin target (`POST /api/proxy/ticket`). Tiket di URL langsung dipindah ke cookie `HttpOnly` lewat redirect 302; tanpa tiket HTTP/WS dijawab 401.
+- Mode path tidak punya origin terpisah; respons HTML-nya diberi CSP `sandbox` dan iframe-nya diberi atribut `sandbox` tanpa `allow-same-origin` supaya skrip target tidak bisa membaca API Super Tool.
 - Cookie dari target ditulis ulang menjadi `SameSite=None; Secure` supaya tetap terkirim di dalam iframe. Chromium menganggap `localhost` sebagai secure context, jadi ini sah walau lewat http.
 - Proxy ini hanya menerima alamat loopback/privat (kecuali `ST_PROXY_ALLOW_PUBLIC=1`) dan hanya binding ke `127.0.0.1`, sama seperti mode path.
 - Kalau browser menolak cookie pihak ketiga (beberapa pengaturan privasi ketat), buka tool tersebut di tab baru lewat tombol ↗ — origin subdomain yang sama tetap dipakai.
@@ -424,11 +426,12 @@ Tombol `ID` / `EN` di bawah sidebar mengubah bahasa antarmuka dan disimpan di `l
 - Login dibatasi 6 percobaan per 10 menit per IP.
 - Semua path File Explorer dipaksa berada di dalam `ST_FS_ROOTS`, termasuk pemeriksaan symlink (tidak bisa kabur lewat `..` atau link).
 - Hapus di Storage Monitor hanya menerima nama folder yang ada di allowlist (`node_modules`, `temp`, cache build). Path tetap dijail ke root pertama `ST_FS_ROOTS`; Docker prune selalu memakai argumen tetap, tanpa input pengguna.
-- Proxy URL hanya boleh ke `localhost`/IP privat; `169.254.x.x` (metadata cloud) dan host publik ditolak kecuali diaktifkan.
+- Proxy URL hanya boleh ke `localhost`/IP privat. Net guard memblokir metadata cloud (`169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`), IPv4-mapped IPv6, ULA/link-local, dan host publik kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
+- Proxy subdomain (HTTP + WebSocket) wajib tiket per-origin; WebSocket juga memvalidasi ulang alamat tujuan sebelum connect.
 - Downloader hanya menerima host YouTube/Facebook/Bilibili (allowlist domain, bukan suffix palsu), memakai argumen yt-dlp tetap (tanpa shell), dan menghapus file temp setelah stream. Endpoint tetap butuh sesi; POST butuh `X-ST-CSRF`.
-- Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini.
+- Header `X-Frame-Options`/`CSP` dari target dilepas hanya pada endpoint proxy, bukan pada aplikasi ini. Aplikasi sendiri mengirim `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, dan CSP `frame-ancestors 'none'`.
 - Endpoint webhook (`/api/hook/<token>`) sengaja tanpa login dan tanpa CSRF; token acak 6 byte dibuat tiap restart dan endpoint hanya bisa dijangkau lewat loopback. Jangan diekspos ke publik.
-- Audit ketahanan & keamanan (commit `a6c3413`, temuan P0–P2 beserta bukti) ada di [docs/audit-resilience-security.md](docs/audit-resilience-security.md).
+- Audit ketahanan & keamanan (commit `a6c3413`, temuan P0–P2 beserta bukti) ada di [docs/audit-resilience-security.md](docs/audit-resilience-security.md). Status perbaikan dan roadmap ada di [docs/roadmap/SUPERTOOL_ENHANCEMENT_ROADMAP.md](docs/roadmap/SUPERTOOL_ENHANCEMENT_ROADMAP.md).
 - Audit performa backend & frontend (commit `27ffbd8`, pengukuran + temuan P0–P2) ada di [docs/audit-performance.md](docs/audit-performance.md).
 - Calendar meminta scope tulis penuh (`calendar`) agar bisa membuat event; token lama baca-saja tetap aman untuk membaca sampai user menekan **Hubungkan ulang**.
 

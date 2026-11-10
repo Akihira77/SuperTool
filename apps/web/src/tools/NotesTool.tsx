@@ -245,6 +245,23 @@ export default function NotesTool() {
     setStatus('idle');
   };
 
+  const download = () => {
+    if (!active) return;
+    const base = (active.title || 'catatan')
+      .trim()
+      .replace(/[\u0000-\u001f\\/:*?"<>|]/g, '_')
+      .replace(/[. ]+$/, '')
+      .slice(0, 80) || 'catatan';
+    const href = URL.createObjectURL(new Blob([active.body], { type: 'text/markdown;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = base + '.md';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+  };
+
   const remove = async (id: string) => {
     const ok = await confirm({ title: t('notes.confirmDelete'), danger: true, confirmLabel: t('common.delete') });
     if (!ok) return;
@@ -438,6 +455,9 @@ export default function NotesTool() {
                     </button>
                   </div>
                 ) : null}
+                <button type="button" className="btn" data-action="notes:download" onClick={download} title={t('notes.download')} aria-label={t('notes.download')}>
+                  <Icon name="download" />
+                </button>
                 <button type="button" className="btn btn-danger" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>

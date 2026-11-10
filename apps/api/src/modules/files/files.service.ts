@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { copyFile, readdir, readFile, stat, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { copyFile, open, readdir, stat, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
@@ -154,15 +154,17 @@ export class FilesService {
     return body;
   }
 
-  /** Ubah include ("apps/api", "src") jadi path absolut yang ada — pencarian hanya di situ. */
+  /** Ubah include ("apps/api", "src") jadi path absolut yang aman — pencarian hanya di situ. */
   private async includeTargets(start: string, include: string[]): Promise<string[]> {
     const out: string[] = [];
     for (const raw of include) {
       if (!raw || /[*?[\]{}]/.test(raw)) continue;
       const abs = raw.startsWith('/') ? raw : join(start, raw);
+      // include absolut / traversal tetap harus lewat jail + cek symlink.
+      const safe = await jailPath(abs);
       try {
-        await stat(abs);
-        out.push(abs);
+        const info = await stat(safe);
+        if (info.isDirectory() || info.isFile()) out.push(safe);
       } catch {
         // path tidak ada: biarkan filter hasil yang menangani
       }
@@ -210,21 +212,31 @@ export class FilesService {
     const info = await stat(path);
     if (!info.isFile()) throw new BadRequestException('Bukan file');
     touchPath('file', path);
-    const buffer = await readFile(path);
+    // Baca maksimal TEXT_LIMIT + 1 byte supaya berkas raksasa tidak masuk memori.
+    const take = Math.min(info.size, TEXT_LIMIT + 1);
+    const handle = await open(path, 'r');
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.alloc(take);
+      const { bytesRead } = await handle.read(buffer, 0, take, 0);
+      buffer = buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
     const head = buffer.subarray(0, 8192);
     const binary = head.includes(0);
     if (binary) {
       return { path, binary: true, size: info.size, mtime: info.mtimeMs, ext: extname(path).slice(1).toLowerCase(), text: '', truncated: false };
     }
-    const slice = buffer.subarray(0, TEXT_LIMIT);
+    const truncated = info.size > TEXT_LIMIT;
     return {
       path,
       binary: false,
       size: info.size,
       mtime: info.mtimeMs,
       ext: extname(path).slice(1).toLowerCase(),
-      text: slice.toString('utf8'),
-      truncated: buffer.length > TEXT_LIMIT,
+      text: buffer.subarray(0, TEXT_LIMIT).toString('utf8'),
+      truncated,
     };
   }
 

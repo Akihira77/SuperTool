@@ -74,6 +74,20 @@ export class AuthService {
     return { mustChange: state.must_change === 1, exp: payload.exp };
   }
 
+  /** Tiket bearer untuk mode proxy subdomain: terikat origin target, bukan cookie sesi. */
+  async issueProxyTicket(origin: string): Promise<string> {
+    const state = await this.state();
+    return signToken({ exp: Date.now() + 12 * 60 * 60 * 1000, pv: state.pv, origin }, state.secret);
+  }
+
+  /** Verifikasi tiket proxy; origin harus sama persis dan sesi belum dirotasi. */
+  async verifyProxyTicket(ticket: string | undefined, origin: string): Promise<boolean> {
+    if (!ticket) return false;
+    const state = await this.state();
+    const payload = verifyToken(ticket, state.secret);
+    return Boolean(payload && payload.pv === state.pv && payload.origin === origin);
+  }
+
   async login(password: string, ip: string): Promise<{ token: string; mustChange: boolean }> {
     this.assertNotLocked(ip);
     const state = await this.state();

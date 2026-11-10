@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { connect } from 'node:net';
 import { Readable } from 'node:stream';
+import type { ReadableStream } from 'node:stream/web';
 import type { AuthService } from '../auth/auth.service';
 import { assertLocalUrl } from '../../common/net-guard';
 
@@ -17,6 +18,9 @@ const DROP_RESPONSE_HEADERS = new Set([
   'set-cookie',
 ]);
 
+const TICKET_PARAM = 'st_ticket';
+const TICKET_COOKIE = 'st_proxy';
+const REWRITE_LIMIT = 8 * 1024 * 1024;
 const HTML_HEAD = /<head([^>]*)>/i;
 const ATTR_ROOT = /(src|href|action)="\/(?!\/)/g;
 const ATTR_ROOT_SINGLE = /(src|href|action)='\/(?!\/)/g;
@@ -67,6 +71,26 @@ export function subdomainTarget(host: string | undefined): { token: string; orig
   return origin ? { token: match[1], origin } : null;
 }
 
+function cookieValue(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq > 0 && part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return undefined;
+}
+
+/** Tiket subdomain dari query (kunjungan pertama) atau cookie host itu. */
+function proxyTicket(req: IncomingMessage): string | undefined {
+  let fromQuery: string | null = null;
+  try {
+    fromQuery = new URL(req.url ?? '/', 'http://proxy.local').searchParams.get(TICKET_PARAM);
+  } catch {
+    // URL rusak: biarkan verifikasi gagal.
+  }
+  return fromQuery ?? cookieValue(req.headers.cookie, TICKET_COOKIE);
+}
+
 /** URL aplikasi di subdomain proxy (mode yang membuat cookie & path absolut bekerja). */
 export function subdomainUrl(origin: string, port: string): string | null {
   const token = hexToken(origin);
@@ -95,6 +119,21 @@ function rewriteHtml(html: string, origin: string, token: string): string {
   out = out.replace(ATTR_ROOT, '$1="' + base).replace(ATTR_ROOT_SINGLE, "$1='" + base);
   const inject = '<base href="' + base + '">';
   return HTML_HEAD.test(out) ? out.replace(HTML_HEAD, '<head$1>' + inject) : inject + out;
+}
+
+/** Baca stream sampai batas; null kalau lewat (jangan buffer seluruh respons raksasa). */
+async function readLimited(stream: ReadableStream<Uint8Array>, limit: number): Promise<Buffer | null> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    size += chunk.length;
+    if (size > limit) {
+      await stream.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
@@ -133,6 +172,7 @@ function resolveTarget(req: IncomingMessage): Target | null {
     } catch {
       return null;
     }
+    if (target.origin !== sub.origin) return null;
     return {
       kind: 'sub',
       token: sub.token,
@@ -157,6 +197,7 @@ function resolveTarget(req: IncomingMessage): Target | null {
   } catch {
     return null;
   }
+  if (target.origin !== origin) return null;
   return {
     kind: 'path',
     token,
@@ -237,7 +278,27 @@ export async function handleProxyRequest(
   const { origin, target } = targetInfo;
 
   // Mode subdomain punya cookie sendiri per host, jadi sesi aplikasi tidak ikut.
-  if (targetInfo.kind === 'path') {
+  // Izinnya tiket bearer yang terikat origin target (diminta frontend setelah login).
+  if (targetInfo.kind === 'sub') {
+    const ticket = proxyTicket(req);
+    if (!(await auth.verifyProxyTicket(ticket, origin))) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ message: 'Tiket proxy tidak valid' }));
+      return true;
+    }
+    const parsed = new URL(req.url ?? '/', 'http://proxy.local');
+    if (parsed.searchParams.has(TICKET_PARAM)) {
+      parsed.searchParams.delete(TICKET_PARAM);
+      const location = parsed.pathname + parsed.search;
+      res.writeHead(302, {
+        location,
+        'set-cookie': TICKET_COOKIE + '=' + ticket + '; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=43200',
+        'cache-control': 'no-store',
+      });
+      res.end();
+      return true;
+    }
+  } else {
     const session = await auth.session(req.headers.cookie);
     if (!session) {
       res.writeHead(401, { 'content-type': 'application/json' });
@@ -320,7 +381,12 @@ export async function handleProxyRequest(
     return true;
   }
 
-  const buffer = Buffer.from(await upstream.arrayBuffer());
+  const buffer = upstream.body ? await readLimited(upstream.body as import('node:stream/web').ReadableStream, REWRITE_LIMIT) : Buffer.alloc(0);
+  if (!buffer) {
+    res.writeHead(502, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ message: 'Respons target terlalu besar untuk ditulis ulang' }));
+    return true;
+  }
 
   // Bundel JS / respons JSON juga bisa memuat URL absolut ke origin target.
   if (subMode && /(javascript|ecmascript|json|text\/plain)/.test(type)) {
@@ -335,6 +401,12 @@ export async function handleProxyRequest(
 
   if (type.includes('text/html')) {
     outHeaders['content-type'] = 'text/html; charset=utf-8';
+    if (!subMode) {
+      // Path mode tetap satu origin dengan aplikasi; CSP sandbox memaksa dokumen
+      // pihak ketiga jadi origin opaque walau dibuka langsung di tab baru.
+      outHeaders['content-security-policy'] =
+        "sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals";
+    }
     res.writeHead(upstream.status, outHeaders);
     res.end(rewriteHtmlFor(buffer.toString('utf8'), origin, targetInfo.publicOrigin, subMode));
     return true;
@@ -360,7 +432,17 @@ export function handleProxyUpgrade(
   if (!targetInfo) return false;
   const { origin, target } = targetInfo;
 
-  const connectUpstream = () => {
+  const refuse = (status: number, message: string) => {
+    socket.end('HTTP/1.1 ' + status + ' Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n' + message);
+  };
+
+  const connectUpstream = async () => {
+    try {
+      await assertLocalUrl(target);
+    } catch (err) {
+      refuse(403, (err as Error).message);
+      return;
+    }
     const host = target.hostname.replace(/^\[|\]$/g, '');
     const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
     const upstream = connect({ host, port }, () => {
@@ -387,7 +469,19 @@ export function handleProxyUpgrade(
   };
 
   if (targetInfo.kind === 'sub') {
-    connectUpstream();
+    const ticket = proxyTicket(req);
+    void auth
+      .verifyProxyTicket(ticket, origin)
+      .then((ok) => {
+        if (!ok) {
+          refuse(401, 'Tiket proxy tidak valid');
+          return;
+        }
+        // Jangan teruskan tiket ke target.
+        target.searchParams.delete(TICKET_PARAM);
+        void connectUpstream();
+      })
+      .catch(() => socket.destroy());
     return true;
   }
 
@@ -398,7 +492,7 @@ export function handleProxyUpgrade(
         socket.destroy();
         return;
       }
-      connectUpstream();
+      void connectUpstream();
     })
     .catch(() => socket.destroy());
   return true;

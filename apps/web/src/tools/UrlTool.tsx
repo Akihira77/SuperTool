@@ -47,7 +47,7 @@ function proxySrc(url: string): string {
  * Mode subdomain: tiap target dapat origin sendiri (`<hex>.localhost:3001`).
  * Cookie, localStorage, dan path absolut `/api/...` jadi milik target, bukan milik aplikasi ini.
  */
-function subdomainSrc(url: string): string | null {
+function subdomainSrc(url: string, ticket?: string): string | null {
   try {
     const origin = new URL(url).origin;
     const token = Array.from(new TextEncoder().encode(origin))
@@ -55,7 +55,16 @@ function subdomainSrc(url: string): string | null {
       .join('');
     if (token.length > 63) return null;
     const port = location.port ? ':' + location.port : '';
-    return 'http://' + token + '.localhost' + port + '/';
+    const suffix = ticket ? '?st_ticket=' + encodeURIComponent(ticket) : '';
+    return 'http://' + token + '.localhost' + port + '/' + suffix;
+  } catch {
+    return null;
+  }
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
   } catch {
     return null;
   }
@@ -72,6 +81,7 @@ export default function UrlTool() {
   const [editingId, setEditingId] = useState('');
   const [nonces, setNonces] = useState<Record<string, number>>({});
   const [opened, setOpened] = useState<string[]>([]);
+  const [tickets, setTickets] = useState<Record<string, string>>({});
 
   const bump = (id: string) => {
     setOpened((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -99,6 +109,29 @@ export default function UrlTool() {
   useEffect(() => {
     localStorage.setItem('st:urls:mode', mode);
   }, [mode]);
+
+  // Mode subdomain tidak membawa cookie sesi (host berbeda), jadi minta tiket
+  // bearer per origin target. Hanya untuk tab yang benar-benar dibuka.
+  useEffect(() => {
+    if (mode !== 'sub') return;
+    let alive = true;
+    for (const view of views) {
+      if (!view.proxy || !opened.includes(view.id)) continue;
+      const origin = originOf(view.url);
+      if (!origin || tickets[origin]) continue;
+      api
+        .post<{ ticket: string }>('/proxy/ticket', { origin })
+        .then((data) => {
+          if (alive && data.ticket) setTickets((prev) => (prev[origin] ? prev : { ...prev, [origin]: data.ticket }));
+        })
+        .catch(() => {
+          // Biarkan iframe menampilkan 401; pengguna bisa menekan Muat ulang.
+        });
+    }
+    return () => {
+      alive = false;
+    };
+  }, [mode, views, opened, tickets]);
 
   const refresh = useCallback(async () => {
     try {
@@ -230,16 +263,29 @@ export default function UrlTool() {
     }
   };
 
+  const canSub = (view: View) => mode === 'sub' && Boolean(subdomainSrc(view.url));
   const srcFor = (view: View) => {
     if (!view.proxy) return fixHost(view.url);
-    const sub = mode === 'sub' ? subdomainSrc(view.url) : null;
+    const origin = originOf(view.url);
+    const sub = canSub(view) ? subdomainSrc(view.url, origin ? tickets[origin] : undefined) : null;
+    if (sub && !sub.includes('st_ticket=')) return 'about:blank';
     return sub ?? proxySrc(view.url);
   };
 
-  const subSrc = useMemo(() => (active ? subdomainSrc(active.url) : null), [active?.url]);
-  const usbSub = mode === 'sub' && !!subSrc;
-  const src = useMemo(() => (active ? srcFor(active) : ''), [active?.url, active?.proxy, mode, subSrc]);
-  const openUrl = active ? (active.proxy ? src : fixHost(active.url)) : '#';
+  const subSrc = useMemo(() => (active && mode === 'sub' ? subdomainSrc(active.url) : null), [active?.url, mode]);
+  const src = useMemo(
+    () => (active ? srcFor(active) : ''),
+    [active?.url, active?.proxy, mode, subSrc, tickets],
+  );
+  const openOrigin = active && canSub(active) ? originOf(active.url) : null;
+  const openTicket = openOrigin ? tickets[openOrigin] : undefined;
+  const openUrl = active
+    ? active.proxy
+      ? openTicket
+        ? subdomainSrc(active.url, openTicket) ?? ''
+        : ''
+      : fixHost(active.url)
+    : '';
   const openViews = views.filter((view) => opened.includes(view.id));
 
   return (
@@ -290,7 +336,7 @@ export default function UrlTool() {
             ))}
           </div>
         ) : null}
-        {active ? (
+        {active && openUrl ? (
           <a className="btn" href={openUrl} target="_blank" rel="noreferrer" title={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'}>
             <Icon name="external" />
           </a>
@@ -308,6 +354,13 @@ export default function UrlTool() {
       {active?.proxy && mode === 'sub' && !subSrc ? (
         <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[12px] text-warn">
           Target terlalu panjang untuk mode subdomain, memakai mode path.
+        </div>
+      ) : null}
+
+      {active?.proxy && mode === 'path' ? (
+        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[12px] text-warn">
+          Mode path berjalan di origin aplikasi. Iframe disandbox tanpa akses same-origin;
+          aplikasi yang butuh cookie/localStorage penuh sebaiknya pakai mode Subdomain.
         </div>
       ) : null}
 
@@ -415,6 +468,11 @@ export default function UrlTool() {
                   view.id !== active?.id && 'pointer-events-none opacity-0',
                 )}
                 allow="clipboard-read; clipboard-write; fullscreen; microphone; camera"
+                sandbox={
+                  view.proxy && !(mode === 'sub' && subdomainSrc(view.url))
+                    ? 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals'
+                    : undefined
+                }
               />
             ))
           ) : (

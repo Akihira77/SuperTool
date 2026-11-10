@@ -5,20 +5,50 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { auditHttp } from './common/audit-http.middleware';
+import { one } from './common/db';
 import { cfg } from './config';
 import { AuditService } from './modules/audit/audit.service';
 import { AuthService } from './modules/auth/auth.service';
-import { handleProxyRequest, handleProxyUpgrade } from './modules/proxy/proxy.middleware';
+import { handleProxyRequest, handleProxyUpgrade, PROXY_PREFIX, subdomainTarget } from './modules/proxy/proxy.middleware';
 
 async function bootstrap() {
   // Body parser dimatikan dulu: proxy harus menerima body mentah sebelum di-parse.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: cfg.devOrigin, credentials: true });
+  app.set('trust proxy', 'loopback');
+  app.enableShutdownHooks();
+  // CORS hanya aktif kalau diminta eksplisit; UI memakai origin yang sama (Vite proxy).
+  if (cfg.devOrigin) app.enableCors({ origin: cfg.devOrigin, credentials: true });
 
-  // Proxy path-prefix (/api/proxy/b/<token>/...) untuk tool yang memblokir iframe.
   const auth = app.get(AuthService);
   const instance = app.getHttpAdapter().getInstance();
+
+  // Header keamanan untuk aplikasi; konten proxy tidak boleh di-frame-lock di sini
+  // karena memang ditampilkan di iframe (mode path punya CSP sandbox sendiri).
+  instance.use((req: any, res: any, next: () => void) => {
+    const proxied = (req.url ?? '').startsWith(PROXY_PREFIX) || Boolean(subdomainTarget(req.headers.host));
+    if (!proxied) {
+      res.setHeader('x-frame-options', 'DENY');
+      res.setHeader('x-content-type-options', 'nosniff');
+      res.setHeader('referrer-policy', 'no-referrer');
+      res.setHeader(
+        'content-security-policy',
+        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+      );
+    }
+    next();
+  });
+
+  instance.get('/api/health', (_req: any, res: any) => {
+    try {
+      one('SELECT 1');
+      res.json({ ok: true, uptime: Math.round(process.uptime()) });
+    } catch (err) {
+      res.status(503).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // Proxy path-prefix (/api/proxy/b/<token>/...) untuk tool yang memblokir iframe.
   instance.use((req: any, res: any, next: () => void) => {
     handleProxyRequest(req, res, auth)
       .then((handled) => {
@@ -88,4 +118,15 @@ async function bootstrap() {
   console.log('Root file explorer: ' + cfg.fsRoots.join(', '));
 }
 
-void bootstrap();
+process.on('unhandledRejection', (reason) => {
+  console.error('[super-tool] unhandledRejection', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[super-tool] uncaughtException', err);
+  process.exitCode = 1;
+});
+
+bootstrap().catch((err) => {
+  console.error('[super-tool] gagal start', err);
+  process.exitCode = 1;
+});

@@ -10,6 +10,7 @@ import webhook from './dist/modules/webhook/webhook.service.js';
 import devService from './dist/modules/dev/dev.service.js';
 import storageUsage from './dist/modules/storage/storage-usage.service.js';
 import auditPayload from './dist/modules/audit/audit.payload.js';
+import netGuard from './dist/common/net-guard.js';
 
 const { inRoots } = fsJail;
 const { signToken, verifyToken } = token;
@@ -19,6 +20,7 @@ const { WebhookService } = webhook;
 const { dockerActionArgs } = devService;
 const { parseDuOutput, isCleanableFolder } = storageUsage;
 const { serializeAuditPayload } = auditPayload;
+const { isPrivateAddress, isMetadataAddress } = netGuard;
 
 test('token: tanda tangan valid diterima, yang diubah ditolak', () => {
   const secret = 'rahasia-uji';
@@ -86,6 +88,25 @@ test('downloader: allowlist host tidak bisa ditipu suffix', () => {
   assert.equal(isAllowedHost('youtube.com.evil.test'), false);
   assert.equal(isAllowedHost('evil-youtube.com'), false);
   assert.equal(isAllowedHost('127.0.0.1'), false);
+});
+
+test('net guard: alamat privat, metadata, dan IPv4-mapped IPv6 diblokir', () => {
+  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.1.1', '100.64.0.1', '169.254.169.254', '0.0.0.0', '224.0.0.1']) {
+    assert.equal(isPrivateAddress(ip), true, ip);
+  }
+  for (const ip of ['8.8.8.8', '172.32.0.1', '192.169.1.1', '203.0.114.1']) {
+    assert.equal(isPrivateAddress(ip), false, ip);
+  }
+  for (const ip of ['::1', '::', 'fc00::1', 'fd12:3456::1', 'fe80::1', 'ff02::1', '::ffff:127.0.0.1', '::ffff:7f00:1']) {
+    assert.equal(isPrivateAddress(ip), true, ip);
+  }
+  for (const ip of ['2001:4860:4860::8888', '::ffff:8.8.8.8', '2606:4700:4700::1111']) {
+    assert.equal(isPrivateAddress(ip), false, ip);
+  }
+  for (const ip of ['169.254.169.254', '100.100.100.200', 'fd00:ec2::254', '::ffff:169.254.169.254']) {
+    assert.equal(isMetadataAddress(ip), true, ip);
+  }
+  assert.equal(isMetadataAddress('169.254.1.1'), false);
 });
 
 test('audit: payload meredaksi rahasia dan membatasi ukuran', () => {

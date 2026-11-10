@@ -2,7 +2,9 @@
 
 Base URL: `http://127.0.0.1:3001/api` (dev: sama, di-proxy Vite).
 
-Semua endpoint (kecuali `/auth/login`, `/hook/<token>`, dan `/calendar/callback`) butuh cookie `st_session`. Metode selain GET wajib menyertakan header `X-ST-CSRF: 1`.
+Semua endpoint (kecuali `/auth/login`, `/hook/<token>`, `/calendar/callback`, dan `/health`) butuh cookie `st_session`. Metode selain GET wajib menyertakan header `X-ST-CSRF: 1`.
+
+`GET /health` publik dan mengembalikan `{ ok: true, uptime }` setelah `SELECT 1`; bila database gagal, `503` dengan `{ ok: false, error }`.
 
 Contoh login dan menyimpan cookie:
 
@@ -188,7 +190,13 @@ Pada mode ini seluruh host adalah milik target: path (termasuk `/api/...` absolu
 - `Set-Cookie` kehilangan `Domain`, ditambah `SameSite=None; Secure` supaya tetap terpakai di dalam iframe (`localhost` = secure context)
 - `Location` absolut ke origin target diarahkan ke host proxy
 
-Tidak butuh sesi Super Tool: cookie aplikasi ini host-only, jadi permintaan dari subdomain tidak membawanya. Pembatasannya tetap sama — server hanya listen di `127.0.0.1` dan target wajib loopback/privat.
+Wajib tiket per-origin. Ambil tiket dengan sesi Super Tool:
+
+| Metode | Path | Body | Hasil |
+|--------|------|------|-------|
+| POST | `/proxy/ticket` | `{ origin }` | `{ ticket }` (HMAC, berlaku 12 jam, terikat pada origin) |
+
+Tiket dikirim sebagai `?st_ticket=<ticket>` pada request pertama; server membalas `302` ke path tanpa query dan menulis cookie `st_proxy` (`HttpOnly; SameSite=None; Secure; Max-Age=43200`). Request HTTP/WS tanpa tiket → `401`. Target tetap wajib loopback/privat dan divalidasi ulang sebelum WebSocket connect.
 
 ### Mode path (halaman statis)
 
@@ -199,8 +207,11 @@ GET /api/proxy/b/<token>/<path...>
 `token` = base64url dari origin target, contoh `http://127.0.0.1:8080`. Middleware ini:
 
 - melepas `X-Frame-Options`, CSP, dan menulis ulang `Set-Cookie` (Domain dilepas, Path jadi prefix proxy, Secure dilepas bila target http)
+- menambahkan CSP `sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`) pada respons HTML
+- membatasi respons yang ditulis ulang maksimal 8 MB; lebih besar → `502`
 - menyuntik `<base href>` dan menulis ulang URL absolut supaya aset relatif tetap termuat
-- meneruskan POST/PUT/DELETE beserta body, cookie, dan upgrade WebSocket
+- meneruskan POST/PUT/DELETE beserta body, cookie, dan upgrade WebSocket (path-mode WS tetap wajib sesi)
+- membatasi body permintaan dan respons; redirect divalidasi per hop
 - menolak host publik (kecuali `ST_PROXY_ALLOW_PUBLIC=1`)
 
 Cek cepat tanpa memuat konten:
