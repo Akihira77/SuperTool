@@ -297,7 +297,10 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 | POST | `/dev/docker/action` | `{ action: "start"\|"stop"\|"restart"\|"remove", id }` | `{ ok, action, output }`; `remove` memakai `docker rm -f` |
 | GET | `/dev/git` | `path`, `ref` (opsional) | `{ branch, head, ahead, behind, staged[], changed[], untracked[], log[], diffstat, tags[], branches[], graph, ref }` — `staged/changed/untracked` berisi `{ status, path }`, `log` berisi `{ hash, short, parents[], author, email, when, subject, refs[] }` |
 | POST | `/dev/git/stage` | `{ path, files[], action: "stage"\|"unstage" }` | `{ ok, files, action }` |
-| GET | `/dev/git/diff` | `path`, `file`, `staged=1` | `{ diff }` (patch working tree atau `--cached`) |
+| POST | /dev/git/commit | { path, message } | { ok, hash } — pesan 1–2000 karakter, hanya berkas yang sudah di-stage |
+| POST | /dev/git/branch | { path, action: "create"\|"switch", name } | { ok, action, branch } — nama harus ref aman (tanpa spasi, .., //, akhiran / atau .lock) |
+| POST | /dev/git/stash | { path, action: "save"\|"pop"\|"drop", index?, message? } | { ok, action, output } — index 0–99 |
+| GET | /dev/git/diff | `path`, `file`, `staged=1` | `{ diff }` (patch working tree atau `--cached`) |
 | GET | `/dev/git/show` | `path`, `hash` | `{ diff }` (patch commit) |
 | GET | `/dev/cron` | – | `{ entries: [{ index, line }], raw }` |
 | POST | `/dev/cron` | `{ line }` | daftar terbaru |
@@ -308,7 +311,7 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 `/dev/http` menolak alamat metadata cloud (169.254.169.254), timeout maksimum 60 detik, body respons dipotong 1 MB. Setiap request (berhasil/gagal) dicatat ke `http_history`, disimpan maksimal 200 baris dan hanya berisi method, URL, status, durasi, ukuran, dan pesan error — tanpa header, body, atau token. Header sensitif pada request tersimpan dikosongkan sebelum masuk SQLite; variabel environment disimpan apa adanya di database lokal.
 
-`/dev/git`: `log` diambil dari `git log --all` (60 commit) atau `ref` tertentu, lengkap dengan parent untuk menghitung lane grafik di browser; `graph` tetap dikirim sebagai teks `git log --graph --oneline --decorate` untuk kompatibilitas. `branches` = daftar branch lokal (maks 30). `git stage` memakai `git add --` / `git restore --staged --`, maksimal 200 berkas per request.
+`/dev/git`: `log` diambil dari `git log --all` (60 commit) atau `ref` tertentu, lengkap dengan parent untuk menghitung lane grafik di browser; `graph` tetap dikirim sebagai teks `git log --graph --oneline --decorate` untuk kompatibilitas. `branches` = daftar branch lokal (maks 30), `stashes` = maks 30 entri `{ref,message}`. `git stage` memakai `git add --` / `git restore --staged --`, maksimal 200 berkas per request. Operasi branch/commit/stash memakai argumen terpisah (tanpa shell) dan nama branch divalidasi sebelum menyentuh git.
 
 ## Workspace
 

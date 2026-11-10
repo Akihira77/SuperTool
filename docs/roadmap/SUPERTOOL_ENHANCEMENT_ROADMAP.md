@@ -187,7 +187,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 ### Fase 4 — Advanced (L)
 
-- [ ] Git workbench: status, diff, stage, commit, branch, log.
+- [x] Git workbench: status, diff, stage, commit, branch, log (stash save/pop/drop; branch name divalidasi).
 - [ ] Docker Compose: daftar project, up/down/restart, log.
 - [ ] Log explorer: tail, filter, level, pencarian.
 - [ ] AI kontekstual: ringkas file/log, saran aksi, dengan consent eksplisit.
@@ -244,9 +244,12 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 | Typecheck web | `pnpm --filter @super-tool/web typecheck` | lulus |
 | Build API | `pnpm --filter @super-tool/api build` | lulus |
 | Build web | `pnpm --filter @super-tool/web build` | lulus |
-| Selfcheck API | `node --test apps/api/selfcheck.test.mjs` | 11/11 lulus |
-| Uji restore | `node --test apps/api/restore.test.mjs` | 6/6 lulus (roundtrip, traversal, bentuk arsip, SQLite rusak, versi skema, uploads lama) |
-| Full check | `pnpm check` | dijalankan sebelum rilis |
+| Selfcheck API | `node --test apps/api/selfcheck.test.mjs` | 12/12 lulus |
+| Uji restore | `node --test apps/api/restore.test.mjs` | 7/7 lulus (roundtrip, traversal, bentuk arsip, SQLite rusak, versi skema, uploads lama, upload disk) |
+| Uji jobs | `node --test apps/api/jobs.test.mjs` | 7/7 lulus (selesai, dedupe, cancel queued/running, gagal, restart, retensi) |
+| Uji HTTP store | `node --test apps/api/http-store.test.mjs` | 4/4 lulus |
+| Uji workspace | `node --test apps/api/workspaces.test.mjs` | 6/6 lulus |
+| Full check | `pnpm check` | 36/36 lulus (build + seluruh suite) |
 
 Uji manual keamanan yang sudah dilakukan:
 

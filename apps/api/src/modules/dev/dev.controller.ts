@@ -148,4 +148,19 @@ export class DevController {
   show(@Query('path') path: string, @Query('hash') hash: string) {
     return this.dev.gitShow(path, hash);
   }
+
+  @Post('git/branch')
+  branch(@Body() body: { path?: string; action?: string; name?: string }) {
+    return this.dev.gitBranch(body?.path ?? '', body?.action ?? 'switch', body?.name ?? '');
+  }
+
+  @Post('git/commit')
+  commit(@Body() body: { path?: string; message?: string }) {
+    return this.dev.gitCommit(body?.path ?? '', body?.message);
+  }
+
+  @Post('git/stash')
+  stash(@Body() body: { path?: string; action?: string; index?: number; message?: string }) {
+    return this.dev.gitStash(body?.path ?? '', body?.action ?? '', body?.index, body?.message);
+  }
 }

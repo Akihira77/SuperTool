@@ -18,7 +18,7 @@ const { signToken, verifyToken } = token;
 const { isAllowedHost, canonicalBilibiliUrl } = downloader;
 const { authPrompt } = calendarOauth;
 const { WebhookService } = webhook;
-const { dockerActionArgs } = devService;
+const { dockerActionArgs, safeBranchName } = devService;
 const { parseDuOutput, isCleanableFolder } = storageUsage;
 const { serializeAuditPayload } = auditPayload;
 const { isPrivateAddress, isMetadataAddress } = netGuard;
@@ -132,6 +132,13 @@ test('downloader: URL /en/video Bilibili dinormalisasi ke /video', () => {
   );
   assert.equal(canonicalBilibiliUrl(new URL('https://b23.tv/KHQdMVt')), null);
   assert.equal(canonicalBilibiliUrl(new URL('https://www.bilibili.com/bangumi/play/ss123')), null);
+});
+
+test('git: nama branch ilegal ditolak sebelum menyentuh git', () => {
+  assert.equal(safeBranchName('fitur/aman-1'), 'fitur/aman-1');
+  for (const bad of ['', '-x', 'a b', 'a..b', 'a//b', 'a/', 'x.lock', 'x;rm', 'x$(id)']) {
+    assert.throws(() => safeBranchName(bad), /Nama branch/);
+  }
 });
 
 test('text chunk: potong di batas UTF-8, bukan di tengah karakter', () => {

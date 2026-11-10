@@ -3,6 +3,7 @@ import { Empty, Icon, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { useToast } from '../../components/toast';
+import { useConfirm } from '../../components/confirm';
 import { useProject } from '../../lib/project';
 
 type Change = { status: string; path: string };
@@ -27,6 +28,7 @@ type GitState = {
   untracked: Change[];
   log: Commit[];
   branches: string[];
+  stashes: Array<{ ref: string; message: string }>;
   graph: string;
   diffstat: string;
   tags: string[];
@@ -183,6 +185,7 @@ function DiffView({ text, loading }: { text: string; loading: boolean }) {
 export default function GitTab() {
   const { t } = useI18n();
   const toast = useToast();
+  const confirm = useConfirm();
   const { projectPath } = useProject();
   const [roots, setRoots] = useState<Array<{ path: string; label: string }>>([]);
   const [browse, setBrowse] = useState('');
@@ -193,6 +196,12 @@ export default function GitTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [branchName, setBranchName] = useState('');
+  const [branchTarget, setBranchTarget] = useState('');
+  const [commitMessage, setCommitMessage] = useState('');
+  const [stashIndex, setStashIndex] = useState(0);
+  const [stashMessage, setStashMessage] = useState('');
+  const [gitBusy, setGitBusy] = useState(false);
   const [diff, setDiff] = useState('');
   const [diffLoading, setDiffLoading] = useState(false);
   const [split, setSplit] = useState(() => {
@@ -239,6 +248,20 @@ export default function GitTab() {
       setBusy(false);
     }
   }, [t]);
+
+  const gitAction = async (label: string, run: () => Promise<unknown>) => {
+    setGitBusy(true);
+    try {
+      await run();
+      toast(label, 'ok');
+      if (state) await load(state.path, ref);
+      setCommitMessage('');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('git.actionError'), 'error');
+    } finally {
+      setGitBusy(false);
+    }
+  };
 
   useEffect(() => {
     api
@@ -376,6 +399,51 @@ export default function GitTab() {
               ))}
             </div>
             <span className="mono ml-auto truncate text-[11px] text-muted" title={state.path}>{state.path}</span>
+          </div>
+
+          <div className="card flex flex-col gap-2 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.branchOps')}</span>
+              <input className="input h-7 max-w-48 text-[12px]" value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder={t('git.branchName')} maxLength={80} />
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !branchName.trim()} onClick={() => void gitAction(t('git.branchCreated'), () => api.post('/dev/git/branch', { path: state.path, action: 'create', name: branchName.trim() }))}>
+                {t('git.createBranch')}
+              </button>
+              <select className="input h-7 max-w-44 text-[12px]" value={branchTarget} onChange={(event) => setBranchTarget(event.target.value)}>
+                <option value="">{t('git.chooseBranch')}</option>
+                {state.branches.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !branchTarget} onClick={() => void gitAction(t('git.branchSwitched'), () => api.post('/dev/git/branch', { path: state.path, action: 'switch', name: branchTarget }))}>
+                {t('git.switchBranch')}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.commit')}</span>
+              <input className="input h-7 min-w-56 flex-1 text-[12px]" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} placeholder={t('git.commitHint')} maxLength={2000} />
+              <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !commitMessage.trim() || !state.staged.length} onClick={() => void gitAction(t('git.committed'), () => api.post('/dev/git/commit', { path: state.path, message: commitMessage.trim() }))}>
+                {t('git.commitStaged')} ({state.staged.length})
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.stash')}</span>
+              <input className="input h-7 min-w-40 flex-1 text-[12px]" value={stashMessage} onChange={(event) => setStashMessage(event.target.value)} placeholder={t('git.stashHint')} maxLength={200} />
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy} onClick={() => void gitAction(t('git.stashSaved'), () => api.post('/dev/git/stash', { path: state.path, action: 'save', message: stashMessage.trim() }))}>
+                {t('git.stashSave')}
+              </button>
+              <select className="input h-7 max-w-56 text-[12px]" value={stashIndex} onChange={(event) => setStashIndex(Number(event.target.value))}>
+                {state.stashes.length ? state.stashes.map((stash, index) => <option key={stash.ref} value={index}>{index}: {stash.message || stash.ref}</option>) : <option value={0}>{t('git.noStash')}</option>}
+              </select>
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !state.stashes.length} onClick={() => void gitAction(t('git.stashPopped'), () => api.post('/dev/git/stash', { path: state.path, action: 'pop', index: stashIndex }))}>
+                {t('git.stashPop')}
+              </button>
+              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[11px] text-bad" disabled={gitBusy || !state.stashes.length} onClick={async () => {
+                const target = state.stashes[stashIndex];
+                if (!target) return;
+                const ok = await confirm({ title: t('git.stashDrop'), message: target.message || target.ref, danger: true, confirmLabel: t('git.stashDrop') });
+                if (ok) await gitAction(t('git.stashDropped'), () => api.post('/dev/git/stash', { path: state.path, action: 'drop', index: stashIndex }));
+              }}>
+                {t('git.stashDrop')}
+              </button>
+            </div>
           </div>
 
           <div

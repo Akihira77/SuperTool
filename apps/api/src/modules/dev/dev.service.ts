@@ -25,6 +25,15 @@ export function dockerActionArgs(action: unknown, id: unknown): string[] {
 }
 
 @Injectable()
+/** Branch hanya boleh nama ref yang aman; tidak pernah diteruskan sebagai opsi git. */
+export function safeBranchName(raw: unknown): string {
+  const name = String(raw ?? '').trim();
+  if (!name || name.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(name) || name.includes('..') || name.includes('//') || name.endsWith('/') || name.endsWith('.lock')) {
+    throw new BadRequestException('Nama branch tidak valid');
+  }
+  return name;
+}
+
 export class DevService {
   hash(input: { text?: string; algo?: string; hmacKey?: string }) {
     const text = String(input?.text ?? '');
@@ -359,6 +368,16 @@ export class DevService {
       ).catch(() => ''),
     ]);
 
+    const stashRaw = await run(['stash', 'list', '--format=%gd%x1f%gs']).catch(() => '');
+    const stashes = stashRaw
+      .split('\n')
+      .filter(Boolean)
+      .slice(0, 30)
+      .map((line) => {
+        const [ref, message] = line.split('\x1f');
+        return { ref, message: message ?? '' };
+      });
+
     let ahead = 0;
     let behind = 0;
     try {
@@ -386,6 +405,7 @@ export class DevService {
       branch: branch.trim() || '(detached)',
       ahead,
       behind,
+      stashes,
       staged,
       changed,
       untracked,
@@ -443,6 +463,48 @@ export class DevService {
   }
 
   /** Patch satu commit. */
+  async gitBranch(path: string, action: string, rawName: string): Promise<{ ok: true; action: string; branch: string }> {
+    const abs = await jailPath(path);
+    const name = safeBranchName(rawName);
+    const verb = action === 'create' ? ['switch', '-c', name] : action === 'switch' ? ['switch', name] : null;
+    if (!verb) throw new BadRequestException('Aksi branch harus create atau switch');
+    try {
+      await this.gitExec(abs, verb);
+      return { ok: true, action, branch: name };
+    } catch (err) {
+      throw new BadRequestException('Git gagal: ' + (err as Error).message.slice(0, 160));
+    }
+  }
+
+  async gitCommit(path: string, rawMessage: unknown): Promise<{ ok: true; hash: string }> {
+    const abs = await jailPath(path);
+    const message = String(rawMessage ?? '').trim();
+    if (!message || message.length > 2000 || message.includes('\u0000')) throw new BadRequestException('Pesan commit wajib diisi (maks 2000 karakter)');
+    try {
+      await this.gitExec(abs, ['commit', '-m', message]);
+      return { ok: true, hash: (await this.gitExec(abs, ['rev-parse', '--short', 'HEAD'])).trim() };
+    } catch (err) {
+      throw new BadRequestException('Git gagal: ' + (err as Error).message.slice(0, 200));
+    }
+  }
+
+  async gitStash(path: string, action: string, indexInput?: string | number, rawMessage?: unknown): Promise<{ ok: true; action: string; output: string }> {
+    const abs = await jailPath(path);
+    if (action === 'save') {
+      const message = String(rawMessage ?? '').trim().slice(0, 200);
+      const args = message ? ['stash', 'push', '-m', message] : ['stash', 'push'];
+      const output = await this.gitExec(abs, args);
+      return { ok: true, action, output: output.trim() };
+    }
+    if (action === 'pop' || action === 'drop') {
+      const index = Number(indexInput ?? 0);
+      if (!Number.isInteger(index) || index < 0 || index > 99) throw new BadRequestException('Indeks stash tidak valid');
+      const output = await this.gitExec(abs, ['stash', action, 'stash@{' + index + '}']);
+      return { ok: true, action, output: output.trim() };
+    }
+    throw new BadRequestException('Aksi stash harus save, pop, atau drop');
+  }
+
   async gitShow(path: string, hash: string) {
     const abs = await jailPath(path);
     if (!/^[0-9a-f]{4,40}$/i.test(hash)) throw new BadRequestException('Hash tidak valid');
