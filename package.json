@@ -9,7 +9,7 @@
     "start": "pnpm --filter @super-tool/api start",
     "update:ytdlp": "pnpm --filter @super-tool/api update:ytdlp",
     "typecheck": "pnpm -r typecheck",
-    "check": "pnpm build && node --test apps/api/selfcheck.test.mjs apps/api/restore.test.mjs apps/api/jobs.test.mjs apps/api/http-store.test.mjs"
+    "check": "pnpm build && node --test apps/api/selfcheck.test.mjs apps/api/restore.test.mjs apps/api/jobs.test.mjs apps/api/http-store.test.mjs apps/api/workspaces.test.mjs"
   },
   "engines": {
     "node": ">=22.13"

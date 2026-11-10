@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { activeWorkspaceRoot, onWorkspace } from '../lib/workspace';
 import { CodeEditor } from '../components/CodeEditor';
 import { VirtualCode } from '../components/VirtualCode';
 import { CopyButton, Icon, PageHeader, Spinner, cn } from '../components/ui';
@@ -198,7 +199,8 @@ export default function FilesTool() {
         // Root terakhir hanya dipakai untuk proyek yang sama; proyek baru tetap dibuka.
         const savedFor = localStorage.getItem('st:files:rootFor');
         const remembered = valid(saved) && savedFor === (projectPath ?? '') ? saved : null;
-        const start = remembered ?? (valid(projectPath) ? projectPath : list[0]?.path);
+        const workspace = valid(activeWorkspaceRoot()) ? activeWorkspaceRoot() : null;
+        const start = workspace ?? remembered ?? (valid(projectPath) ? projectPath : list[0]?.path);
         if (start) {
           setRootPath(start);
           void loadListing(start);
@@ -206,6 +208,16 @@ export default function FilesTool() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : t('err.loadRoots')));
   }, [loadListing]);
+
+  useEffect(
+    () =>
+      onWorkspace((workspace) => {
+        if (!roots.some((root) => isInside(workspace.root, root.path))) return;
+        setRootPath(workspace.root);
+        void loadListing(workspace.root);
+      }),
+    [roots, loadListing],
+  );
 
   const loadRecents = async () => {
     try {

@@ -16,6 +16,19 @@ mkdirSync(cfg.dataDir, { recursive: true });
 /** Versi skema yang dipahami build ini; backup dengan versi lebih baru ditolak. */
 export const SCHEMA_VERSION = 1;
 
+// Skema ringan untuk workspace (metadata proyek, bukan akun terpisah).
+const WORKSPACE_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    root TEXT NOT NULL,
+    config TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_workspaces_updated ON workspaces(updated_at DESC);
+`;
+
 // Skema ringan untuk HTTP workspace (koleksi, environment, riwayat).
 const HTTP_SCHEMA = `
   CREATE TABLE IF NOT EXISTS http_collections (
@@ -174,6 +187,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
   CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status);
 `);
+db.exec(WORKSPACE_SCHEMA);
 db.exec(HTTP_SCHEMA);
 db.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 
@@ -255,6 +269,7 @@ function ensureExtraSchema(target: DatabaseSync): void {
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)');
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at)');
   target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status)');
+  target.exec(WORKSPACE_SCHEMA);
   target.exec(HTTP_SCHEMA);
   target.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 }

@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n';
 import { useToast } from '../components/toast';
 import { useConfirm } from '../components/confirm';
 import { PrayerSettings } from '../components/PrayerSettings';
+import { WorkspacePanel } from '../components/WorkspacePanel';
 
 type DbInfo = { path: string; size: number; mtime: number; tables: Array<{ name: string; rows: number }> };
 type CookieInfo = { configured: boolean; size: number; mtime: number | null };
@@ -355,6 +356,8 @@ export default function SettingsTool() {
           </div>
           {cookieError ? <div className="text-[11.5px] text-bad">{cookieError}</div> : null}
         </div>
+
+        <WorkspacePanel />
 
         <PrayerSettings />
       </div>

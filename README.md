@@ -171,6 +171,14 @@ Menu **Settings** punya dua bagian:
 
 Batasan: backup tidak memuat isi file di disk (nginx/explorer) — hanya database + folder `uploads`; kedua endpoint memakai login + CSRF seperti endpoint lain. Backup manual tetap disarankan sebelum restore dari sumber yang tidak dikenal.
 
+### Workspace (halaman Settings)
+
+Kartu **Workspace** menyimpan konteks proyek di SQLite: nama, root proyek, repo Git, URL favorit, daftar tool favorit, endpoint layanan, dan shortcut (`label | path/url`). Root proyek dan repo Git divalidasi lewat jail `ST_FS_ROOTS` yang sama dengan File Explorer, jadi tidak bisa menunjuk ke luar area izin; folder harus ada dan berupa direktori.
+
+- **Aktifkan** menyimpan pilihan di `localStorage` (`st:workspace:active`) lalu mengirim event `st:workspace`; File Explorer langsung berpindah ke root tersebut tanpa reload. Root terakhir tetap diingat seperti sebelumnya (`st:files:root`).
+- **Ekspor/Impor** memakai JSON `{ version: 1, workspaces[] }`; impor melewati workspace dengan nama + root yang sudah ada, maksimal 50 baris.
+- Isi `.env` tidak pernah dibaca atau disimpan. Config adalah whitelist field di atas; kunci asing seperti `env`/`envFile` diabaikan.
+
 ## Fitur "jelaskan ke LLM"
 
 Di menu Nginx, **klik kanan** di editor → *Jelaskan ke LLM*. Kalau ada teks terseleksi, teks itu yang dikirim; kalau tidak, kata di posisi kursor (atau barisnya) yang dipakai. Hasilnya muncul di panel samping kanan editor.

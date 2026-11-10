@@ -109,7 +109,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 | P2-1 | Belum ada job runner terpusat | Operasi panjang memblokir request / tidak tahan restart | **Selesai** — tabel `jobs`, API `/jobs`, kompresor memakai antrean; uji `apps/api/jobs.test.mjs` |
 | P2-2 | Belum ada pusat diagnostik | Sulit menelusuri error lintas tool | **Selesai** — `GET /api/diagnostics` + kartu Settings; ring buffer log |
 | P2-3 | Aksi tersebar per tool | Command palette tidak lengkap | **Selesai** — registry `lib/actions.ts`, palette membangun submenu dari registry |
-| P2-4 | Tidak ada workspace | Konteks proyek bercampur | **Terbuka** |
+| P2-4 | Tidak ada workspace | Konteks proyek bercampur | **Selesai** — CRUD + aktivasi + ekspor/impor di Settings; metadata SQLite, root divalidasi `ST_FS_ROOTS` |
 | P2-5 | Belum ada Git workbench / Docker Compose / log explorer / AI kontekstual | Fitur Fase 4 | **Terbuka** |
 
 ---
@@ -179,7 +179,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Command palette memakai registry `apps/web/src/lib/actions.ts` (bukan daftar manual).
 - [x] Workflow lintas tool: File Explorer → Kompresor lewat event `st:workflow` + `usePaletteIntent`; tool lain memakai jalur yang sama.
 - [x] HTTP collections: request tersimpan + koleksi, environment `{{variabel}}`, riwayat 20 terakhir; disimpan di SQLite, header sensitif tidak dipersistensi.
-- [ ] Workspace: root proyek, session, preferensi per workspace.
+- [x] Workspace: metadata proyek di SQLite (root tervalidasi jail, repo, URL, tool, endpoint, shortcut), aktif tanpa restart, ekspor/impor JSON, `.env` tidak disimpan.
 - Acceptance:
   - Semua aksi utama muncul di palette tanpa duplikasi kode.
   - Workflow berjalan tanpa menyalin data manual.

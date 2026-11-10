@@ -13,6 +13,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { CompressModule } from './modules/tools/compress.module';
 import { DevModule } from './modules/dev/dev.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { SqliteModule } from './modules/sqlite/sqlite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { BackupModule } from './modules/backup/backup.module';
@@ -43,6 +44,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     DownloaderModule,
     DiagnosticsModule,
     JobsModule,
+    WorkspacesModule,
     TelegramModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],

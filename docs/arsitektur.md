@@ -107,6 +107,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (ghostscript streaming + antrean satu PDF besar; fallback `pdf-lib` ≤50 MB), job latar belakang |
 | dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker lifecycle (start/stop/restart/hapus), git ringkas, crontab, DNS + geo |
 | dev | `http-store.service.ts` | HTTP workspace di SQLite: request + koleksi, environment, riwayat; header sensitif dikosongkan, riwayat tanpa body/token |
+| workspaces | `workspaces.service.ts` | metadata proyek (root, repo, URL, tool, endpoint, shortcut) di SQLite; root lewat jail; ekspor/impor JSON |
 
 ## Peta frontend
 

@@ -310,6 +310,19 @@ curl -s -b cookies.txt "http://127.0.0.1:3001/api/compress/job?id=$JOB"
 
 `/dev/git`: `log` diambil dari `git log --all` (60 commit) atau `ref` tertentu, lengkap dengan parent untuk menghitung lane grafik di browser; `graph` tetap dikirim sebagai teks `git log --graph --oneline --decorate` untuk kompatibilitas. `branches` = daftar branch lokal (maks 30). `git stage` memakai `git add --` / `git restore --staged --`, maksimal 200 berkas per request.
 
+## Workspace
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/workspaces` | – | daftar workspace |
+| POST | `/workspaces` | `{ id?, name, root, config }` | workspace tersimpan; root & gitRepo divalidasi `ST_FS_ROOTS` |
+| POST | `/workspaces/:id/duplicate` | – | salinan dengan nama "(salinan)" |
+| DELETE | `/workspaces/:id` | – | `{ ok }` |
+| GET | `/workspaces/export` | – | `{ version: 1, exportedAt, workspaces[{ name, root, config }] }` |
+| POST | `/workspaces/import` | JSON hasil ekspor | `{ imported, skipped, errors[] }`; maks 50, duplikat nama+root dilewati |
+
+`config`: `{ gitRepo?, favoriteUrls?[], tools?[], services?[{ name, url }], shortcuts?[{ label, path }] }`. Hanya field ini yang disimpan; kunci lain seperti `env`/`envFile` diabaikan. URL wajib http/https. Isi `.env` tidak pernah dibaca.
+
 ## Webhook Receiver
 
 | Metode | Path | Auth | Hasil |
