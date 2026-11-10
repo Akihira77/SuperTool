@@ -107,7 +107,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 | ID | Temuan | Dampak | Status |
 | --- | --- | --- | --- |
 | P2-1 | Belum ada job runner terpusat | Operasi panjang memblokir request / tidak tahan restart | **Selesai** — tabel `jobs`, API `/jobs`, kompresor memakai antrean; uji `apps/api/jobs.test.mjs` |
-| P2-2 | Belum ada pusat diagnostik | Sulit menelusuri error lintas tool | **Terbuka** |
+| P2-2 | Belum ada pusat diagnostik | Sulit menelusuri error lintas tool | **Selesai** — `GET /api/diagnostics` + kartu Settings; ring buffer log |
 | P2-3 | Aksi tersebar per tool | Command palette tidak lengkap | **Terbuka** |
 | P2-4 | Tidak ada workspace | Konteks proyek bercampur | **Terbuka** |
 | P2-5 | Belum ada Git workbench / Docker Compose / log explorer / AI kontekstual | Fitur Fase 4 | **Terbuka** |
@@ -165,7 +165,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Upload streaming ke disk (bukan buffer); batas per file dan total.
 - [x] Backup/restore atomik: staging, fsync, rename, rollback uploads, invalidasi cache auth/disk; uji kegagalan di `apps/api/restore.test.mjs`.
 - [x] Job runner: antrean persisten, status, cancel, batas konkurensi; retry manual lewat start ulang. Uji `apps/api/jobs.test.mjs`.
-- [ ] Pusat diagnostik: versi, uptime, DB, disk, log terakhir, error terakhir.
+- [x] Pusat diagnostik: versi, uptime, DB, disk, log terakhir, error terakhir (`GET /api/diagnostics`, kartu Settings).
 - [x] Standar Node >= 22.13, `.nvmrc`, dan `engines` paket API/root; README menyebut prasyarat yang sama.
 - Acceptance:
   - File 1 GB tidak menaikkan RSS > 200 MB.

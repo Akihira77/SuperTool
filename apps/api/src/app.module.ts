@@ -12,6 +12,7 @@ import { ProxyModule } from './modules/proxy/proxy.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { CompressModule } from './modules/tools/compress.module';
 import { DevModule } from './modules/dev/dev.module';
+import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { SqliteModule } from './modules/sqlite/sqlite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { BackupModule } from './modules/backup/backup.module';
@@ -40,6 +41,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     CalendarModule,
     CompareModule,
     DownloaderModule,
+    DiagnosticsModule,
     JobsModule,
     TelegramModule,
   ],

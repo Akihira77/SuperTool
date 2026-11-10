@@ -223,6 +223,12 @@ Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas dipu
 
 Hasil kompresi/konversi ditampilkan **berdampingan**: berkas asli di kiri, hasil di kanan, masing-masing dengan pratinjau besar (gambar tampil penuh, klik untuk ukuran asli), ukuran berkas, dan tombol unduh. Konversi yang melibatkan PDF tidak menampilkan isi, hanya info berkas.
 
+## Diagnostik
+
+- Kartu **Diagnostik** di Settings menampilkan versi aplikasi, versi Node, uptime, RSS, ukuran database + WAL, versi skema, jumlah halaman, sisa disk, error terakhir, dan 30 log terakhir.
+- Endpoint `GET /api/diagnostics?logs=40` membaca ring buffer log di memori (maks 400 entri) dan `statfs` folder data; tidak menulis apa pun.
+- Log dari Nest ditangkap lewat logger kustom sehingga peringatan/error startup dan job ikut terlihat. Nilai seperti password/token disamarkan sebelum masuk buffer.
+
 ## Storage Monitor
 
 - Memindai folder root pertama dari `ST_FS_ROOTS` (default home) sampai **2 level**. Folder sistem `snap` dan `lost+found` dilewati.

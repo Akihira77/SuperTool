@@ -235,6 +235,14 @@ curl -b cookies.txt -X POST http://127.0.0.1:3001/api/llm/explain \
   -d '{"code":"proxy_set_header Host $host;","model":"ocg/deepseek-flash"}'
 ```
 
+## Diagnostik
+
+| Metode | Path | Query | Hasil |
+|--------|------|-------|-------|
+| GET | `/diagnostics` | `logs?` (default 40, maks 200) | `{ version, node, pid, uptimeSec, memory, db, disk, lastError, logs }` |
+
+`db` memuat path, ukuran file + WAL, jumlah halaman, ukuran halaman, free pages, `user_version`, journal mode, dan status query. `disk` memuat total/free/available folder data. Log berasal dari ring buffer memori (maks 400 baris); tidak ada pembacaan file log.
+
 ## Job latar belakang
 
 | Metode | Path | Query/Body | Hasil |

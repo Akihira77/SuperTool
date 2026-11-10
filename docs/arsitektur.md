@@ -102,6 +102,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | calendar | `calendar.service.ts`, `calendar.controller.ts` | OAuth2 Google Calendar baca-tulis: URL consent + state sekali pakai, token di `google_tokens`, refresh otomatis, event semua kalender (maks 250), `events.insert` ke primary |
 | downloader | `downloader.service.ts`, `downloader.controller.ts` | yt-dlp + ffmpeg-static; allowlist host, metadata preview (`/info`), temp per request, stream `Content-Disposition` MP4/MP3, cleanup saat selesai/abort |
 | llm | `llm.controller.ts` | klien chat-completions kompatibel OpenAI untuk "jelaskan ke LLM" |
+| diagnostics | `diagnostics.service.ts`, `diagnostics.controller.ts`, `common/log-buffer.ts`, `common/app-logger.ts` | ringkasan runtime untuk Settings: versi, Node, uptime, memori, ukuran DB/WAL, `user_version`, sisa disk (`statfs`), error terakhir, dan ring buffer 400 log |
 | jobs | `jobs.service.ts`, `jobs.controller.ts` | antrean job persisten di tabel `jobs`: status queued/running/completed/failed/cancelled, batas konkurensi, cancel, dedupe, retensi 200/7 hari; handler didaftarkan modul pemakai |
 | tools | `compress.service.ts` | kompres/koversi gambar (`sharp`) dan PDF (ghostscript streaming + antrean satu PDF besar; fallback `pdf-lib` ≤50 MB), job latar belakang |
 | dev | `dev.service.ts` | hash, HTTP client, tail + stream log, docker lifecycle (start/stop/restart/hapus), git ringkas, crontab, DNS + geo |

@@ -9,6 +9,26 @@ import { PrayerSettings } from '../components/PrayerSettings';
 
 type DbInfo = { path: string; size: number; mtime: number; tables: Array<{ name: string; rows: number }> };
 type CookieInfo = { configured: boolean; size: number; mtime: number | null };
+type Diagnostics = {
+  version: string;
+  node: string;
+  pid: number;
+  uptimeSec: number;
+  memory: { rss: number; heapUsed: number; heapTotal: number };
+  db: { path: string; size: number; walSize: number; pageCount: number; pageSize: number; freePages: number; userVersion: number; journalMode: string; ok: boolean; error: string | null };
+  disk: { path: string; total: number; free: number; available: number } | null;
+  lastError: { ts: number; level: string; context: string; message: string } | null;
+  logs: Array<{ ts: number; level: string; context: string; message: string }>;
+};
+
+function uptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d) return d + 'd ' + h + 'h';
+  if (h) return h + 'h ' + m + 'm';
+  return m + 'm ' + (seconds % 60) + 's';
+}
 
 /**
  * Backup & restore data aplikasi: unduh zip (database + uploads), lalu pulihkan
@@ -28,6 +48,16 @@ export default function SettingsTool() {
   const [cookieBusy, setCookieBusy] = useState(false);
   const [cookieError, setCookieError] = useState('');
   const cookieRef = useRef<HTMLInputElement>(null);
+  const [diag, setDiag] = useState<Diagnostics | null>(null);
+  const [diagError, setDiagError] = useState('');
+
+  const refreshDiagnostics = () => {
+    setDiagError('');
+    api
+      .get<Diagnostics>('/diagnostics')
+      .then((data) => setDiag(data))
+      .catch((err) => setDiagError(err instanceof ApiError ? err.message : t('settings.diagUnavailable')));
+  };
 
   useEffect(() => {
     api
@@ -38,6 +68,8 @@ export default function SettingsTool() {
       .get<CookieInfo>('/downloader/cookies')
       .then((data) => setCookieInfo(data))
       .catch(() => undefined);
+    refreshDiagnostics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const restore = async () => {
@@ -188,6 +220,53 @@ export default function SettingsTool() {
               </div>
             </div>
           ) : null}
+        </div>
+
+        <div className="card flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="ports" size={14} /></span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium">{t('settings.diagnostics')}</div>
+              <div className="text-[11.5px] text-muted">{t('settings.diagnosticsHint')}</div>
+            </div>
+            <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" onClick={refreshDiagnostics}>
+              <Icon name="refresh" size={12} /> {t('settings.diagRefresh')}
+            </button>
+          </div>
+          {diag ? (
+            <div className="flex flex-col gap-2">
+              <div className="grid gap-2 rounded-lg border border-line bg-panel2/40 p-2.5 text-[11.5px] sm:grid-cols-3 lg:grid-cols-4">
+                <div><div className="label">{t('settings.diagVersion')}</div><div className="mono text-ink/85">{diag.version}</div></div>
+                <div><div className="label">{t('settings.diagNode')}</div><div className="mono text-ink/85">{diag.node}</div></div>
+                <div><div className="label">{t('settings.diagUptime')}</div><div className="mono text-ink/85">{uptime(diag.uptimeSec)}</div></div>
+                <div><div className="label">{t('settings.diagMemory')}</div><div className="mono text-ink/85">{bytes(diag.memory.rss)}</div></div>
+                <div><div className="label">{t('settings.diagDb')}</div><div className={cn('mono', diag.db.ok ? 'text-ink/85' : 'text-danger')}>{bytes(diag.db.size)} · v{diag.db.userVersion}</div></div>
+                <div><div className="label">WAL</div><div className="mono text-ink/85">{bytes(diag.db.walSize)}</div></div>
+                <div><div className="label">{t('settings.diagDisk')}</div><div className="mono text-ink/85">{diag.disk ? bytes(diag.disk.available) : '—'}</div></div>
+                <div><div className="label">Pages</div><div className="mono text-ink/85">{diag.db.pageCount} × {bytes(diag.db.pageSize)}</div></div>
+              </div>
+              {diag.db.error ? <div className="rounded-lg border border-danger/30 bg-danger/10 p-2 text-[11.5px] text-danger">{diag.db.error}</div> : null}
+              <div className="rounded-lg border border-line bg-panel2/40 p-2.5">
+                <div className="label mb-1">{t('settings.diagLogs')}</div>
+                {diag.lastError ? (
+                  <div className="mb-1.5 rounded border border-danger/30 bg-danger/10 p-1.5 font-mono text-[10.5px] text-danger">
+                    {new Date(diag.lastError.ts).toLocaleTimeString()} [{diag.lastError.context}] {diag.lastError.message}
+                  </div>
+                ) : <div className="mb-1.5 text-[11px] text-muted">{t('settings.diagNoError')}</div>}
+                <div className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[10.5px] leading-relaxed text-muted">
+                  {diag.logs.slice(-30).map((entry, index) => (
+                    <div key={entry.ts + ':' + index} className={cn('truncate', entry.level === 'error' && 'text-danger', entry.level === 'warn' && 'text-warn')} title={entry.message}>
+                      {new Date(entry.ts).toLocaleTimeString()} [{entry.context}] {entry.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[11.5px] text-muted">
+              {diagError ? <span className="text-danger">{diagError}</span> : <><Spinner /> {t('settings.diagnostics')}</>}
+            </div>
+          )}
         </div>
 
         <div className={cn('card flex flex-col gap-3 p-4', file && 'border-warn/40')}>

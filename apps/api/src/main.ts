@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import { AppLogger } from './common/app-logger';
 import { auditHttp } from './common/audit-http.middleware';
 import { one } from './common/db';
 import { cfg } from './config';
@@ -14,6 +15,7 @@ import { handleProxyRequest, handleProxyUpgrade, PROXY_PREFIX, subdomainTarget }
 async function bootstrap() {
   // Body parser dimatikan dulu: proxy harus menerima body mentah sebelum di-parse.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  app.useLogger(new AppLogger());
   app.setGlobalPrefix('api');
   app.set('trust proxy', 'loopback');
   app.enableShutdownHooks();
