@@ -94,7 +94,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 
 | ID | Temuan | Dampak | Status |
 | --- | --- | --- | --- |
-| P1-1 | Proxy HTTP memakai `fetch` global setelah validasi | DNS rebinding TOCTOU | **Terbuka** — perlu pinning IP untuk proxy |
+| P1-1 | Proxy HTTP memakai `fetch` global setelah validasi | DNS rebinding TOCTOU | **Selesai** — `streamLocal` mem-pin IP hasil resolusi |
 | P1-2 | Rewrite proxy membaca seluruh body | Memori naik untuk respons besar | **Selesai** — batas 8 MB, 502 |
 | P1-3 | Upload/backup/restore menahan data di memori | OOM pada file besar | **Terbuka** |
 | P1-4 | Restore tidak atomik / cache tidak invalid | Data lama/parsial setelah restore | **Terbuka** |
@@ -150,7 +150,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Path-mode: CSP `sandbox` + iframe `sandbox`.
 - [x] CORS mati kecuali dikonfigurasi.
 - [x] Security headers + health + graceful shutdown.
-- [ ] **P1-1** Pinning IP pada proxy HTTP (bukan hanya validasi DNS).
+- [x] **P1-1** Pinning IP pada proxy HTTP (`streamLocal`, lookup tetap ke alamat hasil validasi).
 - [ ] Audit ulang semua endpoint `@Public()` dan route statis.
 - [ ] Uji bypass: path traversal, encoded slash, symlink, DNS rebinding.
 - Acceptance:
@@ -228,13 +228,12 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 ## 6. Backlog berprioritas
 
-1. **P1-1** Pinning IP proxy HTTP (rebinding).
-2. Upload/backup/restore streaming + atomik.
-3. Job runner + diagnostik.
-4. Action registry + palette.
-5. Workspace.
-6. Git/Docker/log/AI.
-7. Test/CI lengkap.
+1. Upload/backup/restore streaming + atomik.
+2. Job runner + diagnostik.
+3. Action registry + palette.
+4. Workspace.
+5. Git/Docker/log/AI.
+6. Test/CI lengkap.
 
 ---
 

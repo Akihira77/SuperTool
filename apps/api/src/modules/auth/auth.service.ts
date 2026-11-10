@@ -13,6 +13,7 @@ const DEFAULT_PASSWORD = 'password';
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 6;
 const WINDOW_MS = 10 * 60 * 1000;
+const MAX_TRACKED_IPS = 2048;
 
 type Account = { salt: string; hash: string; pv: number; must_change: number; secret: string };
 
@@ -128,7 +129,17 @@ export class AuthService {
     return { token: this.issue(updated), mustChange: false };
   }
 
+  /** Buang entri kedaluwarsa supaya map tidak tumbuh tanpa batas. */
+  private sweep(now: number): void {
+    if (this.attempts.size < MAX_TRACKED_IPS) return;
+    for (const [ip, entry] of this.attempts) {
+      if (entry.until < now) this.attempts.delete(ip);
+    }
+    if (this.attempts.size >= MAX_TRACKED_IPS) this.attempts.clear();
+  }
+
   private assertNotLocked(ip: string): void {
+    this.sweep(Date.now());
     const entry = this.attempts.get(ip);
     if (entry && entry.count >= MAX_ATTEMPTS && entry.until > Date.now()) {
       const minutes = Math.ceil((entry.until - Date.now()) / 60000);
@@ -138,6 +149,7 @@ export class AuthService {
 
   private fail(ip: string): void {
     const now = Date.now();
+    this.sweep(now);
     const entry = this.attempts.get(ip);
     if (!entry || entry.until < now) {
       this.attempts.set(ip, { count: 1, until: now + WINDOW_MS });
@@ -152,7 +164,12 @@ export function parseCookie(header: string | undefined, name: string): string | 
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');
     if (eq < 0) continue;
-    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+    if (part.slice(0, eq).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    } catch {
+      return undefined;
+    }
   }
   return undefined;
 }

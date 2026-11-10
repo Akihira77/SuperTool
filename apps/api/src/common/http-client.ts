@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { Readable } from 'node:stream';
+import type { ReadableStream } from 'node:stream/web';
 import { resolveLocalAddress, type ResolvedAddress } from './net-guard';
 
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
@@ -129,6 +131,85 @@ function requestOnce(url: URL, address: ResolvedAddress, options: HopOptions): P
 
     if (options.body) req.write(options.body);
     req.end();
+  });
+}
+
+export type LocalStreamResponse = {
+  status: number;
+  statusText: string;
+  headers: Headers;
+  setCookies: string[];
+  body: ReadableStream<Uint8Array> | null;
+  url: string;
+};
+
+type StreamOptions = {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: Buffer;
+  timeoutMs?: number;
+};
+
+/**
+ * Request streaming dengan alamat tujuan dipin (DNS rebinding tidak bisa menukar host).
+ * Redirect tidak diikuti; pemanggil yang memutuskan.
+ */
+export async function streamLocal(rawUrl: string, options: StreamOptions = {}): Promise<LocalStreamResponse> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new BadRequestException('URL tidak valid');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new BadRequestException('Hanya http/https');
+  if (url.username || url.password) throw new BadRequestException('URL tidak boleh memuat kredensial');
+
+  const method = String(options.method ?? 'GET').toUpperCase();
+  if (!METHODS.has(method)) throw new BadRequestException('Method tidak didukung: ' + method);
+  const body = method === 'GET' || method === 'HEAD' ? undefined : options.body;
+  if (body && body.length > 30 * 1024 * 1024) throw new BadRequestException('Body maksimal 30 MB');
+  const timeoutMs = Math.min(120_000, Math.max(1000, Number(options.timeoutMs ?? 120_000)));
+  const address = await resolveLocalAddress(url);
+
+  const headers: Record<string, string> = { ...options.headers, host: url.host, 'accept-encoding': 'identity' };
+  if (body) headers['content-length'] = String(body.length);
+
+  return new Promise((resolve, reject) => {
+    const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = transport({
+      protocol: url.protocol,
+      hostname: address.address,
+      family: address.family,
+      port: url.port || undefined,
+      path: url.pathname + url.search,
+      method,
+      headers,
+      lookup: (_hostname, _lookupOptions, callback) => callback(null, address.address, address.family),
+      servername: url.protocol === 'https:' ? url.hostname.replace(/^[|]$/g, '') : undefined,
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('Request timeout')));
+    req.on('error', reject);
+    req.on('response', (res) => {
+      const responseHeaders = new Headers();
+      const setCookies: string[] = [];
+      for (let i = 0; i < res.rawHeaders.length; i += 2) {
+        const key = res.rawHeaders[i];
+        const value = res.rawHeaders[i + 1] ?? '';
+        if (key.toLowerCase() === 'set-cookie') setCookies.push(value);
+        else responseHeaders.append(key, value);
+      }
+      const status = res.statusCode ?? 0;
+      const empty = method === 'HEAD' || status === 204 || status === 304;
+      resolve({
+        status,
+        statusText: res.statusMessage ?? '',
+        headers: responseHeaders,
+        setCookies,
+        body: empty ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>),
+        url: url.href,
+      });
+    });
+    req.end(body);
   });
 }
 

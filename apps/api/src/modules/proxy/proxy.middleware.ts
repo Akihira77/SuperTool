@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import type { ReadableStream } from 'node:stream/web';
 import type { AuthService } from '../auth/auth.service';
 import { assertLocalUrl } from '../../common/net-guard';
+import { streamLocal, type LocalStreamResponse } from '../../common/http-client';
 
 export const PROXY_PREFIX = '/api/proxy/b/';
 const DROP_REQUEST_HEADERS = new Set(['host', 'connection', 'content-length', 'accept-encoding', 'origin', 'referer', 'sec-fetch-site']);
@@ -332,14 +333,13 @@ export async function handleProxyRequest(
     return true;
   }
 
-  let upstream: Response;
+  let upstream: LocalStreamResponse;
   try {
-    upstream = await fetch(target, {
+    upstream = await streamLocal(target.href, {
       method: req.method,
       headers,
-      body: body as unknown as BodyInit | undefined,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(120_000),
+      body,
+      timeoutMs: 120_000,
     });
   } catch (err) {
     res.writeHead(502, { 'content-type': 'application/json' });
@@ -363,8 +363,7 @@ export async function handleProxyRequest(
     }
     outHeaders[key] = value;
   });
-  const cookies = upstream.headers.getSetCookie?.() ?? [];
-  if (cookies.length) outHeaders['set-cookie'] = rewriteCookiesFor(cookies, targetInfo);
+  if (upstream.setCookies.length) outHeaders['set-cookie'] = rewriteCookiesFor(upstream.setCookies, targetInfo);
 
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
   const rewrite =
