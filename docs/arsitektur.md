@@ -73,6 +73,12 @@ Pencarian isi (`grep`) memakai jail yang sama untuk setiap include path, termasu
 - CORS hanya aktif bila `ST_DEV_ORIGIN` diisi.
 - Cookie sesi memakai `Secure` hanya saat request datang lewat HTTPS (`req.secure`), sehingga deployment HTTP loopback tetap bisa login.
 
+## Testing dan CI
+
+- `pnpm check` = build web + API, unit test frontend (Vitest), lalu seluruh suite `node:test` API (selfcheck, restore, jobs, HTTP store, workspace, integrasi).
+- Uji integrasi menjalankan hasil build API di port acak dengan `ST_DATA_DIR`/`ST_FS_ROOTS` sementara, lalu memverifikasi login, ganti password, baca berkas, penolakan path di luar jail, dan penolakan tiket proxy ke alamat metadata.
+- `.github/workflows/ci.yml` menjalankan frozen lockfile, typecheck, `pnpm check`, dan `pnpm audit --audit-level high` pada Node 22.13 dan 24.
+
 ## Penyimpanan data
 
 `common/db.ts`: buka `super-tool.db` (`node:sqlite`, WAL), buat skema, simpan salinan `VACUUM INTO` ke `.bak` setiap start, dan impor sekali dari `auth.json`/`notes.json` versi lama. Penulisan lewat SQLite, jadi tidak ada tulis-separuh: transaksi sqlite yang menjamin.

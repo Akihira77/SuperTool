@@ -487,7 +487,9 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 | `pnpm build` | Build frontend lalu backend |
 | `pnpm start` | Jalankan hasil build |
 | `pnpm typecheck` | `tsc --noEmit` di semua paket |
-| `pnpm check` | Build + uji mandiri (token HMAC, pembatas path, parser du/allowlist storage, allowlist downloader) |
+| `pnpm check` | Build + unit test frontend + seluruh suite API (selfcheck, restore, jobs, HTTP store, workspace, integrasi) |
+
+GitHub Actions (`.github/workflows/ci.yml`) menjalankan instalasi frozen lockfile, typecheck, `pnpm check`, dan audit dependensi level high pada Node 22.13 dan 24 untuk setiap push ke `master` dan pull request.
 
 ## Batasan yang diketahui
 

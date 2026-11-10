@@ -198,30 +198,31 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 ### Fase 5 — Non-fungsional (M)
 
-- [ ] Batas memori/CPU per operasi; timeout konsisten.
-- [ ] Aksesibilitas: fokus, label, keyboard untuk tab/session.
-- [ ] Responsif untuk layar kecil.
-- [ ] Telemetri lokal (opt-in) untuk durasi/error.
+- [x] Batas memori/CPU per operasi; timeout konsisten (proxy 120 dtk, HTTP client 1–60 dtk, Docker 20–120 dtk, body/respons dibatasi).
+- [x] Aksesibilitas dasar: tab sesi punya `role=tab`, `aria-selected`, fokus keyboard, Enter/Space; tombol ikon memakai label.
+- [x] Tidak ada telemetri keluar; diagnostik hanya lokal dan tidak dikirim otomatis.
+- [ ] Audit aksesibilitas otomatis dan uji responsif layar kecil.
 - Acceptance:
-  - Audit aksesibilitas otomatis tidak menemukan pelanggaran kritis.
+  - Audit aksesibilitas otomatis tidak menemukan pelanggaran kritis (belum dijalankan).
   - Tidak ada operasi tanpa timeout.
 
 ### Fase 6 — Test dan CI (M)
 
-- [ ] Unit test untuk net guard, jail, token, backup.
-- [ ] Integration test API dengan DB sementara.
-- [ ] E2E minimal: login, buka tool, proxy, notes download.
-- [ ] CI: typecheck, build, test, audit dependensi.
+- [x] Unit test backend: net guard, jail, token, backup, jobs, HTTP store, workspace, Git, Docker.
+- [x] Unit test frontend: action registry, workflow lintas tool, container sesi (Vitest).
+- [x] Integration test API dengan DB sementara: login, ganti password, baca berkas, path keluar jail, tiket proxy metadata.
+- [x] CI: typecheck, build, test, audit dependensi (GitHub Actions, Node 22.13 + 24).
+- [ ] E2E browser minimal: login, buka tool, proxy, notes download (masih uji manual).
 - Acceptance:
-  - `pnpm check` mencakup semua paket.
-  - CI gagal pada type error, test gagal, atau build gagal.
+  - `pnpm check` mencakup frontend dan backend.
+  - CI gagal pada type error, test gagal, build gagal, atau audit high.
 
 ### Fase 7 — Milestone rilis
 
-- [ ] M1 (Fase 1): security hardening.
-- [ ] M2 (Fase 2): reliability.
-- [ ] M3 (Fase 3): productivity.
-- [ ] M4 (Fase 4): advanced.
+- [x] M1 (Fase 1): security hardening.
+- [x] M2 (Fase 2): reliability.
+- [x] M3 (Fase 3): productivity.
+- [ ] M4 (Fase 4): advanced (Git, Compose, log selesai; AI kontekstual belum).
 - Acceptance per milestone: dokumentasi, changelog, backup, rollback, dan verifikasi manual.
 
 ---
@@ -231,8 +232,8 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 1. Job runner + diagnostik.
 2. Action registry + palette.
 3. Workspace.
-4. Git/Docker/log/AI.
-5. Test/CI lengkap.
+4. Git/Docker/log (selesai); AI kontekstual belum.
+5. Test/CI (selesai); E2E browser dan audit aksesibilitas otomatis tersisa.
 
 ---
 
@@ -249,7 +250,9 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 | Uji jobs | `node --test apps/api/jobs.test.mjs` | 7/7 lulus (selesai, dedupe, cancel queued/running, gagal, restart, retensi) |
 | Uji HTTP store | `node --test apps/api/http-store.test.mjs` | 4/4 lulus |
 | Uji workspace | `node --test apps/api/workspaces.test.mjs` | 6/6 lulus |
-| Full check | `pnpm check` | 36/36 lulus (build + seluruh suite) |
+| Unit test frontend | `pnpm --filter @super-tool/web test` | 6/6 lulus (registry, workflow, sesi) |
+| Integration test | `node --test apps/api/integration.test.mjs` | 1/1 lulus (login, ganti password, baca berkas, jail, tiket proxy) |
+| Full check | `pnpm check` | 43/43 lulus (build + frontend + seluruh suite API) |
 
 Uji manual keamanan yang sudah dilakukan:
 
@@ -298,3 +301,47 @@ Uji manual keamanan yang sudah dilakukan:
 - Semua route API memakai prefix `/api`; health ada di `/api/health`.
 - Error API mengembalikan JSON `{message, error, statusCode}`; jangan bocorkan stack.
 - Audit log meredaksi rahasia dan membatasi ukuran payload.
+
+## 12. Ringkasan implementasi
+
+Baseline audit: commit `bf88478`. Implementasi incremental hingga `db27a0c`.
+
+| Fase | Hasil | Commit utama |
+| --- | --- | --- |
+| 0 | Roadmap, baseline, audit P0/P1/P2 | `009ee12` |
+| 1 | Jail path/search, tiket proxy HTTP+WS, CSP sandbox path-mode, HTTP client SSRF + redirect tervalidasi, session/cookie dan rate-limit dibatasi | `009ee12`, `d944f68` |
+| 2 | Baca berkas per 2 MB, restore atomik + validasi SQLite, upload restore ke disk, job runner persisten, pusat diagnostik, runtime Node 22.13 | `8123de1`, `b8bf756`, `b44ac6f`, `38db36c`, `5f3cc29` |
+| 3 | Action registry + palette, workflow File Explorer → Compress, HTTP collections/environment/history, workspace SQLite | `60840f1`, `8ec023e`, `d85e2f7` |
+| 4 | Git commit/branch/stash, Docker Compose manager, filter level log | `2a989d2`, `3ce0959` |
+| 5 | Banyak batas resource/timeout, aksesibilitas tab sesi, tanpa telemetri keluar | — |
+| 6 | Unit test frontend, integration test API, CI + audit dependensi | `db27a0c` |
+| 7 | Milestone 1–3 selesai; M4 sebagian (AI belum) | — |
+
+Perubahan arsitektur utama:
+
+- Proxy subdomain tidak lagi anonim: tiket 12 jam per origin, cookie `HttpOnly`, dan verifikasi origin. Path-mode memakai CSP `sandbox` tanpa `allow-same-origin`.
+- Semua koneksi keluar lewat net guard + DNS pinning (`streamLocal`); redirect divalidasi per hop dan kredensial lintas origin dibuang.
+- `common/db.ts` punya `SCHEMA_VERSION`, `replaceDatabase` atomik (fsync + rename + rollback), dan event invalidasi cache; restore memvalidasi isi arsip sebelum menyentuh data aktif.
+- `JobsService` menjadi satu-satunya eksekutor pekerjaan latar; state tersimpan di SQLite dan pulih setelah restart.
+- Frontend memakai container sesi persisten (hanya container yang disimpan), registry aksi, dan event workflow tanpa context global.
+
+Hasil verifikasi aktual:
+
+- `pnpm check` lulus: build web/API, 6 unit test frontend, 37 test API (selfcheck 12, restore 7, jobs 7, HTTP store 4, workspace 6, integrasi 1).
+- `pnpm audit --audit-level high` lulus; tersisa 1 low + 2 moderate (bukan high).
+- Uji manual: proxy tiket 401/302/200, WS 401/101, metadata 400, restore traversal/symlink/SQLite rusak/versi skema ditolak, Compose lifecycle, Git commit/branch/stash.
+- CI workflow ditambahkan tetapi belum dijalankan di GitHub (belum ada push remote).
+
+Backlog berprioritas yang tersisa:
+
+| Prioritas | Item | Nilai | Kompleksitas | Dependensi | Modul | Acceptance |
+| --- | --- | --- | --- | --- | --- | --- |
+| P1 | E2E browser + audit aksesibilitas | Tinggi | M | Playwright/axe | `apps/web`, CI | Login → tool → proxy → notes download otomatis; tidak ada pelanggaran kritis |
+| P1 | Migrasi skema berversi | Tinggi | M | — | `common/db.ts` | `user_version` naik bertahap, backup sebelum migrasi, rollback teruji |
+| P1 | Hapus/isolasi penuh mode path | Tinggi | M | — | `proxy.middleware.ts`, `UrlTool.tsx` | HTML pihak ketiga tidak pernah se-origin dengan app |
+| P2 | AI kontekstual opt-in | Sedang | L | Config provider + consent | `apps/api`, UI baru | Default mati, redaksi rahasia, tidak ada kiriman otomatis |
+| P2 | Metadata palette lengkap (shortcut/handler/guard) | Sedang | S | — | `lib/actions.ts`, `App.tsx` | Setiap aksi punya shortcut dan guard yang teruji |
+| P2 | Pembersihan `uploads.restore-old` saat crash | Sedang | S | — | `db.ts`, backup | Restart selalu menyelesaikan atau membatalkan swap |
+| P3 | Audit responsif layar kecil | Rendah | S | — | `apps/web` | Layout tetap usable di 360 px |
+
+Rekomendasi milestone berikut: **E2E browser + audit aksesibilitas** lebih dulu karena menutup risiko regresi UI yang saat ini hanya diuji manual; setelah itu **migrasi skema berversi** sebelum menambah tabel/fitur baru. AI kontekstual ditunda sampai ada kebutuhan eksplisit dan mekanisme consent provider.
