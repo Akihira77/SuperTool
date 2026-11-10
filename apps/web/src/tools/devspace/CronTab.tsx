@@ -74,7 +74,7 @@ export default function CronTab() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
       <div className="card flex flex-col gap-2 p-3">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Tambah jadwal</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Tambah jadwal</span>
           {busy ? <Spinner /> : null}
           <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => void load()} title={t('common.reload')}>
             <Icon name="refresh" size={13} />
@@ -99,18 +99,18 @@ export default function CronTab() {
               key={preset.label}
               type="button"
               onClick={() => setLine(preset.value)}
-              className="rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+              className="rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
             >
               {preset.label}
             </button>
           ))}
         </div>
-        {error ? <div className="text-[11.5px] text-bad">{error}</div> : null}
+        {error ? <div className="text-[12.5px] text-bad">{error}</div> : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line">
-        <table className="w-full border-collapse text-[12px]">
-          <thead className="sticky top-0 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+        <table className="w-full border-collapse text-[13px]">
+          <thead className="sticky top-0 bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
             <tr>
               <th className="border-b border-line px-3 py-2 font-medium">Jadwal</th>
               <th className="border-b border-line px-3 py-2 text-right font-medium">Aksi</th>
@@ -129,7 +129,7 @@ export default function CronTab() {
             ))}
             {!entries.length && !busy ? (
               <tr>
-                <td colSpan={2} className="px-3 py-4 text-center text-[12px] text-muted">
+                <td colSpan={2} className="px-3 py-4 text-center text-[13px] text-muted">
                   Belum ada jadwal.
                 </td>
               </tr>
@@ -138,7 +138,7 @@ export default function CronTab() {
         </table>
       </div>
 
-      <div className={cn('text-[11px]', 'text-muted')}>
+      <div className={cn('text-[12px]', 'text-muted')}>
         Mengubah crontab user yang menjalankan server. Perubahan langsung aktif pada cron daemon.
       </div>
     </div>

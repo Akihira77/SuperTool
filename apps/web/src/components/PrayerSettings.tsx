@@ -59,19 +59,19 @@ export function PrayerSettings() {
           <Icon name="bell" size={14} />
         </span>
         <div>
-          <div className="text-[13px] font-medium">{t('prayer.settings.title')}</div>
-          <div className="text-[11.5px] text-muted">{t('prayer.settings.desc')}</div>
+          <div className="text-[13.5px] font-medium">{t('prayer.settings.title')}</div>
+          <div className="text-[12.5px] text-muted">{t('prayer.settings.desc')}</div>
         </div>
       </div>
 
-      <div className="grid gap-2 rounded-lg border border-line bg-panel2/40 p-2.5 text-[11.5px] sm:grid-cols-2">
+      <div className="grid gap-2 rounded-lg border border-line bg-panel2/40 p-2.5 text-[12.5px] sm:grid-cols-2">
         <div className="min-w-0">
           <div className="label">{t('prayer.settings.current')}</div>
           <div className="flex items-center gap-1 truncate text-ink/85" title={coords}>
             <Icon name="pin" size={12} className="shrink-0 text-accent/80" />
             <span className="truncate">{settings.label || coords || t('prayer.settings.noLocation')}</span>
           </div>
-          {coords && settings.label ? <div className="mono mt-0.5 truncate text-[10.5px] text-muted/70">{coords}</div> : null}
+          {coords && settings.label ? <div className="mono mt-0.5 truncate text-[12.5px] text-muted/70">{coords}</div> : null}
         </div>
         <div className="min-w-0">
           <div className="label">{t('prayer.settings.method')}</div>
@@ -83,7 +83,7 @@ export function PrayerSettings() {
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.cityName')}</span>
           <input
-            className="input py-1.5 text-[12px]"
+            className="input py-1.5 text-[13px]"
             type="text"
             maxLength={80}
             placeholder="Jakarta"
@@ -93,7 +93,7 @@ export function PrayerSettings() {
         </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.city')}</span>
-          <select className="input py-1.5 text-[12px]" value="" onChange={(event) => pickCity(event.target.value)}>
+          <select className="input py-1.5 text-[13px]" value="" onChange={(event) => pickCity(event.target.value)}>
             <option value="">{t('prayer.settings.cityPlaceholder')}</option>
             {PRAYER_CITIES.map((city) => (
               <option key={city.name} value={city.name}>
@@ -108,7 +108,7 @@ export function PrayerSettings() {
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.latitude')}</span>
           <input
-            className="input py-1.5 text-[12px]"
+            className="input py-1.5 text-[13px]"
             type="number"
             step="any"
             inputMode="decimal"
@@ -120,7 +120,7 @@ export function PrayerSettings() {
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.longitude')}</span>
           <input
-            className="input py-1.5 text-[12px]"
+            className="input py-1.5 text-[13px]"
             type="number"
             step="any"
             inputMode="decimal"
@@ -135,11 +135,11 @@ export function PrayerSettings() {
           </button>
         </div>
       </div>
-      {error ? <div className="text-[11.5px] text-bad">{error}</div> : null}
+      {error ? <div className="text-[12.5px] text-bad">{error}</div> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <span className="text-[10.5px] text-muted">{t('prayer.settings.soundHint')}</span>
-        <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" onClick={playChime}>
+        <span className="text-[12.5px] text-muted">{t('prayer.settings.soundHint')}</span>
+        <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" onClick={playChime}>
           <Icon name="volume" size={12} /> {t('prayer.settings.testSound')}
         </button>
       </div>
@@ -147,10 +147,10 @@ export function PrayerSettings() {
       <div className="grid gap-2 border-t border-line pt-3 sm:grid-cols-2">
         <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.sound ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
           <span className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1.5 text-[12px] font-medium">
+            <span className="flex items-center gap-1.5 text-[13px] font-medium">
               <Icon name="volume" size={13} className="text-accent/80" /> {t('prayer.settings.sound')}
             </span>
-            <span className="text-[11px] text-muted">{t('prayer.settings.soundDesc')}</span>
+            <span className="text-[12px] text-muted">{t('prayer.settings.soundDesc')}</span>
           </span>
           <input
             type="checkbox"
@@ -165,10 +165,10 @@ export function PrayerSettings() {
         </label>
         <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.popup ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
           <span className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1.5 text-[12px] font-medium">
+            <span className="flex items-center gap-1.5 text-[13px] font-medium">
               <Icon name="bell" size={13} className="text-accent/80" /> {t('prayer.settings.popup')}
             </span>
-            <span className="text-[11px] text-muted">{t('prayer.settings.popupDesc')}</span>
+            <span className="text-[12px] text-muted">{t('prayer.settings.popupDesc')}</span>
           </span>
           <input
             type="checkbox"

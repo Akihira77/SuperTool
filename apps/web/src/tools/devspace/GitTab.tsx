@@ -152,7 +152,7 @@ function parseDiff(text: string) {
 function DiffView({ text, loading }: { text: string; loading: boolean }) {
   const { t } = useI18n();
   const rows = useMemo(() => parseDiff(text), [text]);
-  if (loading) return <div className="flex items-center gap-2 p-4 text-[12px] text-muted"><Spinner /> {t('git.loadingDiff')}</div>;
+  if (loading) return <div className="flex items-center gap-2 p-4 text-[13px] text-muted"><Spinner /> {t('git.loadingDiff')}</div>;
   if (!text.trim()) return <Empty text={t('git.noDiff')} />;
   const cell = (no: number | undefined, line: string, tone: 'old' | 'new') => (
     <div className={cn('flex min-w-0 gap-2 px-1', tone === 'old' && no ? 'bg-bad/10 text-bad' : tone === 'new' && no ? 'bg-ok/10 text-ok' : 'text-ink/70')}>
@@ -161,16 +161,16 @@ function DiffView({ text, loading }: { text: string; loading: boolean }) {
     </div>
   );
   return (
-    <div className="mono flex min-h-0 flex-1 flex-col overflow-auto text-[11.5px] leading-[1.5]">
-      <div className="sticky top-0 z-10 flex shrink-0 border-b border-line bg-panel text-[10px] tracking-wide text-muted uppercase">
+    <div className="mono flex min-h-0 flex-1 flex-col overflow-auto text-[12.5px] leading-[1.5]">
+      <div className="sticky top-0 z-10 flex shrink-0 border-b border-line bg-panel text-[12.5px] tracking-wide text-muted uppercase">
         <div className="w-1/2 px-2 py-1">{t('git.previous')}</div>
         <div className="w-1/2 border-l border-line px-2 py-1">{t('git.updated')}</div>
       </div>
       {rows.map((row, index) =>
         row.kind === 'hunk' ? (
-          <div key={index} className="border-y border-line/60 bg-panel2/60 px-2 py-0.5 text-[10.5px] text-accent">{row.text}</div>
+          <div key={index} className="border-y border-line/60 bg-panel2/60 px-2 py-0.5 text-[12.5px] text-accent">{row.text}</div>
         ) : row.kind === 'meta' ? (
-          <div key={index} className="truncate px-2 py-0.5 text-[10.5px] text-muted/70">{row.text}</div>
+          <div key={index} className="truncate px-2 py-0.5 text-[12.5px] text-muted/70">{row.text}</div>
         ) : (
           <div key={index} className="flex">
             <div className="w-1/2 border-r border-line/60">{cell(row.kind === 'add' ? undefined : row.old, row.kind === 'add' ? '' : row.text, 'old')}</div>
@@ -320,7 +320,7 @@ export default function GitTab() {
 
   const fileGroup = (title: string, items: Change[], staged: boolean, tone: string) => (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-[10.5px] tracking-wide text-muted uppercase">
+      <div className="flex items-center gap-2 text-[12.5px] tracking-wide text-muted uppercase">
         {title}
         <span className="rounded bg-panel2 px-1 text-ink">{items.length}</span>
       </div>
@@ -329,7 +329,7 @@ export default function GitTab() {
           <div
             key={item.path}
             className={cn(
-              'group flex items-center gap-2 rounded px-1 py-0.5 text-[11.5px]',
+              'group flex items-center gap-2 rounded px-1 py-0.5 text-[12.5px]',
               selection?.kind === 'file' && selection.file === item.path ? 'bg-accent/10' : 'hover:bg-panel2',
             )}
           >
@@ -340,13 +340,13 @@ export default function GitTab() {
               className="size-3 cursor-pointer accent-[var(--color-accent)]"
               title={staged ? t('git.unstage') : t('git.stage')}
             />
-            <span className={cn('mono w-4 shrink-0 text-center text-[10.5px]', tone)}>{item.status}</span>
+            <span className={cn('mono w-4 shrink-0 text-center text-[12.5px]', tone)}>{item.status}</span>
             <button type="button" onClick={() => void openDiff({ kind: 'file', file: item.path, staged })} className="min-w-0 flex-1 cursor-pointer truncate text-left text-ink/85" title={item.path}>
               {item.path}
             </button>
           </div>
         ))}
-        {!items.length ? <div className="px-1 text-[11px] text-muted/60">{t('git.none')}</div> : null}
+        {!items.length ? <div className="px-1 text-[12px] text-muted/60">{t('git.none')}</div> : null}
       </div>
     </div>
   );
@@ -356,17 +356,17 @@ export default function GitTab() {
       <div className="card flex flex-col gap-2 p-3">
         <div className="flex flex-wrap items-center gap-1">
           {roots.map((root) => (
-            <button key={root.path} type="button" onClick={() => void loadDirs(root.path)} className={cn('cursor-pointer rounded px-2 py-0.5 text-[11.5px]', browse.startsWith(root.path) ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>
+            <button key={root.path} type="button" onClick={() => void loadDirs(root.path)} className={cn('cursor-pointer rounded px-2 py-0.5 text-[12.5px]', browse.startsWith(root.path) ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>
               {root.label}
             </button>
           ))}
-          <span className="mono ml-auto max-w-full truncate text-[11px] text-muted" title={browse}>{browse}</span>
+          <span className="mono ml-auto max-w-full truncate text-[12px] text-muted" title={browse}>{browse}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-1 text-[11.5px] text-muted">
+        <div className="flex flex-wrap items-center gap-1 text-[12.5px] text-muted">
           <button type="button" disabled={!parent} onClick={() => parent && void loadDirs(parent)} className="cursor-pointer rounded px-1 py-0.5 hover:bg-panel2 hover:text-ink disabled:opacity-40"><Icon name="back" size={12} /></button>
           {dirs.map((dir) => (
             <span key={dir.path} className="flex items-center overflow-hidden rounded border border-line">
-              <button type="button" onClick={() => { void loadDirs(dir.path); void load(dir.path, null); setRef(null); setSelection(null); }} className="cursor-pointer px-2 py-0.5 text-[11.5px] text-muted hover:text-ink">{dir.name}</button>
+              <button type="button" onClick={() => { void loadDirs(dir.path); void load(dir.path, null); setRef(null); setSelection(null); }} className="cursor-pointer px-2 py-0.5 text-[12.5px] text-muted hover:text-ink">{dir.name}</button>
               <button type="button" onClick={() => void loadDirs(dir.path)} className="cursor-pointer border-l border-line px-1 py-0.5 text-muted hover:bg-panel2 hover:text-ink">›</button>
             </span>
           ))}
@@ -381,61 +381,61 @@ export default function GitTab() {
         </div>
       </div>
 
-      {error ? <div className="text-[12px] text-bad">{error}</div> : null}
+      {error ? <div className="text-[13px] text-bad">{error}</div> : null}
 
       {state ? (
         <>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-[12px]">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-[13px]">
             <span className="flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-accent"><Icon name="git" size={12} /> {state.branch}</span>
-            {state.ahead ? <span className="rounded bg-ok/15 px-1.5 py-0.5 text-[11px] text-ok">↑ {state.ahead}</span> : null}
-            {state.behind ? <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] text-warn">↓ {state.behind}</span> : null}
-            <span className={cn('rounded px-1.5 py-0.5 text-[11px]', total ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok')}>{total ? total + ' ' + t('git.changes') : t('git.clean')}</span>
+            {state.ahead ? <span className="rounded bg-ok/15 px-1.5 py-0.5 text-[12px] text-ok">↑ {state.ahead}</span> : null}
+            {state.behind ? <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[12px] text-warn">↓ {state.behind}</span> : null}
+            <span className={cn('rounded px-1.5 py-0.5 text-[12px]', total ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok')}>{total ? total + ' ' + t('git.changes') : t('git.clean')}</span>
             <div className="flex flex-wrap gap-1">
-              <button type="button" onClick={() => { setRef(null); void load(browse, null); }} className={cn('cursor-pointer rounded px-2 py-0.5 text-[11px]', !ref ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>{t('git.allBranches')}</button>
+              <button type="button" onClick={() => { setRef(null); void load(browse, null); }} className={cn('cursor-pointer rounded px-2 py-0.5 text-[12px]', !ref ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-ink')}>{t('git.allBranches')}</button>
               {state.branches.map((name) => (
-                <button key={name} type="button" onClick={() => { setRef(name); void load(browse, name); }} className={cn('mono cursor-pointer rounded px-2 py-0.5 text-[11px]', ref === name ? 'bg-accent/15 text-accent' : name === state.branch ? 'text-ink hover:bg-panel2' : 'text-muted hover:bg-panel2 hover:text-ink')}>
+                <button key={name} type="button" onClick={() => { setRef(name); void load(browse, name); }} className={cn('mono cursor-pointer rounded px-2 py-0.5 text-[12px]', ref === name ? 'bg-accent/15 text-accent' : name === state.branch ? 'text-ink hover:bg-panel2' : 'text-muted hover:bg-panel2 hover:text-ink')}>
                   {name === state.branch ? '● ' : ''}{name}
                 </button>
               ))}
             </div>
-            <span className="mono ml-auto truncate text-[11px] text-muted" title={state.path}>{state.path}</span>
+            <span className="mono ml-auto truncate text-[12px] text-muted" title={state.path}>{state.path}</span>
           </div>
 
           <div className="card flex flex-col gap-2 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.branchOps')}</span>
-              <input className="input h-7 max-w-48 text-[12px]" value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder={t('git.branchName')} maxLength={80} />
-              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !branchName.trim()} onClick={() => void gitAction(t('git.branchCreated'), () => api.post('/dev/git/branch', { path: state.path, action: 'create', name: branchName.trim() }))}>
+              <span className="text-[12px] font-semibold tracking-wide text-muted uppercase">{t('git.branchOps')}</span>
+              <input className="input h-7 max-w-48 text-[13px]" value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder={t('git.branchName')} maxLength={80} />
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" disabled={gitBusy || !branchName.trim()} onClick={() => void gitAction(t('git.branchCreated'), () => api.post('/dev/git/branch', { path: state.path, action: 'create', name: branchName.trim() }))}>
                 {t('git.createBranch')}
               </button>
-              <select className="input h-7 max-w-44 text-[12px]" value={branchTarget} onChange={(event) => setBranchTarget(event.target.value)}>
+              <select className="input h-7 max-w-44 text-[13px]" value={branchTarget} onChange={(event) => setBranchTarget(event.target.value)}>
                 <option value="">{t('git.chooseBranch')}</option>
                 {state.branches.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
-              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !branchTarget} onClick={() => void gitAction(t('git.branchSwitched'), () => api.post('/dev/git/branch', { path: state.path, action: 'switch', name: branchTarget }))}>
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" disabled={gitBusy || !branchTarget} onClick={() => void gitAction(t('git.branchSwitched'), () => api.post('/dev/git/branch', { path: state.path, action: 'switch', name: branchTarget }))}>
                 {t('git.switchBranch')}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.commit')}</span>
-              <input className="input h-7 min-w-56 flex-1 text-[12px]" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} placeholder={t('git.commitHint')} maxLength={2000} />
-              <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !commitMessage.trim() || !state.staged.length} onClick={() => void gitAction(t('git.committed'), () => api.post('/dev/git/commit', { path: state.path, message: commitMessage.trim() }))}>
+              <span className="text-[12px] font-semibold tracking-wide text-muted uppercase">{t('git.commit')}</span>
+              <input className="input h-7 min-w-56 flex-1 text-[13px]" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} placeholder={t('git.commitHint')} maxLength={2000} />
+              <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[12px]" disabled={gitBusy || !commitMessage.trim() || !state.staged.length} onClick={() => void gitAction(t('git.committed'), () => api.post('/dev/git/commit', { path: state.path, message: commitMessage.trim() }))}>
                 {t('git.commitStaged')} ({state.staged.length})
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">{t('git.stash')}</span>
-              <input className="input h-7 min-w-40 flex-1 text-[12px]" value={stashMessage} onChange={(event) => setStashMessage(event.target.value)} placeholder={t('git.stashHint')} maxLength={200} />
-              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy} onClick={() => void gitAction(t('git.stashSaved'), () => api.post('/dev/git/stash', { path: state.path, action: 'save', message: stashMessage.trim() }))}>
+              <span className="text-[12px] font-semibold tracking-wide text-muted uppercase">{t('git.stash')}</span>
+              <input className="input h-7 min-w-40 flex-1 text-[13px]" value={stashMessage} onChange={(event) => setStashMessage(event.target.value)} placeholder={t('git.stashHint')} maxLength={200} />
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" disabled={gitBusy} onClick={() => void gitAction(t('git.stashSaved'), () => api.post('/dev/git/stash', { path: state.path, action: 'save', message: stashMessage.trim() }))}>
                 {t('git.stashSave')}
               </button>
-              <select className="input h-7 max-w-56 text-[12px]" value={stashIndex} onChange={(event) => setStashIndex(Number(event.target.value))}>
+              <select className="input h-7 max-w-56 text-[13px]" value={stashIndex} onChange={(event) => setStashIndex(Number(event.target.value))}>
                 {state.stashes.length ? state.stashes.map((stash, index) => <option key={stash.ref} value={index}>{index}: {stash.message || stash.ref}</option>) : <option value={0}>{t('git.noStash')}</option>}
               </select>
-              <button type="button" className="btn cursor-pointer px-2 py-1 text-[11px]" disabled={gitBusy || !state.stashes.length} onClick={() => void gitAction(t('git.stashPopped'), () => api.post('/dev/git/stash', { path: state.path, action: 'pop', index: stashIndex }))}>
+              <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" disabled={gitBusy || !state.stashes.length} onClick={() => void gitAction(t('git.stashPopped'), () => api.post('/dev/git/stash', { path: state.path, action: 'pop', index: stashIndex }))}>
                 {t('git.stashPop')}
               </button>
-              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[11px] text-bad" disabled={gitBusy || !state.stashes.length} onClick={async () => {
+              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[12px] text-bad" disabled={gitBusy || !state.stashes.length} onClick={async () => {
                 const target = state.stashes[stashIndex];
                 if (!target) return;
                 const ok = await confirm({ title: t('git.stashDrop'), message: target.message || target.ref, danger: true, confirmLabel: t('git.stashDrop') });
@@ -461,7 +461,7 @@ export default function GitTab() {
           >
             <div className="flex min-h-0 w-full flex-col gap-2 lg:w-[var(--split)] lg:shrink-0">
               <div className="card flex max-h-[60vh] flex-col gap-0 overflow-hidden p-0">
-                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[10.5px] tracking-wide text-muted uppercase">
+                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[12.5px] tracking-wide text-muted uppercase">
                   {t('git.history')}
                   <span className="rounded bg-panel2 px-1 text-ink">{state.log.length}</span>
                   <span className="ml-auto normal-case">{ref ?? t('git.allBranches')}</span>
@@ -478,16 +478,16 @@ export default function GitTab() {
                           <GraphCell row={row} width={maxCols} />
                         </div>
                         <button type="button" onClick={() => void openDiff({ kind: 'commit', hash: row.commit.hash })} className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-left">
-                          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-panel2 text-[10px] font-semibold text-accent">{initials(row.commit.author)}</span>
+                          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-panel2 text-[12.5px] font-semibold text-accent">{initials(row.commit.author)}</span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[12px] text-ink/92" title={row.commit.subject}>{row.commit.subject}</span>
-                            <span className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted">
+                            <span className="block truncate text-[13px] text-ink/92" title={row.commit.subject}>{row.commit.subject}</span>
+                            <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
                               <span>{row.commit.author}</span>
                               <span>·</span>
                               <span>{row.commit.when}</span>
                               <span className="mono text-[#60a5fa]">{row.commit.short}</span>
                               {row.commit.refs.map((item) => (
-                                <span key={item} className={cn('rounded px-1 text-[9.5px]', item === state.head ? 'bg-accent/20 text-accent' : 'bg-ok/15 text-ok')}>
+                                <span key={item} className={cn('rounded px-1 text-[12.5px]', item === state.head ? 'bg-accent/20 text-accent' : 'bg-ok/15 text-ok')}>
                                   {item === state.head ? 'HEAD' : item}
                                 </span>
                               ))}
@@ -497,13 +497,13 @@ export default function GitTab() {
                       </div>
                     );
                   })}
-                  {!rows.rows.length ? <div className="px-3 py-4 text-[11.5px] text-muted">{t('git.noCommits')}</div> : null}
+                  {!rows.rows.length ? <div className="px-3 py-4 text-[12.5px] text-muted">{t('git.noCommits')}</div> : null}
                 </div>
               </div>
 
               <div className="card flex max-h-40 flex-col gap-1 overflow-auto p-2">
-                <div className="text-[10.5px] tracking-wide text-muted uppercase">{t('git.diffstat')}</div>
-                <pre className="mono text-[10.5px] leading-[1.4] whitespace-pre-wrap text-ink/75">{state.diffstat || t('git.noChanges')}</pre>
+                <div className="text-[12.5px] tracking-wide text-muted uppercase">{t('git.diffstat')}</div>
+                <pre className="mono text-[12.5px] leading-[1.4] whitespace-pre-wrap text-ink/75">{state.diffstat || t('git.noChanges')}</pre>
               </div>
             </div>
 
@@ -520,10 +520,10 @@ export default function GitTab() {
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
               <div className="card flex flex-col gap-2 p-2">
-                <div className="flex items-center gap-2 text-[10.5px] tracking-wide text-muted uppercase">
+                <div className="flex items-center gap-2 text-[12.5px] tracking-wide text-muted uppercase">
                   {t('git.workingTree')}
                   <span className="ml-auto flex gap-2 normal-case">
-                    <button type="button" className="cursor-pointer text-[10.5px] text-muted hover:text-ink" onClick={() => void load(state.path, ref)}>{t('git.refresh')}</button>
+                    <button type="button" className="cursor-pointer text-[12.5px] text-muted hover:text-ink" onClick={() => void load(state.path, ref)}>{t('git.refresh')}</button>
                   </span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -534,7 +534,7 @@ export default function GitTab() {
               </div>
 
               <div className="card flex min-h-[16rem] flex-1 flex-col overflow-hidden p-0">
-                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[10.5px] tracking-wide text-muted uppercase">
+                <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 text-[12.5px] tracking-wide text-muted uppercase">
                   {t('git.diff')}
                   {selection ? (
                     <span className="mono truncate normal-case text-ink/80" title={selection.kind === 'file' ? selection.file : selection.hash}>
@@ -551,7 +551,7 @@ export default function GitTab() {
           </div>
         </>
       ) : (
-        <div className="text-[12px] text-muted">{t('git.pickFolder')}</div>
+        <div className="text-[13px] text-muted">{t('git.pickFolder')}</div>
       )}
     </div>
   );

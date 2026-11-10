@@ -155,7 +155,7 @@ export default function LogsTab() {
               setPath(preset);
               void load(preset);
             }}
-            className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+            className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
             title={preset}
           >
             {preset.replace('/var/log/', '')}
@@ -170,7 +170,7 @@ export default function LogsTab() {
               key={item.path}
               type="button"
               onClick={() => { setPath(item.path); void load(item.path); }}
-              className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-ink"
+              className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
               title={item.path}
             >
               {item.path.split('/').pop()}
@@ -179,14 +179,14 @@ export default function LogsTab() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
         <input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder={t('logs.searchHint')}
           className="input mono w-56 py-1"
         />
-        <select value={level} onChange={(event) => setLevel(event.target.value as Level)} className="input w-32 py-1 text-[11.5px]" aria-label={t('logs.level')}>
+        <select value={level} onChange={(event) => setLevel(event.target.value as Level)} className="input w-32 py-1 text-[12.5px]" aria-label={t('logs.level')}>
           <option value="">{t('logs.allLevels')} ({lines.length})</option>
           {counts.map((entry) => <option key={entry.item} value={entry.item}>{entry.item} ({entry.n})</option>)}
         </select>
@@ -198,7 +198,7 @@ export default function LogsTab() {
 
       <pre
         ref={boxRef}
-        className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12px] leading-relaxed whitespace-pre-wrap"
+        className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[13px] leading-relaxed whitespace-pre-wrap"
       >
         {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.emptyFiltered')}
       </pre>

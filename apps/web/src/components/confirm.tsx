@@ -71,8 +71,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 <Icon name={state.danger ? 'trash' : 'check'} size={14} />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium text-ink">{state.title}</div>
-                {state.message ? <p className="mt-1 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-muted">{state.message}</p> : null}
+                <div className="text-[14px] font-medium text-ink">{state.title}</div>
+                {state.message ? <p className="mt-1 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-muted">{state.message}</p> : null}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-1">

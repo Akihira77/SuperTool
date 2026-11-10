@@ -75,7 +75,7 @@ function SortTh<K extends string>({
         className={cn('inline-flex items-center gap-1 hover:text-ink', active ? 'text-ink' : 'text-muted')}
       >
         {label}
-        <span className="text-[9px] opacity-70">{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+        <span className="text-[12.5px] opacity-70">{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
       </button>
     </th>
   );
@@ -284,22 +284,22 @@ export default function DockerTab() {
               }
               placeholder={t(view === 'containers' ? 'docker.searchContainers' : 'docker.searchImages')}
               aria-label={t(view === 'containers' ? 'docker.searchContainers' : 'docker.searchImages')}
-              className="input w-full py-1.5 pl-8 text-[12px]"
+              className="input w-full py-1.5 pl-8 text-[13px]"
             />
           </div>
         ) : <div className="flex-1" />}
         <button type="button" className="btn" onClick={() => void (view === 'compose' ? loadCompose() : load(view))} disabled={busy || composeBusy}>
           {busy ? <Spinner /> : <Icon name="refresh" />} {t('common.reload')}
         </button>
-        <span className="hidden text-[11px] text-muted md:inline">{t('docker.controlHint')}</span>
+        <span className="hidden text-[12px] text-muted md:inline">{t('docker.controlHint')}</span>
       </div>
 
-      {error ? <div className="text-[12px] text-bad">{error}</div> : null}
+      {error ? <div className="text-[13px] text-bad">{error}</div> : null}
 
       {view === 'compose' ? (
         <div className="flex min-h-0 flex-1 gap-3">
           <div className="w-56 shrink-0 overflow-auto rounded-lg border border-line">
-            <div className="border-b border-line px-3 py-2 text-[11px] font-medium tracking-wide text-muted uppercase">{t('docker.composeProjects')}</div>
+            <div className="border-b border-line px-3 py-2 text-[12px] font-medium tracking-wide text-muted uppercase">{t('docker.composeProjects')}</div>
             {compose.map((item) => (
               <button
                 key={item.name}
@@ -307,34 +307,34 @@ export default function DockerTab() {
                 onClick={() => void openCompose(item.name)}
                 disabled={!item.available}
                 className={cn(
-                  'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left text-[12px] hover:bg-panel2/60 disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left text-[13px] hover:bg-panel2/60 disabled:cursor-not-allowed disabled:opacity-50',
                   composeDetail?.name === item.name && 'bg-accent/10 text-accent',
                 )}
               >
                 <span className="truncate font-medium">{item.name}</span>
-                <span className="text-[10.5px] text-muted">{item.available ? item.status : t('docker.composeUnavailable')}</span>
+                <span className="text-[12.5px] text-muted">{item.available ? item.status : t('docker.composeUnavailable')}</span>
               </button>
             ))}
-            {!compose.length && !composeBusy ? <div className="p-3 text-[12px] text-muted">{t('docker.composeEmpty')}</div> : null}
+            {!compose.length && !composeBusy ? <div className="p-3 text-[13px] text-muted">{t('docker.composeEmpty')}</div> : null}
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {composeDetail ? (
               <div className="card flex flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="mono text-[13px] text-ink">{composeDetail.name}</span>
+                  <span className="mono text-[13.5px] text-ink">{composeDetail.name}</span>
                   <span className="chip">{composeDetail.status}</span>
                   <div className="ml-auto flex flex-wrap items-center gap-1">
-                    <button type="button" className="btn px-2 py-1 text-[11px]" disabled={composeBusy} onClick={() => void runComposeAction('up')}>{t('docker.composeUp')}</button>
-                    <button type="button" className="btn px-2 py-1 text-[11px]" disabled={composeBusy} onClick={() => void runComposeAction('restart')}>{t('docker.composeRestartAll')}</button>
-                    <button type="button" className="btn px-2 py-1 text-[11px] text-bad" disabled={composeBusy} onClick={() => void runComposeAction('down')}>{t('docker.composeDown')}</button>
+                    <button type="button" className="btn px-2 py-1 text-[12px]" disabled={composeBusy} onClick={() => void runComposeAction('up')}>{t('docker.composeUp')}</button>
+                    <button type="button" className="btn px-2 py-1 text-[12px]" disabled={composeBusy} onClick={() => void runComposeAction('restart')}>{t('docker.composeRestartAll')}</button>
+                    <button type="button" className="btn px-2 py-1 text-[12px] text-bad" disabled={composeBusy} onClick={() => void runComposeAction('down')}>{t('docker.composeDown')}</button>
                     {composeBusy ? <Spinner /> : null}
                   </div>
                 </div>
-                <div className="mono truncate text-[10.5px] text-muted" title={composeDetail.configFiles.join('\n')}>{composeDetail.configFiles.join(' · ')}</div>
+                <div className="mono truncate text-[12.5px] text-muted" title={composeDetail.configFiles.join('\n')}>{composeDetail.configFiles.join(' · ')}</div>
                 <div className="overflow-auto rounded-lg border border-line">
-                  <table className="w-full border-collapse text-[12px]">
-                    <thead className="bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead className="bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
                       <tr>
                         <th className="border-b border-line px-3 py-2 font-medium">{t('docker.composeService')}</th>
                         <th className="border-b border-line px-3 py-2 font-medium">{t('docker.colStatus')}</th>
@@ -363,21 +363,21 @@ export default function DockerTab() {
                       ))}
                     </tbody>
                   </table>
-                  {!composeDetail.services.length ? <div className="p-3 text-[12px] text-muted">{t('docker.composeNoServices')}</div> : null}
+                  {!composeDetail.services.length ? <div className="p-3 text-[13px] text-muted">{t('docker.composeNoServices')}</div> : null}
                 </div>
               </div>
             ) : (
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-line text-[12px] text-muted">{t('docker.composePick')}</div>
+              <div className="flex flex-1 items-center justify-center rounded-lg border border-line text-[13px] text-muted">{t('docker.composePick')}</div>
             )}
 
             {composeLogs ? (
               <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-line">
-                <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[12px]">
+                <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[13px]">
                   <Icon name="dev" size={13} className="text-accent" />
                   <span className="mono truncate">{composeDetail?.name}/{composeLogs.service}</span>
                   <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => setComposeLogs(null)} title={t('common.close')} aria-label={t('common.close')}><Icon name="x" size={13} /></button>
                 </div>
-                <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[11.5px] leading-relaxed whitespace-pre-wrap">{composeLogs.text || t('docker.logsEmpty')}</pre>
+                <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[12.5px] leading-relaxed whitespace-pre-wrap">{composeLogs.text || t('docker.logsEmpty')}</pre>
               </div>
             ) : null}
           </div>
@@ -385,8 +385,8 @@ export default function DockerTab() {
       ) : (
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line">
-          <table className="w-full border-collapse text-[12px]">
-            <thead className="sticky top-0 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+          <table className="w-full border-collapse text-[13px]">
+            <thead className="sticky top-0 bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
               {view === 'containers' ? (
                 <tr>
                   <SortTh
@@ -512,12 +512,12 @@ export default function DockerTab() {
             </tbody>
           </table>
           {!busy && view === 'containers' && !visibleContainers.length ? (
-            <div className="p-4 text-[12px] text-muted">
+            <div className="p-4 text-[13px] text-muted">
               {containers.length ? t('docker.noResults') : t('docker.empty')}
             </div>
           ) : null}
           {!busy && view === 'images' && !visibleImages.length ? (
-            <div className="p-4 text-[12px] text-muted">
+            <div className="p-4 text-[13px] text-muted">
               {images.length ? t('docker.noResults') : t('docker.emptyImages')}
             </div>
           ) : null}
@@ -525,7 +525,7 @@ export default function DockerTab() {
 
         {logs ? (
           <div className="flex w-1/2 min-w-0 flex-col rounded-lg border border-line">
-            <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[12px]">
+            <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[13px]">
               <Icon name="dev" size={13} className="text-accent" />
               <span className="mono truncate">{logs.id}</span>
               <button
@@ -538,7 +538,7 @@ export default function DockerTab() {
                 <Icon name="x" size={13} />
               </button>
             </div>
-            <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[11.5px] leading-relaxed whitespace-pre-wrap">
+            <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[12.5px] leading-relaxed whitespace-pre-wrap">
               {logs.text || t('docker.logsEmpty')}
             </pre>
           </div>

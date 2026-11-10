@@ -236,7 +236,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             onPointerCancel={endDrag}
           >
             <Icon name={track.kind === 'video' ? 'play' : 'music'} size={14} className="shrink-0 text-accent" />
-            <span className="min-w-0 flex-1 truncate text-[12px] font-medium" title={track.path}>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium" title={track.path}>
               {track.name}
             </span>
             {track.kind === 'video' ? (
@@ -313,7 +313,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 className="min-w-0 flex-1 accent-accent"
                 aria-label="Posisi"
               />
-              <span className="mono w-16 shrink-0 text-right text-[10.5px] text-muted">
+              <span className="mono w-16 shrink-0 text-right text-[12.5px] text-muted">
                 {clock(time)} / {clock(duration)}
               </span>
             </div>
@@ -329,9 +329,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 className="min-w-0 flex-1 accent-accent"
                 aria-label="Volume"
               />
-              <span className="mono w-9 shrink-0 text-right text-[10.5px] text-muted">{Math.round(volume * 100)}%</span>
+              <span className="mono w-9 shrink-0 text-right text-[12.5px] text-muted">{Math.round(volume * 100)}%</span>
             </div>
-            {error ? <div className="text-[11px] text-bad">{error}</div> : null}
+            {error ? <div className="text-[12px] text-bad">{error}</div> : null}
           </div>
         </div>
       ) : null}

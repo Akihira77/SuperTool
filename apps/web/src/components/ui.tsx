@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useI18n } from '../lib/i18n';
 
 export const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
@@ -95,6 +95,7 @@ export function PasswordInput({
   invalid?: boolean;
 }) {
   const [show, setShow] = useState(false);
+  const { t } = useI18n();
   return (
     <div className="relative">
       <input
@@ -110,8 +111,8 @@ export function PasswordInput({
       <button
         type="button"
         onClick={() => setShow(!show)}
-        aria-label={show ? 'Sembunyikan password' : 'Tampilkan password'}
-        title={show ? 'Sembunyikan' : 'Tampilkan'}
+        aria-label={show ? t('auth.hidePassword') : t('auth.showPassword')}
+        title={show ? t('auth.hidePassword') : t('auth.showPassword')}
         className="absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-1.5 text-muted transition-colors hover:bg-panel2 hover:text-ink"
       >
         <Icon name={show ? 'eyeOff' : 'eye'} size={15} />
@@ -140,11 +141,11 @@ export function PageHeader({
           </span>
         ) : null}
         <div className="min-w-0">
-          <h1 className="truncate text-[16px] leading-6 font-semibold tracking-[-0.01em]">{title}</h1>
-          {subtitle ? <p className="mt-0.5 max-w-[70vw] truncate text-[11.5px] text-muted">{subtitle}</p> : null}
+          <h1 className="truncate text-[20px] leading-7 font-semibold tracking-[-0.015em]">{title}</h1>
+          {subtitle ? <p className="mt-0.5 hidden max-w-[70vw] truncate text-[13px] text-muted sm:block">{subtitle}</p> : null}
         </div>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:w-full max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:py-0.5">{children}</div>
     </header>
   );
 }
@@ -178,7 +179,7 @@ export function Empty({ text, icon, action }: { text: string; icon?: string; act
       <span className="grid size-11 place-items-center rounded-2xl border border-line bg-panel2/70 text-muted/80">
         <Icon name={icon ?? 'search'} size={19} />
       </span>
-      <p className="max-w-sm text-[12.5px] leading-relaxed text-muted">{text}</p>
+      <p className="max-w-sm text-[13.5px] leading-relaxed text-muted">{text}</p>
       {action}
     </div>
   );
@@ -189,6 +190,8 @@ export type TabItem<T extends string = string> = {
   label: string;
   icon?: string;
   action?: string;
+  /** id panel yang dikendalikan tab; dipakai untuk aria-controls. */
+  panelId?: string;
 };
 
 export function Tabs<T extends string>({
@@ -202,21 +205,47 @@ export function Tabs<T extends string>({
   onChange: (value: T) => void;
   className?: string;
 }) {
+  const baseId = useId();
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const focusTab = (index: number) => {
+    const next = items[index];
+    if (!next) return;
+    onChange(next.id);
+    refs.current[index]?.focus();
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let target = -1;
+    if (event.key === 'ArrowRight') target = (index + 1) % items.length;
+    else if (event.key === 'ArrowLeft') target = (index - 1 + items.length) % items.length;
+    else if (event.key === 'Home') target = 0;
+    else if (event.key === 'End') target = items.length - 1;
+    if (target < 0) return;
+    event.preventDefault();
+    focusTab(target);
+  };
+
   return (
-    <div role="tablist" className={cn('tabbar', className)}>
-      {items.map((item) => {
+    <div role="tablist" aria-orientation="horizontal" className={cn('tabbar', className)}>
+      {items.map((item, index) => {
         const active = item.id === value;
         return (
           <button
             key={item.id}
+            ref={(node) => { refs.current[index] = node; }}
+            id={baseId + '-tab-' + item.id}
             type="button"
             role="tab"
             aria-selected={active}
+            aria-controls={item.panelId}
+            tabIndex={active ? 0 : -1}
             data-action={item.action}
             onClick={() => onChange(item.id)}
+            onKeyDown={(event) => onKeyDown(event, index)}
             className={cn('tab', active && 'tab-active')}
           >
-            {item.icon ? <Icon name={item.icon} size={13} /> : null}
+            {item.icon ? <Icon name={item.icon} size={14} /> : null}
             {item.label}
           </button>
         );

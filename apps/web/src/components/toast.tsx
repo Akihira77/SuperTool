@@ -43,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             type="button"
             onClick={() => setItems((prev) => prev.filter((entry) => entry.id !== item.id))}
             className={cn(
-              'pointer-events-auto flex animate-[toast-in_160ms_ease-out] cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-left text-[12.5px] shadow-lg backdrop-blur',
+              'pointer-events-auto flex animate-[toast-in_160ms_ease-out] cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-left text-[13.5px] shadow-lg backdrop-blur',
               item.tone === 'ok'
                 ? 'border-ok/40 bg-ok/12 text-ok'
                 : item.tone === 'error'

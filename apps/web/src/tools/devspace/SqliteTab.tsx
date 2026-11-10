@@ -33,7 +33,7 @@ function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
   const { t } = useI18n();
   return (
     <div className="card flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-2.5 py-1.5 text-[11px] text-muted">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-2.5 py-1.5 text-[12px] text-muted">
         <Icon name="db" size={13} className="text-accent" />
         <span className="font-medium text-ink/85">{caption}</span>
         <span className="chip">{grid.columns.length} {t('db.columns')}</span>
@@ -41,8 +41,8 @@ function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
         {grid.truncated ? <span className="chip border-warn/30 text-warn">{t('db.truncated')}</span> : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full border-collapse text-[11.5px]">
-          <thead className="sticky top-0 z-10 bg-panel2 text-left text-[10.5px] tracking-wide text-muted uppercase">
+        <table className="w-full border-collapse text-[12.5px]">
+          <thead className="sticky top-0 z-10 bg-panel2 text-left text-[12.5px] tracking-wide text-muted uppercase">
             <tr>
               {grid.columns.map((column) => (
                 <th key={column} className="border-b border-line px-2.5 py-1.5 font-medium whitespace-nowrap">
@@ -63,7 +63,7 @@ function DataGrid({ grid, caption }: { grid: Grid; caption: string }) {
             ))}
             {!grid.rows.length ? (
               <tr>
-                <td colSpan={Math.max(1, grid.columns.length)} className="px-3 py-6 text-center text-[12px] text-muted">
+                <td colSpan={Math.max(1, grid.columns.length)} className="px-3 py-6 text-center text-[13px] text-muted">
                   {t('db.noRows')}
                 </td>
               </tr>
@@ -149,10 +149,10 @@ export default function SqliteTab() {
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[13px] font-semibold">super-tool.db</span>
+              <span className="text-[13.5px] font-semibold">super-tool.db</span>
               <span className="chip">{t('db.readOnly')}</span>
             </div>
-            <div className="mono max-w-full truncate text-[10.5px] text-muted" title={info?.path}>
+            <div className="mono max-w-full truncate text-[12.5px] text-muted" title={info?.path}>
               {info?.path ?? t('db.loading')}
             </div>
           </div>
@@ -171,21 +171,21 @@ export default function SqliteTab() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[12px] text-bad">{error}</div>
+        <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row">
         <div className="card flex max-h-52 w-full shrink-0 flex-col gap-2 overflow-hidden p-2 md:max-h-none md:w-56">
           <div className="flex items-center justify-between px-1">
             <span className="label">{t('db.tables')}</span>
-            <span className="text-[10px] text-muted">{tables.length}</span>
+            <span className="text-[12.5px] text-muted">{tables.length}</span>
           </div>
           <div className="relative">
             <Icon name="search" size={12} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-muted/70" />
             <input
               value={tableQuery}
               onChange={(event) => setTableQuery(event.target.value)}
-              className="input py-1 pl-7 text-[11.5px]"
+              className="input py-1 pl-7 text-[12.5px]"
               placeholder={t('db.searchTables')}
               aria-label={t('db.searchTables')}
             />
@@ -197,24 +197,24 @@ export default function SqliteTab() {
                 type="button"
                 onClick={() => void loadTable(table.name, 0, limit)}
                 className={cn(
-                  'flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-left text-[11.5px] transition-colors',
+                  'flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors',
                   active === table.name
                     ? 'border border-accent/25 bg-accent/12 text-accent'
                     : 'border border-transparent text-muted hover:bg-panel2 hover:text-ink',
                 )}
               >
                 <span className="min-w-0 flex-1 truncate">{table.name}</span>
-                <span className="text-[10px] text-muted/70">{table.rows < 0 ? '?' : table.rows.toLocaleString()}</span>
+                <span className="text-[12.5px] text-muted/70">{table.rows < 0 ? '?' : table.rows.toLocaleString()}</span>
               </button>
             ))}
             {!tables.length ? (
-              <div className="px-1 py-2 text-[11.5px] text-muted">{t('db.noTables')}</div>
+              <div className="px-1 py-2 text-[12.5px] text-muted">{t('db.noTables')}</div>
             ) : null}
           </div>
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <div className="card flex flex-wrap items-center gap-2 px-2.5 py-2 text-[11.5px] text-muted">
+          <div className="card flex flex-wrap items-center gap-2 px-2.5 py-2 text-[12.5px] text-muted">
             <span className="label">{t('db.rows')}</span>
             <select
               value={limit}
@@ -223,7 +223,7 @@ export default function SqliteTab() {
                 if (active) void loadTable(active, 0, next);
                 else setLimit(next);
               }}
-              className="input w-auto py-0.5 text-[11.5px]"
+              className="input w-auto py-0.5 text-[12.5px]"
             >
               {[50, 100, 250, 500].map((value) => (
                 <option key={value} value={value}>
@@ -238,7 +238,7 @@ export default function SqliteTab() {
                   className="btn px-1.5 py-0.5"
                   disabled={!active || offset === 0 || busy}
                   onClick={() => active && void loadTable(active, Math.max(0, offset - limit), limit)}
-                  aria-label="Previous page"
+                  aria-label={t('common.previous')}
                 >
                   ←
                 </button>
@@ -250,7 +250,7 @@ export default function SqliteTab() {
                   className="btn px-1.5 py-0.5"
                   disabled={!active || offset + limit >= grid.total || busy}
                   onClick={() => active && void loadTable(active, offset + limit, limit)}
-                  aria-label="Next page"
+                  aria-label={t('common.next')}
                 >
                   →
                 </button>
@@ -264,7 +264,7 @@ export default function SqliteTab() {
           ) : (
             <div className="card flex min-h-40 flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
               <Icon name="db" size={22} className="text-muted/50" />
-              <span className="text-[12px] text-muted">{t('db.pick')}</span>
+              <span className="text-[13px] text-muted">{t('db.pick')}</span>
             </div>
           )}
 
@@ -280,7 +280,7 @@ export default function SqliteTab() {
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void runSql();
               }}
               spellCheck={false}
-              className="input mono h-24 resize-none text-[11.5px]"
+              className="input mono h-24 resize-none text-[12.5px]"
               aria-label="SQL"
             />
             <div className="flex flex-wrap items-center gap-2">

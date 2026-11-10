@@ -153,7 +153,7 @@ function Treemap({
                 x={box.x + 7}
                 y={box.y + (showSize ? 19 : box.h / 2)}
                 fill="#fff"
-                fontSize={Math.min(14, Math.max(10, box.w / 12))}
+                fontSize={Math.min(14, Math.max(11.5, box.w / 12))}
                 fontWeight={600}
                 dominantBaseline="middle"
                 pointerEvents="none"
@@ -162,7 +162,7 @@ function Treemap({
               </text>
             ) : null}
             {showSize ? (
-              <text x={box.x + 7} y={box.y + 36} fill="#fff" opacity={0.82} fontSize={11} dominantBaseline="middle" pointerEvents="none">
+              <text x={box.x + 7} y={box.y + 36} fill="#fff" opacity={0.82} fontSize={11.5} dominantBaseline="middle" pointerEvents="none">
                 {bytes(node.size)}
               </text>
             ) : null}
@@ -289,7 +289,7 @@ export default function StorageTool() {
         <div
           data-storage-path={node.path}
           className={cn(
-            'group flex items-center gap-2 border-b border-line/50 px-2 py-1.5 text-[12.5px] transition-colors hover:bg-panel2/60',
+            'group flex items-center gap-2 border-b border-line/50 px-2 py-1.5 text-[13.5px] transition-colors hover:bg-panel2/60',
             activePath === node.path ? 'bg-accent/10 ring-1 ring-inset ring-accent/40' : depth === 0 ? 'bg-panel/30' : '',
           )}
           style={{ paddingLeft: 8 + depth * 18 }}
@@ -305,15 +305,15 @@ export default function StorageTool() {
           <Icon name="folder" size={14} className="shrink-0 text-accent/80" />
           <button
             type="button"
-            className="min-w-0 flex-1 truncate text-left hover:text-accent"
+            className="min-h-8 min-w-0 flex-1 truncate text-left hover:text-accent"
             title={node.path}
             onClick={() => (childCount ? toggle(node.path) : undefined)}
           >
             <span className={depth === 0 ? 'font-medium' : ''}>{node.name}</span>
-            {childCount && !open ? <span className="ml-2 text-[10px] text-muted">{childCount}</span> : null}
+            {childCount && !open ? <span className="ml-2 text-[12.5px] text-muted">{childCount}</span> : null}
           </button>
           <span className="mono w-20 shrink-0 text-right text-muted">{bytes(node.size)}</span>
-          <span className="hidden w-12 shrink-0 text-right text-[11px] text-muted/70 sm:block">{pct.toFixed(1)}%</span>
+          <span className="hidden w-12 shrink-0 text-right text-[12px] text-muted/70 sm:block">{pct.toFixed(1)}%</span>
           <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
@@ -364,7 +364,7 @@ export default function StorageTool() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader title={t('storage.title')} subtitle={t('storage.subtitle')} icon="storage">
-        {data ? <span className="text-[11px] text-muted">{new Date(data.scannedAt).toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-US')}</span> : null}
+        {data ? <span className="text-[12px] text-muted">{new Date(data.scannedAt).toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-US')}</span> : null}
         <button type="button" className="btn" onClick={() => void load(true)} disabled={loading}>
           {loading ? <Spinner /> : <Icon name="refresh" size={13} />}
           {loading ? t('storage.scanning') : t('storage.scan')}
@@ -388,37 +388,37 @@ export default function StorageTool() {
           <div className="space-y-4">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <div className="card p-3">
-                <div className="text-[10.5px] uppercase tracking-wide text-muted">{t('storage.total')}</div>
+                <div className="text-[12.5px] uppercase tracking-wide text-muted">{t('storage.total')}</div>
                 <div className="mono mt-1 text-[18px] font-semibold">{bytes(data.total)}</div>
-                <div className="mt-0.5 truncate text-[10.5px] text-muted" title={data.root}>{data.root}</div>
+                <div className="mt-0.5 truncate text-[12.5px] text-muted" title={data.root}>{data.root}</div>
               </div>
               <div className="card p-3">
-                <div className="text-[10.5px] uppercase tracking-wide text-muted">{t('storage.folders')}</div>
+                <div className="text-[12.5px] uppercase tracking-wide text-muted">{t('storage.folders')}</div>
                 <div className="mono mt-1 text-[18px] font-semibold">{data.count.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US')}</div>
-                <div className="mt-0.5 text-[10.5px] text-muted">{data.truncated ? t('storage.truncated') : '—'}</div>
+                <div className="mt-0.5 text-[12.5px] text-muted">{data.truncated ? t('storage.truncated') : '—'}</div>
               </div>
               {data.disk ? (
                 <div className="card p-3">
-                  <div className="text-[10.5px] uppercase tracking-wide text-muted">{t('storage.free')}</div>
+                  <div className="text-[12.5px] uppercase tracking-wide text-muted">{t('storage.free')}</div>
                   <div className="mono mt-1 text-[18px] font-semibold">{bytes(data.disk.free)}</div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-panel2">
                     <div className="h-full rounded-full bg-accent" style={{ width: Math.min(100, diskPct) + '%' }} />
                   </div>
-                  <div className="mt-0.5 text-right text-[10.5px] text-muted">{diskPct.toFixed(1)}% {t('storage.used')}</div>
+                  <div className="mt-0.5 text-right text-[12.5px] text-muted">{diskPct.toFixed(1)}% {t('storage.used')}</div>
                 </div>
               ) : null}
               {data.warning ? (
                 <div className="card border-warn/30 p-3">
-                  <div className="text-[10.5px] uppercase tracking-wide text-warn">{t('storage.warning')}</div>
-                  <div className="mt-1 text-[11.5px] text-warn/90 break-words">{warningText}</div>
+                  <div className="text-[12.5px] uppercase tracking-wide text-warn">{t('storage.warning')}</div>
+                  <div className="mt-1 text-[12.5px] text-warn/90 break-words">{warningText}</div>
                 </div>
               ) : null}
             </div>
 
             <section className="card overflow-hidden">
               <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
-                <h2 className="text-[12px] font-semibold">{t('storage.treemap')}</h2>
-                <span className="text-[10.5px] text-muted">{tree.length} {t('storage.topLevel')}</span>
+                <h2 className="text-[13px] font-semibold">{t('storage.treemap')}</h2>
+                <span className="text-[12.5px] text-muted">{tree.length} {t('storage.topLevel')}</span>
               </div>
               <div className="p-2">
                 <Treemap nodes={tree} total={data.total} label={t('storage.treemapAria')} onSelect={focusPath} />
@@ -427,19 +427,19 @@ export default function StorageTool() {
 
             <section className="card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
-                <h2 className="text-[12px] font-semibold">{t('storage.foldersList')}</h2>
+                <h2 className="text-[13px] font-semibold">{t('storage.foldersList')}</h2>
                 <div className="flex items-center gap-1">
-                  <span className="mr-1 text-[10.5px] text-muted">{t('storage.sortSize')}/{t('storage.sortName')}</span>
+                  <span className="mr-1 text-[12.5px] text-muted">{t('storage.sortSize')}/{t('storage.sortName')}</span>
                   <button
                     type="button"
-                    className={cn('btn px-2 py-1 text-[11px]', sort === 'size' ? 'border-accent/40 text-accent' : '')}
+                    className={cn('btn px-2 py-1 text-[12px]', sort === 'size' ? 'border-accent/40 text-accent' : '')}
                     onClick={() => setSort('size')}
                   >
                     {t('storage.sortSize')}
                   </button>
                   <button
                     type="button"
-                    className={cn('btn px-2 py-1 text-[11px]', sort === 'name' ? 'border-accent/40 text-accent' : '')}
+                    className={cn('btn px-2 py-1 text-[12px]', sort === 'name' ? 'border-accent/40 text-accent' : '')}
                     onClick={() => setSort('name')}
                   >
                     {t('storage.sortName')}
@@ -449,17 +449,17 @@ export default function StorageTool() {
               {tree.length ? (
                 <div className="divide-y divide-line/30">{tree.map((node) => renderNode(node, 0))}</div>
               ) : (
-                <div className="p-5 text-[12px] text-muted">{t('storage.empty')}</div>
+                <div className="p-5 text-[13px] text-muted">{t('storage.empty')}</div>
               )}
             </section>
 
             <section className="card border-bad/20 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-[12px] font-semibold text-bad">
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-bad">
                     <Icon name="trash" size={14} /> {t('storage.danger')}
                   </h2>
-                  <p className="mt-1 max-w-2xl text-[11.5px] text-muted">{t('storage.dockerHint')}</p>
+                  <p className="mt-1 max-w-2xl text-[12.5px] text-muted">{t('storage.dockerHint')}</p>
                 </div>
                 <button
                   type="button"
@@ -473,15 +473,15 @@ export default function StorageTool() {
               </div>
               {dockerOutput ? (
                 <div className="mt-3">
-                  <div className="mb-1 text-[10.5px] uppercase tracking-wide text-muted">{t('storage.dockerOutput')}</div>
-                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-panel2 p-2 text-[10.5px] text-muted">
+                  <div className="mb-1 text-[12.5px] uppercase tracking-wide text-muted">{t('storage.dockerOutput')}</div>
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-panel2 p-2 text-[12.5px] text-muted">
                     {dockerOutput.slice(0, 4000)}
                   </pre>
                 </div>
               ) : null}
             </section>
 
-            {error ? <div className="text-[12px] text-bad">{error}</div> : null}
+            {error ? <div className="text-[13px] text-bad">{error}</div> : null}
           </div>
         ) : null}
       </div>

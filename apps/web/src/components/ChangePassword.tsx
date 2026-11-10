@@ -51,7 +51,7 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
           </div>
           <div>
             <h1 className="text-[17px] font-semibold tracking-tight">{t('password.title')}</h1>
-            <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted">{forced ? t('password.forced') : t('password.subtitle')}</p>
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">{forced ? t('password.forced') : t('password.subtitle')}</p>
           </div>
         </div>
 
@@ -63,16 +63,16 @@ export default function ChangePassword({ onDone, forced }: { onDone: () => void;
           <div>
             <label className="label mb-1.5 block">{t('password.next')}</label>
             <PasswordInput value={next} onChange={setNext} placeholder={t('password.placeholder')} invalid={tooShort} label={t('password.next')} />
-            {tooShort ? <p className="mt-1 text-[11px] text-bad">{t('password.tooShort')}</p> : null}
+            {tooShort ? <p className="mt-1 text-[12px] text-bad">{t('password.tooShort')}</p> : null}
           </div>
           <div>
             <label className="label mb-1.5 block">{t('password.confirm')}</label>
             <PasswordInput value={confirm} onChange={setConfirm} invalid={mismatch} label={t('password.confirm')} />
-            {mismatch ? <p className="mt-1 text-[11px] text-bad">{t('password.mismatch')}</p> : null}
+            {mismatch ? <p className="mt-1 text-[12px] text-bad">{t('password.mismatch')}</p> : null}
           </div>
         </div>
 
-        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[11.5px] text-bad">{error}</p> : null}
+        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[12.5px] text-bad">{error}</p> : null}
 
         <button type="submit" disabled={busy || !ready} className="btn btn-primary mt-5 w-full justify-center py-2.5">
           {busy ? <Spinner /> : <Icon name="check" />}

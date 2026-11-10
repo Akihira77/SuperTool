@@ -126,7 +126,7 @@ export default function EncodeTab() {
         {mode === 'konversi' ? (
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] tracking-wide text-muted uppercase">Dari</span>
+              <span className="text-[12px] tracking-wide text-muted uppercase">Dari</span>
               <select value={from} onChange={(event) => setFrom(event.target.value as Enc)} className="input w-auto cursor-pointer py-1">
                 {ENCS.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -149,7 +149,7 @@ export default function EncodeTab() {
               <Icon name="refresh" size={13} />
             </button>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] tracking-wide text-muted uppercase">Ke</span>
+              <span className="text-[12px] tracking-wide text-muted uppercase">Ke</span>
               <select value={to} onChange={(event) => setTo(event.target.value as Enc)} className="input w-auto cursor-pointer py-1">
                 {ENCS.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -162,7 +162,7 @@ export default function EncodeTab() {
         ) : null}
 
         <label className="flex min-h-0 flex-1 flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Input</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Input</span>
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -174,7 +174,7 @@ export default function EncodeTab() {
 
         <div className="flex flex-wrap items-center gap-2">
           {mode === 'url' || mode === 'html' ? (
-            <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-muted">
+            <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted">
               <input type="checkbox" checked={decode} onChange={(event) => setDecode(event.target.checked)} />
               Mode decode
             </label>
@@ -188,16 +188,16 @@ export default function EncodeTab() {
       <div className="flex flex-col gap-3">
         <div className="flex min-h-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-1">
-            <span className="text-[11px] tracking-wide text-muted uppercase">Hasil</span>
+            <span className="text-[12px] tracking-wide text-muted uppercase">Hasil</span>
             {output ? <CopyButton text={output} label="Salin hasil" /> : null}
           </div>
           <pre className="input mono min-h-[200px] flex-1 overflow-auto whitespace-pre-wrap">{output}</pre>
-          {error ? <span className="text-[11.5px] text-bad">{error}</span> : null}
+          {error ? <span className="text-[12.5px] text-bad">{error}</span> : null}
         </div>
 
         <div className="card flex flex-col gap-2 p-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] tracking-wide text-muted uppercase">Hash dari input</span>
+            <span className="text-[12px] tracking-wide text-muted uppercase">Hash dari input</span>
             {busy ? <Spinner /> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +220,7 @@ export default function EncodeTab() {
           </div>
           {hash ? (
             <div className="flex items-center gap-2">
-              <code className="mono flex-1 break-all rounded bg-panel2 px-2 py-1 text-[11.5px] text-ink/90">{hash}</code>
+              <code className="mono flex-1 break-all rounded bg-panel2 px-2 py-1 text-[12.5px] text-ink/90">{hash}</code>
               <CopyButton text={hash} label="Hash" />
             </div>
           ) : null}

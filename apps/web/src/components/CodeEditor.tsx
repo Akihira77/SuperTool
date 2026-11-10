@@ -55,7 +55,7 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
       <div
         ref={gutterRef}
         aria-hidden="true"
-        className="mono shrink-0 select-none overflow-hidden border-r border-line/70 bg-panel/40 px-2 py-3 text-right text-[12px] leading-[1.55rem] text-muted/50"
+        className="mono shrink-0 select-none overflow-hidden border-r border-line/70 bg-panel/40 px-2.5 py-3 text-right text-[13px] leading-[1.65rem] text-muted/50"
       >
         {Array.from({ length: lineCount }, (_, i) => (
           <div key={i}>{i + 1}</div>
@@ -66,6 +66,8 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
         value={value}
         readOnly={readOnly}
         spellCheck={false}
+        aria-label={placeholder ?? 'Editor kode'}
+        aria-multiline="true"
         placeholder={placeholder}
         onChange={(e) => onChange?.(e.target.value)}
         onKeyDown={handleKey}
@@ -74,7 +76,7 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
         }}
         onContextMenu={onContextMenu}
         className={cn(
-          'mono min-h-0 flex-1 resize-none overflow-y-scroll bg-transparent px-3 py-3 text-[12.5px] leading-[1.55rem] text-ink/90 outline-none placeholder:text-muted/50',
+          'mono min-h-0 flex-1 resize-none overflow-y-scroll bg-transparent px-3 py-3 text-[14px] leading-[1.65rem] text-ink/90 outline-none placeholder:text-muted/50',
           wrap ? 'whitespace-pre-wrap' : 'whitespace-pre',
         )}
       />

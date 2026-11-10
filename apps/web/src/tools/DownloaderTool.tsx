@@ -288,7 +288,7 @@ export default function DownloaderTool() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader title={t('downloader.title')} subtitle={t('downloader.subtitle')} icon="download">
-        <span className="rounded-md border border-line bg-panel2 px-2 py-1 text-[10.5px] text-muted">MP4 · MP3</span>
+        <span className="rounded-md border border-line bg-panel2 px-2 py-1 text-[12.5px] text-muted">MP4 · MP3</span>
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
@@ -324,7 +324,7 @@ export default function DownloaderTool() {
             </div>
 
             {!info ? (
-              <p className="flex items-start gap-2 rounded-lg border border-line bg-panel2/40 px-3 py-2 text-[11.5px] text-muted">
+              <p className="flex items-start gap-2 rounded-lg border border-line bg-panel2/40 px-3 py-2 text-[12.5px] text-muted">
                 <Icon name="eye" size={13} className="mt-0.5 shrink-0 text-accent/70" />
                 <span>{t('downloader.infoHint')}</span>
               </p>
@@ -351,15 +351,15 @@ export default function DownloaderTool() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded border border-line bg-panel px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                      <span className="rounded border border-line bg-panel px-1.5 py-0.5 text-[12.5px] font-medium text-accent">
                         {sourceLabel(info.source)}
                       </span>
-                      {info.live ? <span className="rounded bg-bad/10 px-1.5 py-0.5 text-[10px] text-bad">LIVE</span> : null}
+                      {info.live ? <span className="rounded bg-bad/10 px-1.5 py-0.5 text-[12.5px] text-bad">LIVE</span> : null}
                     </div>
                     <h2 className="mt-1.5 text-[14px] leading-snug font-semibold break-words">
                       {info.title || t('downloader.noTitle')}
                     </h2>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted">
                       {info.uploader ? <span className="truncate">{info.uploader}</span> : null}
                       <span>
                         {t('downloader.duration')}: {durationLabel(info.duration, '—')}
@@ -369,7 +369,7 @@ export default function DownloaderTool() {
                 </div>
 
                 {info.live ? (
-                  <div className="border-t border-bad/30 bg-bad/5 px-3 py-2 text-[11.5px] text-bad">{t('downloader.live')}</div>
+                  <div className="border-t border-bad/30 bg-bad/5 px-3 py-2 text-[12.5px] text-bad">{t('downloader.live')}</div>
                 ) : (
                   <div className="grid gap-3 border-t border-line p-3 sm:grid-cols-2">
                     <label className="flex min-w-0 flex-col">
@@ -403,10 +403,10 @@ export default function DownloaderTool() {
                         className="mt-0.5 size-4"
                       />
                       <span className="min-w-0">
-                        <span className="flex items-center gap-1 text-[12.5px] font-medium">
+                        <span className="flex items-center gap-1 text-[13.5px] font-medium">
                           <Icon name="music" size={13} className="text-accent/80" /> {t('downloader.audioOnly')}
                         </span>
-                        <span className="mt-0.5 block text-[11px] text-muted">
+                        <span className="mt-0.5 block text-[12px] text-muted">
                           {info.hasAudio ? t('downloader.audioOnlyHint') : t('downloader.noAudio')}
                         </span>
                       </span>
@@ -417,7 +417,7 @@ export default function DownloaderTool() {
             ) : null}
 
             {error ? (
-              <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[12px] break-words text-bad">
+              <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] break-words text-bad">
                 {error}
               </div>
             ) : null}
@@ -426,7 +426,7 @@ export default function DownloaderTool() {
               <div
                 role="status"
                 aria-live="polite"
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-[12px] text-ink"
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-[13px] text-ink"
               >
                 <Spinner />
                 <span>
@@ -441,7 +441,7 @@ export default function DownloaderTool() {
                 <span className="mono text-muted">{t('downloader.elapsed').replace('{s}', String(elapsed))}</span>
                 <button
                   type="button"
-                  className="btn btn-ghost ml-auto px-2 py-1 text-[11px]"
+                  className="btn btn-ghost ml-auto px-2 py-1 text-[12px]"
                   onClick={cancel}
                   disabled={!controllerRef.current}
                 >
@@ -456,23 +456,23 @@ export default function DownloaderTool() {
               </button>
             ) : null}
 
-            <p className="flex items-start gap-2 text-[11px] text-muted">
+            <p className="flex items-start gap-2 text-[12px] text-muted">
               <Icon name="lock" size={13} className="mt-0.5 shrink-0 text-accent/70" />
               <span>{t('downloader.hint')} {t('downloader.note')}</span>
             </p>
           </form>
 
-          <div className="card flex flex-col gap-3 p-4 text-[12px]">
+          <div className="card flex flex-col gap-3 p-4 text-[13px]">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10.5px] font-medium tracking-wide text-muted uppercase">{t('downloader.supported')}</span>
+              <span className="text-[12.5px] font-medium tracking-wide text-muted uppercase">{t('downloader.supported')}</span>
               {['YouTube', 'Facebook', 'Bilibili'].map((site) => (
-                <span key={site} className="rounded-md border border-line bg-panel2 px-2 py-1 text-[11px]">
+                <span key={site} className="rounded-md border border-line bg-panel2 px-2 py-1 text-[12px]">
                   {site}
                 </span>
               ))}
             </div>
             <p className="text-muted">{t('downloader.tip')}</p>
-            <p className="text-[11px] text-muted/80">{t('downloader.chooseFolder')}</p>
+            <p className="text-[12px] text-muted/80">{t('downloader.chooseFolder')}</p>
           </div>
         </div>
       </div>

@@ -155,7 +155,7 @@ export default function WebhookTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('webhook.title')} subtitle={t('webhook.subtitle')} icon="webhook">
-        <span className={cn('flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px]', live ? 'bg-ok/15 text-ok' : 'bg-panel2 text-muted')}>
+        <span className={cn('flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px]', live ? 'bg-ok/15 text-ok' : 'bg-panel2 text-muted')}>
           <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-ok' : 'bg-muted')} />
           {live ? t('webhook.live') : t('webhook.paused')}
         </span>
@@ -178,16 +178,16 @@ export default function WebhookTool() {
                 <span
                   key={endpoint.id}
                   className={cn(
-                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] transition-colors',
+                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12.5px] transition-colors',
                     isActive ? 'border-accent/50 bg-accent/12 text-ink' : 'border-line text-muted hover:border-accent/30 hover:text-ink',
                   )}
                 >
-                  <button type="button" onClick={() => { setActiveId(endpoint.id); setSelected(null); }} className="max-w-40 cursor-pointer truncate">
+                  <button type="button" onClick={() => { setActiveId(endpoint.id); setSelected(null); }} className="min-h-6 max-w-40 cursor-pointer truncate">
                     {endpoint.name}
                   </button>
-                  <span className={cn('rounded px-1 text-[10px]', isActive ? 'bg-accent/20 text-accent' : 'bg-panel2')}>{count}</span>
+                  <span className={cn('rounded px-1 text-[12.5px]', isActive ? 'bg-accent/20 text-accent' : 'bg-panel2')}>{count}</span>
                   {info && info.endpoints.length > 1 ? (
-                    <button type="button" onClick={() => void removeEndpoint(endpoint)} title={t('webhook.deleteEndpoint')} className="cursor-pointer text-muted hover:text-bad">
+                    <button type="button" onClick={() => void removeEndpoint(endpoint)} title={t('webhook.deleteEndpoint')} className="inline-flex size-6 cursor-pointer items-center justify-center text-muted hover:text-bad">
                       <Icon name="x" size={11} />
                     </button>
                   ) : null}
@@ -205,13 +205,13 @@ export default function WebhookTool() {
                     if (event.key === 'Escape') { setAdding(false); setNameDraft(''); }
                   }}
                   placeholder={t('webhook.endpointPlaceholder')}
-                  className="input w-52 py-1 text-[11.5px]"
+                  className="input w-52 py-1 text-[12.5px]"
                 />
-                <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[11.5px]" onClick={() => void addEndpoint()}>{t('common.save')}</button>
+                <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[12.5px]" onClick={() => void addEndpoint()}>{t('common.save')}</button>
                 <button type="button" className="btn btn-ghost cursor-pointer px-1 py-1" onClick={() => { setAdding(false); setNameDraft(''); }}><Icon name="x" size={12} /></button>
               </span>
             ) : (
-              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[11.5px]" data-action="webhook:addEndpoint" onClick={() => setAdding(true)}>
+              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[12.5px] min-h-8" data-action="webhook:addEndpoint" onClick={() => setAdding(true)}>
                 <Icon name="plus" size={12} /> {t('webhook.addEndpoint')}
               </button>
             )}
@@ -220,9 +220,9 @@ export default function WebhookTool() {
           <div className="flex flex-col gap-1.5">
             <span className="label">{t('webhook.endpoint')}</span>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mono shrink-0 rounded-md border border-line bg-panel2 px-2 py-1.5 text-[10.5px] font-semibold text-accent">POST</span>
-              <div className="flex min-w-0 flex-1 items-center rounded-[9px] border border-line bg-panel2/60 px-2 py-1.5 focus-within:border-accent/50">
-                <span className="mono shrink-0 text-[11px] text-muted/70">{urlPrefix}</span>
+              <span className="mono shrink-0 rounded-md border border-line bg-panel2 px-2 py-1.5 text-[12.5px] font-semibold text-accent">POST</span>
+              <div className="flex min-w-0 flex-1 flex-col rounded-[9px] border border-line bg-panel2/60 px-2 py-1.5 focus-within:border-accent/50 max-sm:basis-full sm:flex-row sm:items-center">
+                <span className="mono min-w-0 break-all text-[11.5px] text-muted/75 sm:shrink-0 sm:text-[12px]">{urlPrefix}</span>
                 <input
                   value={tokenDraft}
                   onChange={(event) => setTokenDraft(event.target.value)}
@@ -236,10 +236,10 @@ export default function WebhookTool() {
                   spellCheck={false}
                   aria-label={t('webhook.endpoint')}
                   aria-invalid={tokenDirty && !tokenValid}
-                  className="mono min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none disabled:opacity-60"
+                  className="mono min-h-6 w-full min-w-0 bg-transparent text-[13px] text-ink outline-none disabled:opacity-60 sm:flex-1"
                 />
               </div>
-              {tokenDirty && !tokenValid ? <span className="text-[11px] text-bad">{t('webhook.tokenRule')}</span> : null}
+              {tokenDirty && !tokenValid ? <span className="text-[12px] text-bad">{t('webhook.tokenRule')}</span> : null}
               {tokenDirty ? (
                 <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void saveToken()} disabled={savingToken || !tokenValid}>
                   <Icon name="check" size={13} /> {t('common.save')}
@@ -256,14 +256,14 @@ export default function WebhookTool() {
           </div>
         </div>
 
-        {error ? <div className="text-[12px] text-bad">{error}</div> : null}
+        {error ? <div className="text-[13px] text-bad">{error}</div> : null}
 
         <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[320px_1fr]">
           <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-panel/60">
-            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/70 px-3 py-2 text-[11px] text-muted">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/70 px-3 py-2 text-[12px] text-muted">
               {t('webhook.requests')}
               <span className="rounded bg-panel2 px-1 text-ink">{items.length}</span>
-              {active ? <span className="ml-auto truncate text-[10.5px]">{active.name}</span> : null}
+              {active ? <span className="ml-auto truncate text-[12.5px]">{active.name}</span> : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {items.map((item) => (
@@ -277,10 +277,10 @@ export default function WebhookTool() {
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span className="mono rounded bg-panel2 px-1 text-[10px] text-accent">{item.method}</span>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink/85">{item.path}</span>
+                    <span className="mono rounded bg-panel2 px-1 text-[12.5px] text-accent">{item.method}</span>
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink/85">{item.path}</span>
                   </span>
-                  <span className="flex items-center gap-2 text-[10.5px] text-muted">
+                  <span className="flex items-center gap-2 text-[12.5px] text-muted">
                     {timeAgo(item.at)} · {bytes(item.size)}
                   </span>
                 </button>
@@ -292,7 +292,7 @@ export default function WebhookTool() {
           <div className="min-h-0 overflow-auto rounded-xl border border-line bg-panel/60">
             {current ? (
               <div className="flex flex-col gap-3 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
+                <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
                   <span className="mono rounded bg-accent/15 px-1.5 py-0.5 text-accent">{current.method}</span>
                   <span className="mono truncate text-ink/85">{current.path}</span>
                   <span className="ml-auto">{new Date(current.at).toLocaleString()}</span>
@@ -301,7 +301,7 @@ export default function WebhookTool() {
                   <div className="mb-1 label">{t('webhook.headers')}</div>
                   <div className="rounded border border-line bg-panel2/60 p-2">
                     {current.headers.map((header) => (
-                      <div key={header.key} className="mono flex gap-2 text-[11.5px]">
+                      <div key={header.key} className="mono flex gap-2 text-[12.5px]">
                         <span className="w-44 shrink-0 text-muted">{header.key}</span>
                         <span className="min-w-0 break-all text-ink/85">{header.value}</span>
                       </div>
@@ -314,11 +314,11 @@ export default function WebhookTool() {
                     {current.body ? <CopyButton text={pretty(current.body, current.contentType)} label={t('webhook.copy')} /> : null}
                   </div>
                   {current.body ? (
-                    <pre className="mono max-h-[45vh] overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[11.5px] whitespace-pre-wrap text-ink/85">
+                    <pre className="mono max-h-[45vh] overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] whitespace-pre-wrap text-ink/85">
                       {pretty(current.body, current.contentType)}
                     </pre>
                   ) : (
-                    <div className="text-[11.5px] text-muted">{t('webhook.noBody')}</div>
+                    <div className="text-[12.5px] text-muted">{t('webhook.noBody')}</div>
                   )}
                 </div>
               </div>

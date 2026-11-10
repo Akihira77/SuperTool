@@ -18,11 +18,11 @@ type Result = {
 function Group({ title, rows }: { title: string; rows: string[] }) {
   return (
     <div className="card flex flex-col gap-1 p-3">
-      <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
+      <div className="flex items-center gap-2 text-[12px] tracking-wide text-muted uppercase">
         {title}
         <span className="text-ink">{rows.length}</span>
       </div>
-      <div className="mono max-h-40 overflow-auto text-[11.5px]">
+      <div className="mono max-h-40 overflow-auto text-[12.5px]">
         {rows.length ? rows.map((row) => <div key={row} className="truncate text-ink/85">{row}</div>) : <div className="text-muted/70">-</div>}
       </div>
     </div>
@@ -67,7 +67,7 @@ export default function DnsTab() {
         </button>
       </div>
 
-      {error ? <div className="text-[12px] text-bad">{error}</div> : null}
+      {error ? <div className="text-[13px] text-bad">{error}</div> : null}
 
       {result ? (
         <>
@@ -80,18 +80,18 @@ export default function DnsTab() {
             <Group title="TXT" rows={result.txt} />
             {result.geo ? (
               <div className="card col-span-1 flex flex-col gap-1 p-3 sm:col-span-2">
-                <div className="text-[11px] tracking-wide text-muted uppercase">Lokasi</div>
-                <div className="text-[12.5px] text-ink">
+                <div className="text-[12px] tracking-wide text-muted uppercase">Lokasi</div>
+                <div className="text-[13.5px] text-ink">
                   {[result.geo.city, result.geo.regionName, result.geo.country].filter(Boolean).join(', ') || '-'}
                 </div>
-                <div className="text-[11.5px] text-muted">
+                <div className="text-[12.5px] text-muted">
                   {result.geo.isp ?? '-'} · {result.geo.org ?? '-'} · {result.geo.timezone ?? '-'}
                 </div>
-                <div className="mono text-[11px] text-muted">{result.geo.query}</div>
+                <div className="mono text-[12px] text-muted">{result.geo.query}</div>
               </div>
             ) : null}
           </div>
-          <div className="text-[11px] text-muted">
+          <div className="text-[12px] text-muted">
             Lokasi berdasarkan ip-api.com (butuh internet). Server: {result.host}
           </div>
         </>

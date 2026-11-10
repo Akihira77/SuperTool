@@ -72,7 +72,7 @@ export default function NotesTool() {
   const { t } = useI18n();
   const confirm = useConfirm();
   const toast = useToast();
-  const [panelOpen, togglePanel] = useSidebar('notes', true);
+  const [panelOpen, togglePanel, setPanelOpen] = useSidebar('notes', true);
   const [tab, setTab] = useState<'notes' | 'compare'>('notes');
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [active, setActive] = useState<Note | null>(null);
@@ -112,6 +112,19 @@ export default function NotesTool() {
     setActive(note);
     setStatus('idle');
   }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const close = () => { if (mq.matches) setPanelOpen(false); };
+    close();
+    mq.addEventListener('change', close);
+    return () => mq.removeEventListener('change', close);
+  }, [setPanelOpen]);
+
+  const selectNote = useCallback(async (id: string) => {
+    await open(id);
+    if (window.matchMedia('(max-width: 767px)').matches) setPanelOpen(false);
+  }, [open, setPanelOpen]);
 
   const fetchNotes = useCallback(async (q: string, searchScope: SearchScope) => {
     const params = new URLSearchParams();
@@ -307,7 +320,7 @@ export default function NotesTool() {
         <button
           type="button"
           data-action="notes:tab-notes"
-          className={cn('btn px-2 py-1 text-[11px]', tab === 'notes' ? 'border-accent/40 text-accent' : '')}
+          className={cn('btn px-2 py-1 text-[12px]', tab === 'notes' ? 'border-accent/40 text-accent' : '')}
           onClick={() => setTab('notes')}
         >
           {t('notes.tabNotes')}
@@ -315,7 +328,7 @@ export default function NotesTool() {
         <button
           type="button"
           data-action="notes:tab-compare"
-          className={cn('btn px-2 py-1 text-[11px]', tab === 'compare' ? 'border-accent/40 text-accent' : '')}
+          className={cn('btn px-2 py-1 text-[12px]', tab === 'compare' ? 'border-accent/40 text-accent' : '')}
           onClick={() => setTab('compare')}
         >
           {t('notes.tabCompare')}
@@ -325,13 +338,13 @@ export default function NotesTool() {
       {tab === 'compare' ? (
         <TextCompare />
       ) : (
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {panelOpen ? (
-        <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
+        <div className="flex max-md:absolute max-md:inset-0 max-md:z-30 max-md:w-full max-md:bg-panel max-md:border-r-0 flex-col border-r border-line bg-panel/25 md:w-64 md:shrink-0">
           <div className="flex flex-col gap-1.5 p-2.5">
             <div className="relative">
               <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13px]" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} aria-label={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13.5px]" />
             </div>
             <div ref={scopeRef} className="relative">
               <button
@@ -340,7 +353,7 @@ export default function NotesTool() {
                 aria-haspopup="listbox"
                 aria-expanded={scopeOpen}
                 aria-label={t('notes.searchScope')}
-                className="input flex cursor-pointer items-center gap-1.5 py-1 text-left text-[11.5px]"
+                className="input flex cursor-pointer items-center gap-1.5 py-1 text-left text-[12.5px]"
               >
                 <Icon name="filter" size={12} className="shrink-0 text-muted" />
                 <span className="min-w-0 flex-1 truncate">{t(SCOPE_OPTIONS.find((item) => item.value === scope)?.label ?? 'notes.searchAll')}</span>
@@ -361,7 +374,7 @@ export default function NotesTool() {
                           setScopeOpen(false);
                         }}
                         className={cn(
-                          'flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11.5px] transition-colors',
+                          'flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[12.5px] transition-colors',
                           selected ? 'bg-accent/12 text-ink' : 'text-muted hover:bg-panel2 hover:text-ink',
                         )}
                       >
@@ -386,22 +399,22 @@ export default function NotesTool() {
                 <button
                   key={note.id}
                   type="button"
-                  onClick={() => open(note.id)}
+                  onClick={() => void selectNote(note.id)}
                   className={cn(
                     'mb-0.5 block w-full rounded-lg px-2.5 py-2 text-left transition-colors',
                     active?.id === note.id ? 'bg-accent/12' : 'hover:bg-panel2',
                   )}
                 >
-                  <div className="truncate text-[13px] font-medium">{note.title || 'Tanpa judul'}</div>
+                  <div className="truncate text-[13.5px] font-medium" title={note.title || t('notes.untitled')}>{note.title || t('notes.untitled')}</div>
                   {note.snippet ? (
-                    <div className="mt-0.5 line-clamp-2 text-[10.5px] leading-snug text-muted/85">
+                    <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted/85">
                       <Highlight text={note.snippet} query={query} />
                     </div>
                   ) : null}
                   <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-muted">{timeAgo(note.updatedAt)}</span>
+                    <span className="text-[12px] text-muted">{timeAgo(note.updatedAt)}</span>
                     {typeof note.matches === 'number' && note.matches > 0 ? (
-                      <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[9.5px] font-medium text-accent">
+                      <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[12.5px] font-medium text-accent">
                         {note.matches} {t('notes.matches')}
                       </span>
                     ) : null}
@@ -416,18 +429,19 @@ export default function NotesTool() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {active ? (
             <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/25 px-4 py-2.5">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel/25 px-4 py-2.5 sm:flex-nowrap">
                 <input
                   value={active.title}
                   onChange={(e) => patch({ title: e.target.value })}
-                  className="min-w-0 flex-1 border-0 bg-transparent px-1 text-[16px] font-semibold tracking-tight outline-none"
+                  className="min-w-0 basis-full border-0 bg-transparent px-1 text-[16px] font-semibold tracking-tight outline-none sm:flex-1 sm:basis-auto"
                   placeholder={t('notes.titlePlaceholder')}
+                  aria-label={t('notes.titlePlaceholder')}
                 />
                 <span
                   role="status"
                   aria-live="polite"
                   className={cn(
-                    'flex shrink-0 items-center gap-1 text-[10.5px]',
+                    'flex shrink-0 items-center gap-1 text-[12.5px]',
                     status === 'error' ? 'text-bad' : status === 'saving' ? 'text-warn' : 'text-ok/80',
                   )}
                   title={status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
@@ -437,10 +451,11 @@ export default function NotesTool() {
                     {status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
                   </span>
                 </span>
-                <span className="text-[11px] text-muted">{active.body.length} {t('notes.characters')}</span>
+                <span aria-hidden="true" className="text-muted/35">·</span>
+                <span className="hidden text-[12px] text-muted sm:inline">{active.body.length} {t('notes.characters')}</span>
                 {bodyMatchCount ? (
                   <div className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-panel2/50 px-1.5 py-0.5">
-                    <span className="mono text-[10.5px] tabular-nums text-muted">
+                    <span className="mono text-[12.5px] tabular-nums text-muted">
                       {activeMatch + 1}/{bodyMatchCount}
                     </span>
                     <button
@@ -458,7 +473,7 @@ export default function NotesTool() {
                 <button type="button" className="btn" data-action="notes:download" onClick={download} title={t('notes.download')} aria-label={t('notes.download')}>
                   <Icon name="download" />
                 </button>
-                <button type="button" className="btn btn-danger" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
+                <button type="button" className="btn btn-danger ml-0.5" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
                   <Icon name="trash" />
                 </button>
               </div>
@@ -466,7 +481,7 @@ export default function NotesTool() {
                 <div
                   ref={gutterRef}
                   aria-hidden="true"
-                  className="mono w-10 shrink-0 overflow-hidden border-r border-line bg-panel/20 py-5 text-right text-[10.5px] leading-7 text-muted/45 select-none md:py-6"
+                  className="mono w-10 shrink-0 overflow-hidden border-r border-line bg-panel/20 py-5 text-right text-[12.5px] leading-7 text-muted/45 select-none md:py-6"
                 >
                   {gutterHeights.map((height, index) => (
                     <div key={index} className="pr-2 tabular-nums" style={{ height }}>
@@ -498,6 +513,7 @@ export default function NotesTool() {
                     onChange={(e) => patch({ body: e.target.value })}
                     onScroll={syncHighlight}
                     placeholder={t('notes.bodyPlaceholder')}
+                    aria-label={t('notes.bodyPlaceholder')}
                     spellCheck={false}
                     className="relative block h-full w-full resize-none bg-transparent p-5 text-[14px] leading-7 break-words outline-none placeholder:text-muted/50 md:p-6"
                   />

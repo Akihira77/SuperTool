@@ -553,14 +553,14 @@ export default function FilesTool() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="File Explorer" subtitle={listing ? cleanPath(listing.path) + ' · ' + rows.length + ' item' : 'Jelajahi file lokal'} icon="files">
-        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan tree' : 'Tampilkan tree'}>
+      <PageHeader title="File Explorer" subtitle={listing ? cleanPath(listing.path) + ' · ' + rows.length + ' ' + t('files.items') : t('files.subtitle')} icon="files">
+        <button type="button" className="btn btn-icon hidden sm:inline-flex" onClick={togglePanel} title={panelOpen ? t('files.hideTree') : t('files.showTree')} aria-label={panelOpen ? t('files.hideTree') : t('files.showTree')}>
           <Icon name="panel" />
         </button>
         {projectPath ? (
           <button
             type="button"
-            className="btn border-accent/40 px-2 py-1.5 text-[11.5px] text-accent"
+            className="btn btn-sm hidden border-accent/40 text-accent lg:inline-flex"
             onClick={() => {
               setRootPath(projectPath);
               localStorage.setItem('st:files:root', projectPath);
@@ -572,7 +572,7 @@ export default function FilesTool() {
             <Icon name="folderPlus" size={13} /> {projectName(projectPath)}
           </button>
         ) : null}
-        <select value={rootValue} onChange={(e) => openRoot(e.target.value)} className="input w-40 py-1.5 text-[12px]">
+        <select value={rootValue} onChange={(e) => openRoot(e.target.value)} aria-label={t('files.root')} className="input w-32 py-1.5 text-[12px] sm:w-40">
           {roots.map((root) => (
             <option key={root.path} value={root.path}>
               {root.label}
@@ -610,7 +610,8 @@ export default function FilesTool() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void search()}
             placeholder={deep ? t('files.searchContent') : t('files.searchName')}
-            className="input w-44 py-1.5 pl-7 text-[12px]"
+            aria-label={deep ? t('files.searchContent') : t('files.searchName')}
+            className="input w-36 py-1.5 pl-7 text-[12px] sm:w-44"
           />
         </div>
         <div className="relative hidden xl:block">
@@ -619,6 +620,7 @@ export default function FilesTool() {
             onChange={(e) => setInclude(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void search()}
             placeholder={t('files.includeHint')}
+            aria-label={t('files.includeHint')}
             title={t('files.includeHint')}
             className={cn('input w-40 py-1.5 pl-2 text-[11.5px]', include && 'border-accent/40')}
           />
@@ -631,7 +633,7 @@ export default function FilesTool() {
         >
           <Icon name="filter" size={13} />
           {t('files.exclude')}
-          {exclude.length ? <span className="rounded bg-accent/20 px-1 text-[10px]">{exclude.length}</span> : null}
+          {exclude.length ? <span className="rounded bg-accent/20 px-1 text-[11.5px]">{exclude.length}</span> : null}
         </button>
         {searching ? (
           <button type="button" className="btn cursor-pointer text-bad" onClick={cancelSearch} title={t('files.cancelSearch')}>
@@ -642,15 +644,36 @@ export default function FilesTool() {
             <Icon name="search" size={13} />
           </button>
         )}
-        <button type="button" className="btn" onClick={makeFolder} disabled={!listing} title="Folder baru">
-          <Icon name="folderPlus" />
-        </button>
-        <button type="button" className="btn" onClick={() => uploadRef.current?.click()} disabled={!listing} title="Upload file">
-          <Icon name="upload" />
-        </button>
-        <button type="button" className="btn" onClick={() => listing && void loadListing(listing.path)} disabled={!listing} title="Muat ulang">
-          <Icon name="refresh" />
-        </button>
+        <div className="hidden items-center gap-1 lg:flex">
+          <button type="button" className="btn btn-icon" onClick={makeFolder} disabled={!listing} title={t('files.newFolder')} aria-label={t('files.newFolder')}>
+            <Icon name="folderPlus" />
+          </button>
+          <button type="button" className="btn btn-icon" onClick={() => uploadRef.current?.click()} disabled={!listing} title={t('files.upload')} aria-label={t('files.upload')}>
+            <Icon name="upload" />
+          </button>
+          <button type="button" className="btn btn-icon" onClick={() => listing && void loadListing(listing.path)} disabled={!listing} title={t('files.reload')} aria-label={t('files.reload')}>
+            <Icon name="refresh" />
+          </button>
+        </div>
+        <details className="relative lg:hidden">
+          <summary className="btn btn-icon list-none" aria-label={t('common.more')} title={t('common.more')}>
+            <Icon name="chevronDown" />
+          </summary>
+          <div className="absolute top-full right-0 z-40 mt-1 flex w-48 flex-col gap-0.5 rounded-lg border border-line bg-panel p-1 shadow-2xl">
+            <button type="button" className="nav-item w-full text-left" onClick={(event) => { (event.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); makeFolder(); }} disabled={!listing}>
+              <Icon name="folderPlus" size={13} /> {t('files.newFolder')}
+            </button>
+            <button type="button" className="nav-item w-full text-left" onClick={(event) => { (event.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); uploadRef.current?.click(); }} disabled={!listing}>
+              <Icon name="upload" size={13} /> {t('files.upload')}
+            </button>
+            <button type="button" className="nav-item w-full text-left" onClick={(event) => { (event.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); if (listing) void loadListing(listing.path); }} disabled={!listing}>
+              <Icon name="refresh" size={13} /> {t('files.reload')}
+            </button>
+            <button type="button" className="nav-item w-full text-left sm:hidden" onClick={(event) => { (event.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); togglePanel(); }}>
+              <Icon name="panel" size={13} /> {panelOpen ? t('files.hideTree') : t('files.showTree')}
+            </button>
+          </div>
+        </details>
         <input ref={uploadRef} type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
       </PageHeader>
 
@@ -667,13 +690,13 @@ export default function FilesTool() {
 
       <div className="flex min-h-0 flex-1">
         {panelOpen ? (
-        <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2">
+        <div id="files-tree" className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-line p-2 sm:flex">
           {recents.length ? (
             <div className="mb-1 border-b border-line pb-1">
               <div className="flex items-center gap-1 px-1 pb-1">
-                <span className="text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</span>
+                <span className="text-[11.5px] tracking-wide text-muted uppercase">{t('files.recent')}</span>
                 {recents.length ? (
-                  <button type="button" className="ml-auto cursor-pointer text-[10.5px] text-accent/80 hover:text-accent" onClick={() => setRecentOpen(true)}>
+                  <button type="button" className="ml-auto inline-flex min-h-6 cursor-pointer items-center text-[12px] text-accent/80 hover:text-accent" onClick={() => setRecentOpen(true)}>
                     {t('files.allRecent')}
                   </button>
                 ) : null}
@@ -687,7 +710,7 @@ export default function FilesTool() {
                   className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-panel2"
                 >
                   <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted hover:text-ink">{item.path.split('/').pop()}</span>
-                  <span className="shrink-0 text-[10px] text-muted/60">{timeAgo(item.openedAt)}</span>
+                  <span className="shrink-0 text-[11.5px] text-muted/60">{timeAgo(item.openedAt)}</span>
                 </button>
               ))}
             </div>
@@ -753,7 +776,7 @@ export default function FilesTool() {
                 </button>
                 <Icon name="files" size={14} className="text-accent" />
                 <span className="mono truncate text-[12.5px] font-medium">{office.path.split('/').pop()}</span>
-                <span className="text-[11px] text-muted">
+                <span className="text-[11.5px] text-muted">
                   {office.kind.toUpperCase()} · {bytes(office.size)} · {timeAgo(office.mtime)}
                 </span>
                 <div className="ml-auto flex items-center gap-1.5">
@@ -779,7 +802,7 @@ export default function FilesTool() {
               </div>
 
               {office.editable === 'none' ? (
-                <div className="border-b border-line px-3 py-1.5 text-[11px] text-muted">
+                <div className="border-b border-line px-3 py-1.5 text-[11.5px] text-muted">
                   Format ini hanya bisa dibaca. Edit langsung tersedia untuk docx dan xlsx.
                 </div>
               ) : null}
@@ -809,7 +832,7 @@ export default function FilesTool() {
                     }
                     return (
                       <div key={blockIndex}>
-                        <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{block.name ?? 'Sheet'}</div>
+                        <div className="mb-1 text-[11.5px] uppercase tracking-wide text-muted">{block.name ?? 'Sheet'}</div>
                         <div className="overflow-auto rounded-lg border border-line">
                           <table className="w-full border-collapse text-[12px]">
                             <tbody>
@@ -851,13 +874,13 @@ export default function FilesTool() {
                 </button>
                 <Icon name="markdown" size={14} className="text-accent" />
                 <span className="mono truncate text-[12.5px] font-medium">{file.path.split('/').pop()}</span>
-                <span className="text-[11px] text-muted">
+                <span className="text-[11.5px] text-muted">
                   {bytes(file.size)} · {timeAgo(file.mtime)}
                   {file.binary ? '' : ' · ' + lineCount + ' baris'}
                   {largeFile ? ' · mode baca (berkas besar)' : ''}
                 </span>
                 {largeFile ? (
-                  <span className="text-[10.5px] text-muted">
+                  <span className="text-[12px] text-muted">
                     {bytes(file.offset + file.returned)} / {bytes(file.size)}
                   </span>
                 ) : null}
@@ -958,7 +981,7 @@ export default function FilesTool() {
                         {hit.path.split('/').pop()}:{hit.line}
                       </td>
                       <td className="mono truncate px-2 py-1 text-ink/90">{hit.text}</td>
-                      <td className="px-3 py-1 text-right text-[11px] text-muted">{hit.path.replace(listing?.path ?? '', '')}</td>
+                      <td className="px-3 py-1 text-right text-[11.5px] text-muted">{hit.path.replace(listing?.path ?? '', '')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -966,30 +989,30 @@ export default function FilesTool() {
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto">
-              <table className="w-full border-collapse text-[12.5px]">
-                <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] tracking-wide text-muted uppercase">
+              <table className="w-full table-fixed border-collapse text-[12.5px]">
+                <thead className="sticky top-0 z-10 bg-panel text-left text-[11.5px] tracking-wide text-muted uppercase">
                   <tr>
                     {([
                       ['name', t('files.name'), 'text-left'],
                       ['size', t('files.size'), 'text-right'],
                       ['mtime', t('files.modified'), 'text-left'],
                     ] as const).map(([key, label, align]) => (
-                      <th key={key} className={cn('border-b border-line px-3 py-2 font-medium', align)}>
+                      <th key={key} className={cn('border-b border-line px-3 py-2 font-medium', align, key === 'mtime' && 'hidden md:table-cell', key === 'size' && 'hidden sm:table-cell')}>
                         <button
                           type="button"
                           onClick={() => toggleSort(key)}
                           className={cn(
-                            'inline-flex cursor-pointer items-center gap-1 rounded px-1 uppercase transition-colors hover:text-ink',
+                            'inline-flex min-h-6 cursor-pointer items-center gap-1 rounded px-1 uppercase transition-colors hover:text-ink',
                             sort.key === key ? 'text-accent' : 'text-muted',
                           )}
-                          title={'Urutkan menurut ' + label.toLowerCase()}
+                          title={t('files.sortBy') + ' ' + label.toLowerCase()}
                         >
                           {label}
-                          <span className="text-[9px]">{sort.key === key ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
+                          <span className="text-[11.5px]">{sort.key === key ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
                         </button>
                       </th>
                     ))}
-                    <th className="border-b border-line px-3 py-2 text-right font-medium">{t('files.action')}</th>
+                    <th className="w-[7.25rem] border-b border-line px-3 py-2 text-right font-medium">{t('files.action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -999,22 +1022,23 @@ export default function FilesTool() {
                       className="group cursor-pointer hover:bg-panel2/60"
                       onClick={() => (entry.dir ? void loadListing(entry.path) : void openFile(entry))}
                     >
-                      <td className="border-b border-line/60 px-3 py-1.5">
-                        <div className="flex items-center gap-2">
+                      <td className="border-b border-line/60 px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <Thumb entry={entry} />
                           <span className={cn('truncate', entry.hidden && 'text-muted')}>{entry.name}</span>
-                          {entry.dir ? <span className="text-[10px] text-muted/60">dir</span> : null}
+                          {entry.dir ? <span className="text-[11.5px] text-muted/60">{t('files.dir')}</span> : null}
                         </div>
                       </td>
-                      <td className="mono border-b border-line/60 px-3 py-1.5 text-right text-[11.5px] text-muted">{entry.dir ? '-' : bytes(entry.size)}</td>
-                      <td className="border-b border-line/60 px-3 py-1.5 text-[11.5px] text-muted">{timeAgo(entry.mtime)}</td>
-                      <td className="border-b border-line/60 px-3 py-1.5 text-right whitespace-nowrap opacity-40 group-hover:opacity-100">
+                      <td className="mono hidden border-b border-line/60 px-3 py-2 text-right text-[11.5px] text-muted sm:table-cell">{entry.dir ? '-' : bytes(entry.size)}</td>
+                      <td className="hidden border-b border-line/60 px-3 py-2 text-[11.5px] text-muted md:table-cell">{timeAgo(entry.mtime)}</td>
+                      <td className="border-b border-line/60 px-3 py-2 text-right whitespace-nowrap opacity-70 focus-within:opacity-100 group-hover:opacity-100">
                         {!entry.dir ? (
                           <a
-                            className="btn btn-ghost px-1.5 py-0.5"
+                            className="btn btn-ghost btn-sm px-1"
                             href={RAW + encodeURIComponent(entry.path) + '&download=1'}
                             download
-                            title="Unduh"
+                            title={t('common.download')}
+                            aria-label={t('common.download') + ': ' + entry.name}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Icon name="download" size={13} />
@@ -1022,8 +1046,9 @@ export default function FilesTool() {
                         ) : null}
                         <button
                           type="button"
-                          className="btn btn-ghost px-1.5 py-0.5"
-                          title="Salin path"
+                          className="btn btn-ghost btn-sm px-1"
+                          title={t('files.copyPath')}
+                          aria-label={t('files.copyPath') + ': ' + entry.path}
                           onClick={(e) => {
                             e.stopPropagation();
                             void navigator.clipboard?.writeText(entry.path).then(() => setError(''));
@@ -1033,8 +1058,9 @@ export default function FilesTool() {
                         </button>
                         <button
                           type="button"
-                          className="btn btn-ghost px-1.5 py-0.5"
-                          title="Ganti nama"
+                          className="btn btn-ghost btn-sm px-1"
+                          title={t('files.rename')}
+                          aria-label={t('files.rename') + ': ' + entry.name}
                           onClick={(e) => {
                             e.stopPropagation();
                             void rename(entry);
@@ -1044,7 +1070,7 @@ export default function FilesTool() {
                         </button>
                         <button
                           type="button"
-                          className="btn btn-ghost px-1.5 py-0.5"
+                          className="btn btn-ghost btn-sm px-1"
                           title={t("common.delete")}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1058,7 +1084,7 @@ export default function FilesTool() {
                   ))}
                 </tbody>
               </table>
-              {rows.length === 0 ? <p className="p-6 text-center text-sm text-muted">Folder kosong</p> : null}
+              {rows.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t('files.empty')}</p> : null}
             </div>
           )}
         </div>
@@ -1070,7 +1096,7 @@ export default function FilesTool() {
             <div className="flex items-center gap-2">
               <Icon name="files" size={14} className="text-accent" />
               <span className="text-[13px] font-medium">{t('files.recentTitle')}</span>
-              <button type="button" className="btn btn-ghost ml-auto cursor-pointer px-1 py-0.5" onClick={() => setRecentOpen(false)} title={t('common.close')}>
+              <button type="button" className="btn btn-ghost btn-sm ml-auto cursor-pointer px-1" onClick={() => setRecentOpen(false)} title={t('common.close')}>
                 <Icon name="x" size={13} />
               </button>
             </div>
@@ -1084,14 +1110,14 @@ export default function FilesTool() {
                     void openFile({ path: item.path, ext: (item.path.split('.').pop() ?? '').toLowerCase() } as Entry);
                   }}
                   title={item.path}
-                  className="flex w-full items-center gap-2 border-b border-line/50 px-2 py-1.5 text-left last:border-0 hover:bg-panel2"
+                  className="flex min-h-8 w-full items-center gap-2 border-b border-line/50 px-2 py-1.5 text-left last:border-0 hover:bg-panel2"
                 >
                   <Icon name="markdown" size={13} className="shrink-0 text-muted" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[12px] text-ink/90">{item.path.split('/').pop()}</span>
-                    <span className="mono block truncate text-[10px] text-muted/70">{item.path}</span>
+                    <span className="mono block truncate text-[11.5px] text-muted/70">{item.path}</span>
                   </span>
-                  <span className="shrink-0 text-[10.5px] text-muted/70">{timeAgo(item.openedAt)}</span>
+                  <span className="shrink-0 text-[12px] text-muted/70">{timeAgo(item.openedAt)}</span>
                 </button>
               ))}
             </div>
@@ -1159,7 +1185,7 @@ function ExcludeDialog({
 
   const section = (title: string, options: string[]) => (
     <div className="flex flex-col gap-1">
-      <div className="text-[10.5px] tracking-wide text-muted uppercase">{title}</div>
+      <div className="text-[12px] tracking-wide text-muted uppercase">{title}</div>
       <div className="flex flex-wrap gap-1">
         {options.map((item) => (
           <button
@@ -1167,7 +1193,7 @@ function ExcludeDialog({
             type="button"
             onClick={() => toggle(item)}
             className={cn(
-              'mono cursor-pointer rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+              'mono cursor-pointer rounded border px-1.5 py-0.5 text-[11.5px] transition-colors',
               picked.includes(item) ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
             )}
           >
@@ -1190,10 +1216,10 @@ function ExcludeDialog({
         <div className="flex items-center gap-2">
           <Icon name="filter" size={15} className="text-accent" />
           <span className="text-[13px] font-medium">{t('files.excludeTitle')}</span>
-          <span className="ml-auto text-[11px] text-muted">
+          <span className="ml-auto text-[11.5px] text-muted">
             {picked.length} {t('files.excludeSelected')}
           </span>
-          <button type="button" className="btn cursor-pointer px-1" onClick={onClose} aria-label="Tutup">
+          <button type="button" className="btn cursor-pointer px-1" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="x" size={13} />
           </button>
         </div>
@@ -1203,14 +1229,14 @@ function ExcludeDialog({
 
         {extra.length ? (
           <div className="flex flex-col gap-1">
-            <div className="text-[10.5px] tracking-wide text-muted uppercase">{t('files.excludeCustom')}</div>
+            <div className="text-[12px] tracking-wide text-muted uppercase">{t('files.excludeCustom')}</div>
             <div className="flex flex-wrap gap-1">
               {extra.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => toggle(item)}
-                  className="mono cursor-pointer rounded border border-accent/60 bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent"
+                  className="mono cursor-pointer rounded border border-accent/60 bg-accent/15 px-1.5 py-0.5 text-[11.5px] text-accent"
                   title={t("common.delete")}
                 >
                   {item} ×

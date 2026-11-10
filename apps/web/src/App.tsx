@@ -14,6 +14,7 @@ import { api } from './lib/api';
 import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
+import { useFocusTrap } from './lib/useFocusTrap';
 import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
 import { actionsFor, findAction } from './lib/actions';
 import { onWorkflow } from './lib/workflow';
@@ -122,6 +123,10 @@ function Shell() {
   const [auth, setAuth] = useState<AuthState>('loading');
   const [route, navigate] = useRoute();
   const [navOpen, toggleNav] = useSidebar('nav');
+  const [mobileNav, setMobileNav] = useState(false);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  useFocusTrap(mobileNav, sidebarRef);
+  const expanded = navOpen || mobileNav;
   const { t, lang, setLang } = useI18n();
   const [store, setStore] = useState<SessionStore>(() => initialSessionStore(route));
   const [booted, setBooted] = useState(false);
@@ -130,6 +135,15 @@ function Shell() {
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const routeRef = useRef(route);
+
+  useEffect(() => {
+    if (!mobileNav) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNav(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileNav]);
   const lastRoute = useRef(route);
   const lastSaved = useRef('');
   routeRef.current = route;
@@ -380,30 +394,56 @@ function Shell() {
 
   return (
     <div className="flex h-full overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only z-[100] rounded-md bg-panel px-3 py-2 text-[13px] text-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:border focus:border-accent"
+      >
+        {t('nav.skip')}
+      </a>
+      {mobileNav ? (
+        <button
+          type="button"
+          aria-label={t('nav.close')}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[1px] md:hidden"
+          onClick={() => setMobileNav(false)}
+        />
+      ) : null}
       <aside
+        ref={sidebarRef}
+        id="app-sidebar"
+        role={mobileNav ? 'dialog' : undefined}
+        aria-modal={mobileNav || undefined}
+        aria-label="Super Tool"
         className={cn(
-          'flex shrink-0 flex-col border-r border-line bg-panel/55 transition-[width] duration-200',
-          navOpen ? 'w-60' : 'w-14',
+          'fixed inset-y-0 left-0 z-[60] flex w-72 shrink-0 flex-col border-r border-line bg-panel shadow-2xl transition-[width,transform] duration-200 md:static md:z-auto md:translate-x-0 md:bg-panel/55 md:shadow-none',
+          mobileNav ? 'translate-x-0' : '-translate-x-full',
+          navOpen ? 'md:w-14 lg:w-60' : 'md:w-14',
         )}
       >
-        <div className={cn('flex items-center gap-2.5 px-2.5 py-3', !navOpen && 'flex-col gap-1.5 px-2')}>
+        <div className={cn('flex items-center gap-2.5 px-2.5 py-3', !expanded && 'flex-col gap-1.5 px-2')}>
           <div className="flex size-8 shrink-0 items-center justify-center rounded-[10px] border border-accent/30 bg-gradient-to-br from-accent to-accent2 text-[14px] font-bold text-white shadow-[0_8px_24px_-14px_rgb(107_150_255/0.9)]">
             S
           </div>
-          {navOpen ? (
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] leading-tight font-semibold">Super Tool</div>
-              <div className="truncate text-[10.5px] text-muted">{t('app.tagline')}</div>
+          {expanded ? (
+            <div className="min-w-0 flex-1 md:hidden lg:block">
+              <div className="truncate text-[14px] leading-tight font-semibold">Super Tool</div>
+              <div className="truncate text-[12.5px] text-muted">{t('app.tagline')}</div>
             </div>
           ) : null}
           <button
             type="button"
-            onClick={toggleNav}
-            className={cn('btn btn-ghost shrink-0 px-1.5', navOpen && 'ml-auto')}
-            title={navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
-            aria-label={navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
+            onClick={() => (mobileNav ? setMobileNav(false) : toggleNav())}
+            className={cn(
+              'btn btn-ghost btn-icon shrink-0',
+              expanded && 'ml-auto',
+              mobileNav ? 'inline-flex' : 'hidden lg:inline-flex',
+            )}
+            title={mobileNav || navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
+            aria-label={mobileNav || navOpen ? t('nav.hideSidebar') : t('nav.showSidebar')}
+            aria-expanded={expanded}
+            aria-controls="app-sidebar"
           >
-            <Icon name={navOpen ? 'back' : 'panel'} />
+            <Icon name={mobileNav || navOpen ? 'back' : 'panel'} />
           </button>
         </div>
 
@@ -415,19 +455,27 @@ function Shell() {
             return (
               <Fragment key={tool.id}>
                 {newGroup ? (
-                  <div className={cn('px-2 pt-2 pb-1 text-[9.5px] font-semibold tracking-[0.12em] text-muted/65 uppercase', !navOpen && 'mx-auto h-px w-6 overflow-hidden bg-line p-0 text-transparent')}>
-                    {navOpen ? t(group?.key ?? 'nav.group.workspace') : '•'}
+                  <div className={cn('px-2 pt-2 pb-1 text-[12.5px] font-semibold tracking-[0.1em] text-muted/70 uppercase', !expanded && 'mx-auto h-px w-6 overflow-hidden bg-line p-0 text-transparent')}>
+                    <span className={cn(expanded && 'md:hidden lg:inline')}>{t(group?.key ?? 'nav.group.workspace')}</span>
                   </div>
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => openTool(tool.id)}
+                  onClick={() => {
+                    openTool(tool.id);
+                    setMobileNav(false);
+                  }}
                   title={t(tool.key as 'nav.markdown', tool.label)}
                   aria-current={activeToolId === tool.id ? 'page' : undefined}
-                  className={cn('nav-item w-full', activeToolId === tool.id && 'nav-item-active', !navOpen && 'justify-center px-0')}
+                  className={cn(
+                    'nav-item w-full',
+                    activeToolId === tool.id && 'nav-item-active',
+                    !expanded && 'justify-center px-0',
+                    expanded && 'md:justify-center lg:justify-start',
+                  )}
                 >
                   <Icon name={tool.icon} className="shrink-0" />
-                  {navOpen ? <span className="truncate">{t(tool.key as 'nav.markdown', tool.label)}</span> : null}
+                  {expanded ? <span className="inline truncate md:hidden lg:inline">{t(tool.key as 'nav.markdown', tool.label)}</span> : null}
                 </button>
               </Fragment>
             );
@@ -435,16 +483,16 @@ function Shell() {
         </nav>
 
         <div className="border-t border-line p-2">
-          {navOpen ? (
-            <div className="mb-1 flex items-center gap-1 px-1">
-              <span className="text-[10px] tracking-wide text-muted uppercase">{t('nav.language')}</span>
+          {expanded ? (
+            <div className="mb-1 hidden items-center gap-1 px-1 lg:flex">
+              <span className="text-[12.5px] tracking-wide text-muted uppercase">{t('nav.language')}</span>
               {(['id', 'en'] as const).map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setLang(item)}
                   className={cn(
-                    'cursor-pointer rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+                    'cursor-pointer rounded border px-1.5 py-0.5 text-[12px] transition-colors',
                     lang === item ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
                   )}
                 >
@@ -452,29 +500,45 @@ function Shell() {
                 </button>
               ))}
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
-              className="mb-1 flex w-full cursor-pointer justify-center rounded py-1 text-[9.5px] font-semibold tracking-wide text-muted hover:bg-panel2 hover:text-ink"
-              title={t('nav.language')}
-            >
-              {lang.toUpperCase()}
-            </button>
-          )}
-          <button type="button" onClick={() => navigate('password')} className={cn('nav-item w-full', !navOpen && 'justify-center px-0')} title={t('nav.password')}>
-            <Icon name="lock" className="shrink-0" />
-            {navOpen ? <span className="truncate">{t('nav.password')}</span> : null}
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
+            className={cn(
+              'mb-1 w-full cursor-pointer justify-center rounded-md py-1.5 text-[12.5px] font-semibold tracking-wide text-muted hover:bg-panel2 hover:text-ink',
+              expanded ? 'flex lg:hidden' : 'flex',
+            )}
+            title={t('nav.language')}
+            aria-label={t('nav.language')}
+          >
+            {lang.toUpperCase()}
           </button>
-          <button type="button" onClick={logout} className={cn('nav-item w-full', !navOpen && 'justify-center px-0')} title={t('nav.logout')}>
+          <button
+            type="button"
+            onClick={() => {
+              navigate('password');
+              setMobileNav(false);
+            }}
+            className={cn('nav-item w-full', !expanded && 'justify-center px-0', expanded && 'md:justify-center lg:justify-start')}
+            title={t('nav.password')}
+          >
+            <Icon name="lock" className="shrink-0" />
+            {expanded ? <span className="inline truncate md:hidden lg:inline">{t('nav.password')}</span> : null}
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className={cn('nav-item w-full', !expanded && 'justify-center px-0', expanded && 'md:justify-center lg:justify-start')}
+            title={t('nav.logout')}
+          >
             <Icon name="logout" className="shrink-0" />
-            {navOpen ? <span className="truncate">{t('nav.logout')}</span> : null}
+            {expanded ? <span className="inline truncate md:hidden lg:inline">{t('nav.logout')}</span> : null}
           </button>
         </div>
       </aside>
 
-      <main className="relative flex min-w-0 flex-1 flex-col">
-        <ProjectPicker right={<PrayerWidget />} />
+      <main id="main-content" tabIndex={-1} className="relative flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+        <ProjectPicker right={<PrayerWidget />} onMenu={() => setMobileNav(true)} menuOpen={mobileNav} />
         {route === 'password' ? (
           <div className="flex-1 overflow-y-auto">
             <ChangePassword forced={false} onDone={() => openTool('markdown')} />
@@ -531,8 +595,8 @@ function Shell() {
               {!activeSession ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-muted">
                   <Icon name="panel" size={26} />
-                  <div className="text-[13px] font-medium text-ink">{t('session.empty')}</div>
-                  <div className="text-[11.5px]">{t('session.emptyHint')}</div>
+                  <div className="text-[13.5px] font-medium text-ink">{t('session.empty')}</div>
+                  <div className="text-[12.5px]">{t('session.emptyHint')}</div>
                 </div>
               ) : null}
             </div>

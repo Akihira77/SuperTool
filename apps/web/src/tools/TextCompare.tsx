@@ -67,10 +67,10 @@ function DiffSide({
       )}
       onMouseDown={() => onStart(side)}
     >
-      <span className="mono w-8 shrink-0 select-none text-right text-[10px] leading-5 text-muted/45">
+      <span className="mono w-8 shrink-0 select-none text-right text-[12.5px] leading-5 text-muted/45">
         {lineNo ?? ''}
       </span>
-      <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-5">
+      <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[12.5px] leading-5">
         <Segments parts={parts} fallback={text ?? ''} />
       </div>
     </div>
@@ -95,8 +95,8 @@ function InputPane({
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
-        <span className="text-[11.5px] font-medium">{label}</span>
-        <span className="mono text-[10.5px] text-muted">{lines} {t('compare.lines')}</span>
+        <span className="text-[12.5px] font-medium">{label}</span>
+        <span className="mono text-[12.5px] text-muted">{lines} {t('compare.lines')}</span>
       </div>
       <textarea
         ref={textareaRef}
@@ -105,7 +105,7 @@ function InputPane({
         placeholder={placeholder}
         aria-label={label}
         spellCheck={false}
-        className="block h-56 w-full resize-y bg-transparent p-3 font-mono text-[12px] leading-5 outline-none placeholder:text-muted/50"
+        className="block h-56 w-full resize-y bg-transparent p-3 font-mono text-[13px] leading-5 outline-none placeholder:text-muted/50"
       />
     </div>
   );
@@ -150,9 +150,9 @@ function CompareHistory({
         <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <Icon name="clock" size={13} className="shrink-0 text-muted" />
-            <span className="truncate text-[11.5px] font-medium">{t('compare.history')}</span>
+            <span className="truncate text-[12.5px] font-medium">{t('compare.history')}</span>
             {saving ? (
-              <span className="flex shrink-0 items-center gap-1 text-[9.5px] text-muted">
+              <span className="flex shrink-0 items-center gap-1 text-[12.5px] text-muted">
                 <Icon name="refresh" size={9} className="animate-spin" />
                 {t('compare.saving')}
               </span>
@@ -172,7 +172,7 @@ function CompareHistory({
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">
           {error ? (
-            <div className="mb-2 rounded-md border border-bad/30 bg-bad/10 px-2 py-1.5 text-[10.5px] text-bad">
+            <div className="mb-2 rounded-md border border-bad/30 bg-bad/10 px-2 py-1.5 text-[12.5px] text-bad">
               <div className="break-words">{error}</div>
               <button type="button" className="mt-1 underline underline-offset-2" onClick={onRetry}>
                 {t('compare.retry')}
@@ -181,16 +181,16 @@ function CompareHistory({
           ) : null}
 
           {loading && !items.length ? (
-            <div className="flex items-center justify-center gap-1.5 py-6 text-[10.5px] text-muted">
+            <div className="flex items-center justify-center gap-1.5 py-6 text-[12.5px] text-muted">
               <Icon name="refresh" size={11} className="animate-spin" />
               {t('compare.historyLoading')}
             </div>
           ) : null}
 
           {!loading && !error && !items.length ? (
-            <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-[11px] leading-5 text-muted">
+            <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-[12px] leading-5 text-muted">
               <div>{t('compare.historyEmpty')}</div>
-              <div className="mt-1 text-[10px] text-muted/60">{t('compare.historyHint')}</div>
+              <div className="mt-1 text-[12.5px] text-muted/60">{t('compare.historyHint')}</div>
             </div>
           ) : null}
 
@@ -215,7 +215,7 @@ function CompareHistory({
                   disabled={itemLoading || deleting}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="mono truncate text-[9.5px] text-muted/70">
+                    <span className="mono truncate text-[12.5px] text-muted/70">
                       {new Date(item.createdAt).toLocaleString(undefined, {
                         month: 'short',
                         day: 'numeric',
@@ -223,13 +223,13 @@ function CompareHistory({
                         minute: '2-digit',
                       })}
                     </span>
-                    <span className="mono shrink-0 text-[9px] text-muted/55">
+                    <span className="mono shrink-0 text-[12.5px] text-muted/55">
                       L{item.leftLines} / R{item.rightLines}
                     </span>
                   </div>
-                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10.5px] leading-4">
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[12.5px] leading-4">
                     <div className="min-w-0">
-                      <div className="mb-0.5 text-[8.5px] uppercase tracking-wide text-muted/50">
+                      <div className="mb-0.5 text-[12.5px] uppercase tracking-wide text-muted/50">
                         {t('compare.leftShort')}
                       </div>
                       <div className={cn('line-clamp-2 break-words text-muted', !item.leftPreview && 'italic text-muted/35')}>
@@ -237,7 +237,7 @@ function CompareHistory({
                       </div>
                     </div>
                     <div className="min-w-0 border-l border-line/40 pl-1.5">
-                      <div className="mb-0.5 text-[8.5px] uppercase tracking-wide text-muted/50">
+                      <div className="mb-0.5 text-[12.5px] uppercase tracking-wide text-muted/50">
                         {t('compare.rightShort')}
                       </div>
                       <div className={cn('line-clamp-2 break-words text-muted', !item.rightPreview && 'italic text-muted/35')}>
@@ -266,14 +266,14 @@ function CompareHistory({
           })}
 
           {loading && items.length ? (
-            <div className="flex items-center justify-center gap-1.5 py-2 text-[10px] text-muted">
+            <div className="flex items-center justify-center gap-1.5 py-2 text-[12.5px] text-muted">
               <Icon name="refresh" size={10} className="animate-spin" />
               {t('compare.historyLoading')}
             </div>
           ) : null}
 
           {!loading && !error && !hasMore && items.length ? (
-            <div className="py-2 text-center text-[9.5px] text-muted/45">{t('compare.endHistory')}</div>
+            <div className="py-2 text-center text-[12.5px] text-muted/45">{t('compare.endHistory')}</div>
           ) : null}
 
           <div ref={sentinelRef} className="h-1" />
@@ -539,7 +539,7 @@ export default function TextCompare() {
             <Icon name="trash" size={13} /> {t('compare.clear')}
           </button>
           {diff ? (
-            <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-muted">
+            <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
               <span className="rounded bg-panel2 px-1.5 py-0.5">{stats.same} {t('compare.same')}</span>
               <span className="rounded bg-warn/10 px-1.5 py-0.5 text-warn">{stats.changed} {t('compare.changed')}</span>
               <span className="rounded bg-ok/10 px-1.5 py-0.5 text-ok">{stats.added} {t('compare.added')}</span>
@@ -549,16 +549,16 @@ export default function TextCompare() {
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[12px] text-bad">{error}</div>
+          <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
         ) : !diff ? (
-          <div className="rounded-lg border border-dashed border-line bg-panel/20 px-3 py-8 text-center text-[12px] text-muted">
+          <div className="rounded-lg border border-dashed border-line bg-panel/20 px-3 py-8 text-center text-[13px] text-muted">
             {t('compare.hint')}
           </div>
         ) : (
           <div className="card overflow-hidden">
             <div className="max-h-[60vh] overflow-auto">
               <div className="min-w-[560px]">
-                <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-line bg-panel2 text-[10.5px] font-medium text-muted">
+                <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-line bg-panel2 text-[12.5px] font-medium text-muted">
                   <div className="border-r border-line px-3 py-2">{t('compare.left')}</div>
                   <div className="px-3 py-2">{t('compare.right')}</div>
                 </div>

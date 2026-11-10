@@ -327,7 +327,7 @@ export default function UrlTool() {
                 }}
                 title={hint}
                 className={cn(
-                  'cursor-pointer rounded-md px-2 py-1 text-[11.5px] transition-colors',
+                  'cursor-pointer rounded-md px-2 py-1 text-[12.5px] transition-colors',
                   mode === id ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
                 )}
               >
@@ -343,35 +343,35 @@ export default function UrlTool() {
         ) : null}
       </PageHeader>
 
-      {error ? <div className="shrink-0 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">{error}</div> : null}
+      {error ? <div className="shrink-0 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">{error}</div> : null}
 
       {active && !active.proxy ? (
-        <div className="shrink-0 border-b border-line bg-accent/5 px-3 py-1.5 text-[11.5px] text-muted">
+        <div className="shrink-0 border-b border-line bg-accent/5 px-3 py-1.5 text-[12.5px] text-muted">
           {t('viewer.proxyTip')} <span className="text-ink">Proxy</span> + <span className="text-ink">Subdomain</span>: <span className="mono">/api/...</span>
         </div>
       ) : null}
 
       {active?.proxy && mode === 'sub' && !subSrc ? (
-        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[12px] text-warn">
+        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
           Target terlalu panjang untuk mode subdomain, memakai mode path.
         </div>
       ) : null}
 
       {active?.proxy && mode === 'path' ? (
-        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[12px] text-warn">
+        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
           Mode path berjalan di origin aplikasi. Iframe disandbox tanpa akses same-origin;
           aplikasi yang butuh cookie/localStorage penuh sebaiknya pakai mode Subdomain.
         </div>
       ) : null}
 
       {active && status && !status.ok ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[12px] text-bad">
+        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">
           <Icon name="x" size={13} />
           <span className="min-w-0 flex-1 truncate">
             {t('viewer.cannotConnect')} {active.url}. {status.error ?? t('viewer.status') + ' ' + status.status}
           </span>
           {!active.proxy ? (
-            <button type="button" className="btn btn-ghost px-2 py-0.5 text-[11px]" onClick={() => void toggleProxy(active)}>
+            <button type="button" className="btn btn-ghost px-2 py-0.5 text-[12px]" onClick={() => void toggleProxy(active)}>
               Coba mode proxy
             </button>
           ) : null}
@@ -396,10 +396,10 @@ export default function UrlTool() {
                           activeId !== view.id ? 'bg-muted/40' : !status ? 'bg-muted/40' : status.ok ? 'bg-ok' : 'bg-bad',
                         )}
                       />
-                      <span className="truncate text-[13px] font-medium">{view.name}</span>
-                      {view.proxy ? <span className="rounded bg-accent/15 px-1 text-[9px] text-accent">proxy</span> : null}
+                      <span className="truncate text-[13.5px] font-medium">{view.name}</span>
+                      {view.proxy ? <span className="rounded bg-accent/15 px-1 text-[12.5px] text-accent">proxy</span> : null}
                     </div>
-                    <div className="truncate text-[11px] text-muted">{view.url}</div>
+                    <div className="truncate text-[12px] text-muted">{view.url}</div>
                   </button>
                   <button type="button" onClick={() => startEdit(view)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Ubah">
                     <Icon name="edit" size={13} />
@@ -420,25 +420,25 @@ export default function UrlTool() {
             className="shrink-0 space-y-1.5 border-t border-line p-2"
           >
             {editingId ? (
-              <div className="flex items-center justify-between text-[11px] text-accent">
+              <div className="flex items-center justify-between text-[12px] text-accent">
                 <span>Ubah URL</span>
-                <button type="button" className="btn btn-ghost px-1 py-0 text-[11px]" data-action="viewer:add" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
+                <button type="button" className="btn btn-ghost px-1 py-0 text-[12px]" data-action="viewer:add" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
                   batal
                 </button>
               </div>
             ) : null}
-            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" className="input py-1.5 text-[12px]" />
+            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" aria-label={t("viewer.name")} className="input py-1.5 text-[13px]" />
             <input
               value={draft.url}
               onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-              placeholder="http://127.0.0.1:3000"
+              placeholder="http://127.0.0.1:3000" aria-label={t("viewer.url")}
               aria-invalid={draftInvalid}
-              className={cn('input py-1.5 text-[12px]', draftInvalid && 'border-bad')}
+              className={cn('input py-1.5 text-[13px]', draftInvalid && 'border-bad')}
             />
-            {draftInvalid ? <span className="text-[10.5px] text-bad">URL tidak valid</span> : null}
+            {draftInvalid ? <span className="text-[12.5px] text-bad">URL tidak valid</span> : null}
             <button
               type="submit"
-              className="btn btn-primary w-full justify-center py-1.5 text-[12px]"
+              className="btn btn-primary w-full justify-center py-1.5 text-[13px]"
               disabled={!draftUrl}
             >
               <Icon name={editingId ? 'check' : 'plus'} /> {editingId ? t('common.save') : t('viewer.addUrl')}

@@ -45,10 +45,10 @@ function FileCard({
         highlight ? 'border-accent/40 bg-accent/5' : undefined,
       )}
     >
-      <div className="flex items-center gap-2 text-[11px] tracking-wide text-muted uppercase">
+      <div className="flex items-center gap-2 text-[12px] tracking-wide text-muted uppercase">
         {label}
-        {highlight ? <span className="rounded bg-accent/15 px-1 text-[10px] text-accent normal-case">baru</span> : null}
-        <span className="ml-auto text-[10.5px] normal-case">{ext || 'berkas'}</span>
+        {highlight ? <span className="rounded bg-accent/15 px-1 text-[12.5px] text-accent normal-case">baru</span> : null}
+        <span className="ml-auto text-[12.5px] normal-case">{ext || 'berkas'}</span>
       </div>
       {show ? (
         <a
@@ -63,13 +63,13 @@ function FileCard({
       ) : (
         <div className="flex h-28 flex-col items-center justify-center gap-1 rounded-md border border-line bg-panel2 text-muted">
           <Icon name={ext === 'pdf' ? 'files' : 'markdown'} size={26} />
-          <span className="text-[11px] uppercase">.{ext || 'berkas'}</span>
+          <span className="text-[12px] uppercase">.{ext || 'berkas'}</span>
         </div>
       )}
       <div className="min-w-0">
-        <div className="truncate text-[12.5px] text-ink">{path.split('/').pop()}</div>
-        {size > 0 ? <div className="mono text-[11px] text-muted">{bytes(size)}</div> : null}
-        <div className="mono truncate text-[10.5px] text-muted/70" title={path}>
+        <div className="truncate text-[13.5px] text-ink">{path.split('/').pop()}</div>
+        {size > 0 ? <div className="mono text-[12px] text-muted">{bytes(size)}</div> : null}
+        <div className="mono truncate text-[12.5px] text-muted/70" title={path}>
           {path}
         </div>
       </div>
@@ -255,7 +255,7 @@ export default function CompressTool() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader title={t('compress.title')} subtitle={t('compress.subtitle')} icon="compress">
-        <span className="text-[11px] text-muted">
+        <span className="text-[12px] text-muted">
           PDF: {caps?.pdf === 'ghostscript' ? 'ghostscript' : 'pdf-lib'}
           {caps && caps.pdf !== 'ghostscript' ? ' · ' + t('compress.gsLarge') : ''}
           {caps?.pdfToImage ? ' · poppler' : ' · poppler tidak ada'}
@@ -307,14 +307,14 @@ export default function CompressTool() {
             <span className="grid size-11 place-items-center rounded-2xl border border-line bg-panel2/60 text-muted">
               {busy ? <Spinner /> : <Icon name="upload" size={20} />}
             </span>
-            <span className="text-[12.5px] text-muted">
+            <span className="text-[13.5px] text-muted">
               {uploadProgress !== null
                 ? t('compress.uploading') + ' ' + uploadProgress + '%'
                 : path
                   ? path.split('/').pop()
                   : t('compress.drop')}
             </span>
-            {path ? <span className="mono max-w-full truncate text-[11px] text-muted/70">{path}</span> : null}
+            {path ? <span className="mono max-w-full truncate text-[12px] text-muted/70">{path}</span> : null}
           </button>
 
           {recents.length ? (
@@ -327,7 +327,7 @@ export default function CompressTool() {
                     setPath(item.path);
                     setResult(null);
                   }}
-                  className="max-w-full cursor-pointer truncate rounded-md border border-line bg-panel2/40 px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent/50 hover:text-ink"
+                  className="max-w-full cursor-pointer truncate rounded-md border border-line bg-panel2/40 px-2 py-1 text-[12px] text-muted transition-colors hover:border-accent/50 hover:text-ink"
                   title={item.path}
                 >
                   {item.path.split('/').pop()}
@@ -338,7 +338,7 @@ export default function CompressTool() {
 
           {path ? (
             <div className="card flex flex-col gap-3 p-4">
-              <div className="text-[11px] text-muted">
+              <div className="text-[12px] text-muted">
                 {ext || '-'}
                 {isImage ? ' · gambar' : isPdf ? ' · pdf' : ' · tidak didukung'}
               </div>
@@ -346,13 +346,13 @@ export default function CompressTool() {
               {tab === 'compress' && isImage ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] tracking-wide text-muted uppercase">
+                    <span className="text-[12px] tracking-wide text-muted uppercase">
                       {t('compress.quality')} ({quality})
                     </span>
                     <input type="range" min={30} max={95} value={quality} onChange={(event) => setQuality(Number(event.target.value))} className="accent-accent cursor-pointer" />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.maxWidth')}</span>
+                    <span className="text-[12px] tracking-wide text-muted uppercase">{t('compress.maxWidth')}</span>
                     <input
                       type="number"
                       min={200}
@@ -362,10 +362,10 @@ export default function CompressTool() {
                       aria-invalid={!widthValid}
                       className="input"
                     />
-                    {!widthValid ? <span className="text-[11px] text-bad">{t('compress.maxWidthError')}</span> : null}
+                    {!widthValid ? <span className="text-[12px] text-bad">{t('compress.maxWidthError')}</span> : null}
                   </label>
                   <label className="flex flex-col gap-1 sm:col-span-2">
-                    <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.format')}</span>
+                    <span className="text-[12px] tracking-wide text-muted uppercase">{t('compress.format')}</span>
                     <select value={format} onChange={(event) => setFormat(event.target.value)} className="input cursor-pointer">
                       <option value="">{t('compress.sameAsSource')}</option>
                       <option value="webp">WebP</option>
@@ -379,7 +379,7 @@ export default function CompressTool() {
 
               {tab === 'compress' && isPdf ? (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.level')}</span>
+                  <span className="text-[12px] tracking-wide text-muted uppercase">{t('compress.level')}</span>
                   <select value={pdfMode} onChange={(event) => setPdfMode(event.target.value)} className="input cursor-pointer">
                     <option value="printer">{t('compress.standard')}</option>
                     <option value="max">{t('compress.small')}</option>
@@ -390,7 +390,7 @@ export default function CompressTool() {
               {tab === 'convert' ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] tracking-wide text-muted uppercase">{t('compress.to')}</span>
+                    <span className="text-[12px] tracking-wide text-muted uppercase">{t('compress.to')}</span>
                     <select value={target} onChange={(event) => setTarget(event.target.value)} className="input cursor-pointer">
                       {convertTargets.length ? (
                         convertTargets.map((item) => (
@@ -405,12 +405,12 @@ export default function CompressTool() {
                   </label>
                   {isPdf ? (
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] tracking-wide text-muted uppercase">DPI ({dpi})</span>
+                      <span className="text-[12px] tracking-wide text-muted uppercase">DPI ({dpi})</span>
                       <input type="range" min={72} max={300} step={6} value={dpi} onChange={(event) => setDpi(Number(event.target.value))} className="accent-accent cursor-pointer" />
                     </label>
                   ) : null}
                   {!convertTargets.length ? (
-                    <div className="text-[11.5px] text-warn sm:col-span-2">{t('compress.notSupported')}</div>
+                    <div className="text-[12.5px] text-warn sm:col-span-2">{t('compress.notSupported')}</div>
                   ) : null}
                 </div>
               ) : null}
@@ -431,27 +431,27 @@ export default function CompressTool() {
                         style={uploadProgress === null ? undefined : { width: uploadProgress + '%' }}
                       />
                     </div>
-                    <span className="text-[11px] text-muted">
+                    <span className="text-[12px] text-muted">
                       {uploadProgress === null ? elapsed + 's' : uploadProgress + '%'}
                     </span>
                   </div>
                 ) : null}
-                {error ? <span className="text-[12px] text-bad">{error}</span> : null}
+                {error ? <span className="text-[13px] text-bad">{error}</span> : null}
               </div>
             </div>
           ) : error ? (
-            <div className="text-[12px] text-bad">{error}</div>
+            <div className="text-[13px] text-bad">{error}</div>
           ) : null}
 
           {result ? (
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-3 text-[13px]">
+              <div className="flex flex-wrap items-center gap-3 text-[13.5px]">
                 <span className="text-muted">{t('compress.before')}</span>
                 <span className="mono">{bytes(result.input.size)}</span>
                 <Icon name="chevronRight" size={13} className="text-muted" />
                 <span className="text-muted">{t('compress.after')}</span>
                 <span className="mono text-ink">{bytes(result.output.size)}</span>
-                <span className={cn('rounded px-1.5 py-0.5 text-[11px]', result.saved > 0 ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-warn')}>
+                <span className={cn('rounded px-1.5 py-0.5 text-[12px]', result.saved > 0 ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-warn')}>
                   {result.saved > 0 ? '-' + result.percent + '%' : result.saved === 0 ? t('compress.noChange') : '+' + Math.abs(result.percent) + '%'}
                 </span>
               </div>
@@ -470,7 +470,7 @@ export default function CompressTool() {
                   download
                 />
               </div>
-              {result.note ? <div className="text-[11.5px] text-muted">{result.note}</div> : null}
+              {result.note ? <div className="text-[12.5px] text-muted">{result.note}</div> : null}
             </div>
           ) : path && !busy ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -478,7 +478,7 @@ export default function CompressTool() {
             </div>
           ) : null}
 
-          <div className="text-[11.5px] text-muted">{t('compress.hint')}</div>
+          <div className="text-[12.5px] text-muted">{t('compress.hint')}</div>
         </div>
       </div>
     </div>

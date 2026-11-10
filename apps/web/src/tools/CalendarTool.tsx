@@ -208,15 +208,15 @@ function personInitials(person: CalendarPerson): string {
 function AttendeeStatus({ status }: { status?: string }) {
   const { t } = useI18n();
   if (status === 'accepted') {
-    return <span className="shrink-0 text-[10.5px] font-medium text-ok">{t('calendar.responseAccepted')}</span>;
+    return <span className="shrink-0 text-[12.5px] font-medium text-ok">{t('calendar.responseAccepted')}</span>;
   }
   if (status === 'declined') {
-    return <span className="shrink-0 text-[10.5px] font-medium text-bad">{t('calendar.responseDeclined')}</span>;
+    return <span className="shrink-0 text-[12.5px] font-medium text-bad">{t('calendar.responseDeclined')}</span>;
   }
   if (status === 'tentative') {
-    return <span className="shrink-0 text-[10.5px] font-medium text-warn">{t('calendar.responseTentative')}</span>;
+    return <span className="shrink-0 text-[12.5px] font-medium text-warn">{t('calendar.responseTentative')}</span>;
   }
-  return <span className="shrink-0 text-[10.5px] font-medium text-muted">{t('calendar.responsePending')}</span>;
+  return <span className="shrink-0 text-[12.5px] font-medium text-muted">{t('calendar.responsePending')}</span>;
 }
 
 /** Isi kotak event di grid: judul harus selalu terlihat, bukan cuma blok warna. */
@@ -617,13 +617,13 @@ export default function CalendarTool() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('calendar.title')} subtitle={subtitle} icon="calendar">
         <label
-          className="flex items-center gap-1.5 rounded-lg border border-line bg-panel/50 px-2 py-1 text-[11px] text-muted"
+          className="flex items-center gap-1.5 rounded-lg border border-line bg-panel/50 px-2 py-1 text-[12px] text-muted"
           title={t('calendar.remindHint')}
         >
           <Icon name="bell" size={13} className={remindBefore > 0 ? 'text-accent' : ''} />
           <span className="hidden lg:inline">{t('calendar.remind')}</span>
           <select
-            className="input h-6 cursor-pointer border-0 py-0 pr-6 pl-1 text-[11px] shadow-none focus:ring-0"
+            className="input h-6 cursor-pointer border-0 py-0 pr-6 pl-1 text-[12px] shadow-none focus:ring-0"
             style={{ width: 'auto', colorScheme: 'dark', background: 'var(--color-panel2)', color: 'var(--color-ink)' }}
             value={remindBefore}
             onChange={(event) => {
@@ -689,24 +689,24 @@ export default function CalendarTool() {
           <div className="mx-auto max-w-xl rounded-xl border border-line bg-panel/40 p-6 text-center">
             <Icon name="calendar" size={30} className="mx-auto text-accent" />
             <h2 className="mt-3 text-base font-semibold">{t('calendar.notConnected')}</h2>
-            <p className="mx-auto mt-1 max-w-md text-[12.5px] text-muted">
+            <p className="mx-auto mt-1 max-w-md text-[13.5px] text-muted">
               {configMissing ? t('calendar.configMissing') : t('calendar.notConnectedHint')}
             </p>
             {configMissing ? (
-              <p className="mx-auto mt-3 max-w-md text-[11.5px] text-muted">{t('calendar.configMissingHint')}</p>
+              <p className="mx-auto mt-3 max-w-md text-[12.5px] text-muted">{t('calendar.configMissingHint')}</p>
             ) : (
               <button type="button" className="btn btn-primary mt-4" onClick={() => void connect()} disabled={opening}>
                 <Icon name="external" />
                 {opening ? t('calendar.connecting') : t('calendar.connect')}
               </button>
             )}
-            {hint ? <p className="mt-3 text-[11.5px] text-muted">{t('calendar.hint')}</p> : null}
+            {hint ? <p className="mt-3 text-[12.5px] text-muted">{t('calendar.hint')}</p> : null}
           </div>
         ) : phase === 'error' ? (
           <div className="mx-auto max-w-xl rounded-xl border border-bad/40 bg-bad/5 p-6 text-center">
             <Icon name="calendar" size={28} className="mx-auto text-bad" />
             <h2 className="mt-3 text-base font-semibold">{t('calendar.error')}</h2>
-            <p className="mono mx-auto mt-2 max-w-lg text-[11.5px] break-words text-muted">{message}</p>
+            <p className="mono mx-auto mt-2 max-w-lg text-[12.5px] break-words text-muted">{message}</p>
             <button type="button" className="btn mt-4" onClick={() => void fetchEvents(true)}>
               <Icon name="refresh" />
               {t('calendar.retry')}
@@ -715,10 +715,10 @@ export default function CalendarTool() {
         ) : (
           <div className="flex h-full min-h-[520px] flex-col gap-2">
             {!writeScope ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11.5px] text-warn">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[12.5px] text-warn">
                 <Icon name="bell" size={13} className="shrink-0" />
                 <span className="min-w-0 flex-1">{t('calendar.writeScopeHint')}</span>
-                <button type="button" className="btn px-2 py-1 text-[11px]" onClick={() => void connect()} disabled={opening}>
+                <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => void connect()} disabled={opening}>
                   {opening ? t('calendar.connecting') : t('calendar.reconnect')}
                 </button>
               </div>
@@ -729,7 +729,7 @@ export default function CalendarTool() {
               culture={lang}
               events={rbcEvents}
               views={VIEWS}
-              defaultView="month"
+              defaultView={typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'agenda' : 'month'}
               popup
               selectable={false}
               messages={messages}
@@ -761,16 +761,16 @@ export default function CalendarTool() {
               <Icon name="bell" size={16} className="animate-pulse" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+              <div className="text-[12.5px] font-semibold uppercase tracking-wide text-accent">
                 {t('calendar.reminderTitle')}
               </div>
-              <div id="calendar-reminder-title" className="mt-0.5 text-[13px] font-semibold break-words">
+              <div id="calendar-reminder-title" className="mt-0.5 text-[13.5px] font-semibold break-words">
                 {reminderEvent.title}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted">
+              <div className="mt-0.5 text-[12px] text-muted">
                 {t('calendar.reminderIn').replace('{n}', String(reminderMinutes))}
               </div>
-              <div className="mt-0.5 text-[10.5px] text-muted">
+              <div className="mt-0.5 text-[12.5px] text-muted">
                 {eventWhen(reminderEvent, locale, t('calendar.allDay'))}
               </div>
             </div>
@@ -785,10 +785,10 @@ export default function CalendarTool() {
             </button>
           </div>
           <div className="mt-2.5 flex justify-end gap-2">
-            <button type="button" className="btn px-2 py-1 text-[11px]" onClick={dismissReminder}>
+            <button type="button" className="btn px-2 py-1 text-[12px]" onClick={dismissReminder}>
               {t('common.close')}
             </button>
-            <button type="button" className="btn btn-primary px-2 py-1 text-[11px]" onClick={openReminder}>
+            <button type="button" className="btn btn-primary px-2 py-1 text-[12px]" onClick={openReminder}>
               {t('calendar.reminderOpen')}
             </button>
           </div>
@@ -825,14 +825,14 @@ export default function CalendarTool() {
                     {selected.title}
                   </h2>
                   {isCancelled ? (
-                    <span className="rounded-full bg-bad/15 px-2 py-0.5 text-[10px] font-semibold text-bad">
+                    <span className="rounded-full bg-bad/15 px-2 py-0.5 text-[12.5px] font-semibold text-bad">
                       {t('calendar.cancelled')}
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
                   <span
-                    className="max-w-[320px] truncate rounded-md border border-line bg-white/5 px-1.5 py-0.5 text-[10.5px]"
+                    className="max-w-[320px] truncate rounded-md border border-line bg-white/5 px-1.5 py-0.5 text-[12.5px]"
                     title={calendarName}
                   >
                     {calendarName}
@@ -853,14 +853,14 @@ export default function CalendarTool() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-5 p-5 text-[12.5px]">
+            <div className="flex flex-col gap-5 p-5 text-[13.5px]">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
                   <Icon name="clock" size={14} />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium leading-relaxed text-ink/90">{whenText}</div>
-                  {durationText ? <div className="mt-0.5 text-[11.5px] text-muted">{durationText}</div> : null}
+                  <div className="text-[13.5px] font-medium leading-relaxed text-ink/90">{whenText}</div>
+                  {durationText ? <div className="mt-0.5 text-[12.5px] text-muted">{durationText}</div> : null}
                 </div>
               </div>
 
@@ -883,7 +883,7 @@ export default function CalendarTool() {
                   <div className="min-w-0">
                     <div className="label">{t('calendar.location')}</div>
                     <a
-                      className="mt-0.5 block break-words text-[13px] text-ink/90 underline decoration-line underline-offset-2 hover:text-accent"
+                      className="mt-0.5 block break-words text-[13.5px] text-ink/90 underline decoration-line underline-offset-2 hover:text-accent"
                       href={mapsHref}
                       target="_blank"
                       rel="noreferrer noopener"
@@ -919,25 +919,25 @@ export default function CalendarTool() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="label">{t('calendar.attendees')}</span>
-                      <span className="text-[10.5px] text-muted">{attendees.length}</span>
+                      <span className="text-[12.5px] text-muted">{attendees.length}</span>
                     </div>
                     <ul className="mt-2 flex max-h-56 flex-col gap-2.5 overflow-y-auto pr-1">
                       {attendees.map((person, index) => (
                         <li key={person.email + '-' + index} className="flex items-start gap-2.5">
-                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[12.5px] font-semibold text-accent">
                             {personInitials(person)}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-[12px] text-ink/90">
+                            <div className="truncate text-[13px] text-ink/90">
                               {person.displayName || person.email}
                             </div>
                             {person.displayName ? (
-                              <div className="truncate text-[10.5px] text-muted">{person.email}</div>
+                              <div className="truncate text-[12.5px] text-muted">{person.email}</div>
                             ) : null}
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             {person.organizer ? (
-                              <span className="rounded-md border border-line px-1 py-0.5 text-[9.5px] text-muted">
+                              <span className="rounded-md border border-line px-1 py-0.5 text-[12.5px] text-muted">
                                 {t('calendar.organizer')}
                               </span>
                             ) : null}
@@ -961,7 +961,7 @@ export default function CalendarTool() {
                       {attachments.map((attachment, index) => (
                         <a
                           key={attachment.href + '-' + index}
-                          className="inline-flex max-w-full items-center gap-2 text-[12px] text-accent hover:underline"
+                          className="inline-flex max-w-full items-center gap-2 text-[13px] text-accent hover:underline"
                           href={attachment.href}
                           target="_blank"
                           rel="noreferrer noopener"
@@ -1087,7 +1087,7 @@ export default function CalendarTool() {
               </label>
 
               {formError ? (
-                <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[12px] break-words text-bad">
+                <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] break-words text-bad">
                   {formError}
                   {/izin|hubungkan ulang|scope|reconnect/i.test(formError) ? (
                     <button

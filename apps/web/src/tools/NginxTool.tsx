@@ -238,16 +238,16 @@ export default function NginxTool() {
       </PageHeader>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-panel/20 px-3 py-2">
-        <button type="button" className="btn px-2 py-1 text-[12px]" data-action="nginx:new" onClick={create}>
+        <button type="button" className="btn px-2 py-1 text-[13px]" data-action="nginx:new" onClick={create}>
           <Icon name="plus" /> {t('nginx.new')}
         </button>
-        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={remove} disabled={!activePath}>
+        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={remove} disabled={!activePath}>
           <Icon name="trash" /> {t("common.delete")}
         </button>
-        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={revert} disabled={!activeFile?.hasBackup} title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}>
+        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={revert} disabled={!activeFile?.hasBackup} title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}>
           <Icon name="refresh" /> Kembalikan asli
         </button>
-        <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => activePath && open(activePath)} disabled={!dirty}>
+        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={() => activePath && open(activePath)} disabled={!dirty}>
           {t('common.cancel')}
         </button>
         <div className="ml-auto flex items-center gap-1.5">
@@ -260,7 +260,7 @@ export default function NginxTool() {
             }}
             onBlur={() => void loadModels()}
             placeholder="API key (opsional)"
-            className="input w-36 py-1 text-[12px]"
+            className="input w-36 py-1 text-[13px]"
             aria-label="API key LLM"
           />
           <input
@@ -271,7 +271,7 @@ export default function NginxTool() {
               localStorage.setItem('st:llm:model', e.target.value);
             }}
             placeholder="model LLM"
-            className="input w-44 py-1 text-[12px]"
+            className="input w-44 py-1 text-[13px]"
             aria-label="Model LLM"
           />
           <datalist id="st-llm-models">
@@ -279,7 +279,7 @@ export default function NginxTool() {
               <option key={item} value={item} />
             ))}
           </datalist>
-          <span className="hidden text-[11px] text-muted md:inline">{t('nginx.hintExplain')}</span>
+          <span className="hidden text-[12px] text-muted md:inline">{t('nginx.hintExplain')}</span>
         </div>
       </div>
 
@@ -288,14 +288,14 @@ export default function NginxTool() {
           <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
             {recents.length ? (
               <div className="mb-1 border-b border-line pb-1">
-                <div className="px-1 pb-1 text-[10px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
+                <div className="px-1 pb-1 text-[12.5px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
                 {recents.slice(0, 5).map((item) => (
                   <button
                     key={item.path}
                     type="button"
                     onClick={() => void open(item.path)}
                     title={item.path}
-                    className="block w-full truncate rounded px-1 py-0.5 text-left text-[11.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                    className="block min-h-8 w-full truncate rounded px-1 py-0.5 text-left text-[12.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
                   >
                     {item.path.split('/').pop()}
                   </button>
@@ -321,10 +321,10 @@ export default function NginxTool() {
                     )}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[12.5px] font-medium">{file.name}</span>
+                      <span className="truncate text-[13.5px] font-medium">{file.name}</span>
                       {file.hasBackup ? <span className="chip">bak</span> : null}
                     </div>
-                    <div className="text-[11px] text-muted">
+                    <div className="text-[12px] text-muted">
                       {bytes(file.size)} · {timeAgo(file.mtime)}
                     </div>
                   </button>
@@ -332,7 +332,7 @@ export default function NginxTool() {
               )}
             </div>
             {notice ? (
-              <div className={cn('mono max-h-40 shrink-0 overflow-auto border-t border-line p-2 text-[11px] whitespace-pre-wrap', notice.ok ? 'text-ok' : 'text-bad')}>
+              <div className={cn('mono max-h-40 shrink-0 overflow-auto border-t border-line p-2 text-[12px] whitespace-pre-wrap', notice.ok ? 'text-ok' : 'text-bad')}>
                 {notice.message}
               </div>
             ) : null}
@@ -365,7 +365,7 @@ export default function NginxTool() {
 
         {explain ? (
           <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel/40 xl:w-96">
-            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/30 px-3 py-2 text-[11px] text-muted">
+            <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/30 px-3 py-2 text-[12px] text-muted">
               <Icon name="eye" size={13} />
               <span className="min-w-0 flex-1 truncate">Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
               <button type="button" className="btn btn-ghost px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
@@ -380,7 +380,7 @@ export default function NginxTool() {
               ) : explain.error ? (
                 <p className="p-2 text-sm text-bad">{explain.error}</p>
               ) : (
-                <div className="md text-[13.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
+                <div className="md text-[14px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
               )}
             </div>
           </aside>
@@ -393,10 +393,10 @@ export default function NginxTool() {
           className="fixed z-50 w-56 overflow-hidden rounded-xl border border-line bg-panel shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="mono max-h-16 overflow-hidden border-b border-line px-2.5 py-1.5 text-[11px] text-muted">{menu.text.slice(0, 120)}</div>
+          <div className="mono max-h-16 overflow-hidden border-b border-line px-2.5 py-1.5 text-[12px] text-muted">{menu.text.slice(0, 120)}</div>
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12.5px] hover:bg-panel2"
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[13.5px] hover:bg-panel2"
             onClick={() => {
               setMenu(null);
               void explainText(menu.text);
@@ -406,7 +406,7 @@ export default function NginxTool() {
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12.5px] hover:bg-panel2"
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[13.5px] hover:bg-panel2"
             onClick={() => {
               void navigator.clipboard.writeText(menu.text);
               setMenu(null);

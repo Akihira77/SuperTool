@@ -36,7 +36,7 @@ function Meter({ value, label, text, tone }: { value: number; label: string; tex
   const pct = Math.max(0, Math.min(100, value));
   return (
     <div className="flex min-w-32 flex-col gap-0.5">
-      <div className="flex items-baseline gap-1.5 text-[11px] text-muted">
+      <div className="flex items-baseline gap-1.5 text-[12px] text-muted">
         <span className="tracking-wide uppercase">{label}</span>
         <span className="mono text-ink/85">{text}</span>
       </div>
@@ -93,7 +93,7 @@ function SortTh({
         title={'Urutkan ' + label}
       >
         {label}
-        <span className="text-[9px] opacity-70">{active ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
+        <span className="text-[12.5px] opacity-70">{active ? (sort.dir === 1 ? '▲' : '▼') : '↕'}</span>
       </button>
     </th>
   );
@@ -197,7 +197,8 @@ export default function PortsTool() {
       >
         <div className="relative">
           <Icon name="search" className="absolute top-2 left-2 text-muted" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('ports.filter')} className="input w-44 py-1.5 pl-7 text-[13px]" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('ports.filter')}
+            aria-label={t('ports.filter')} className="input w-44 py-1.5 pl-7 text-[13.5px]" />
         </div>
         <button type="button" className={cn('btn', auto && 'btn-primary')} data-action="ports:auto" onClick={() => setAuto(!auto)} title={t('ports.autoHint')}>
           {t('ports.auto')}
@@ -230,13 +231,13 @@ export default function PortsTool() {
             text={bytes(memUsed) + ' / ' + bytes(system.memTotal)}
             tone={memUsed / system.memTotal > 0.9 ? 'bad' : memUsed / system.memTotal > 0.75 ? 'warn' : undefined}
           />
-          <span className="text-[11.5px] text-muted">
+          <span className="text-[12.5px] text-muted">
             {t('ports.cpu')} <span className="mono text-ink/80">{system.cpus}</span>
           </span>
-          <span className="text-[11.5px] text-muted">
+          <span className="text-[12.5px] text-muted">
             {t('ports.procs')} <span className="mono text-ink/80">{procs.length}</span>
           </span>
-          <span className="text-[11.5px] text-muted">
+          <span className="text-[12.5px] text-muted">
             uptime <span className="mono text-ink/80">{duration(Math.round(system.uptime))}</span>
           </span>
         </div>
@@ -250,8 +251,8 @@ export default function PortsTool() {
         </div>
       ) : tab === 'ports' ? (
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[11px] backdrop-blur tracking-wide text-muted uppercase">
+          <table className="w-full border-collapse text-[13.5px]">
+            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[12px] backdrop-blur tracking-wide text-muted uppercase">
               <tr>
                 <th className="border-b border-line px-3 py-2 font-medium">Port</th>
                 <th className="border-b border-line px-3 py-2 font-medium">Alamat</th>
@@ -269,7 +270,7 @@ export default function PortsTool() {
                   <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.address}</td>
                   <td className="max-w-[22rem] border-b border-line/60 px-3 py-2">
                     <div className="truncate">{row.process || '-'}</div>
-                    <div className="truncate text-[11px] text-muted" title={row.cmd}>
+                    <div className="truncate text-[12px] text-muted" title={row.cmd}>
                       {row.cmd}
                     </div>
                   </td>
@@ -278,7 +279,7 @@ export default function PortsTool() {
                   <td className="border-b border-line/60 px-3 py-2 text-muted">{row.established}</td>
                   <td className="border-b border-line/60 px-3 py-2 text-right whitespace-nowrap">
                     <a
-                      className="btn btn-ghost px-1.5 py-0.5 text-[11px]"
+                      className="btn btn-ghost px-1.5 py-0.5 text-[12px]"
                       href={'http://127.0.0.1:' + row.port}
                       target="_blank"
                       rel="noreferrer"
@@ -288,7 +289,7 @@ export default function PortsTool() {
                     </a>
                     <button
                       type="button"
-                      className="btn btn-ghost px-1.5 py-0.5 text-[11px]"
+                      className="btn btn-ghost px-1.5 py-0.5 text-[12px]"
                       onClick={() => void navigator.clipboard.writeText('http://127.0.0.1:' + row.port)}
                       title="Salin URL"
                     >
@@ -296,7 +297,7 @@ export default function PortsTool() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn-danger px-1.5 py-0.5 text-[11px]"
+                      className="btn btn-danger px-1.5 py-0.5 text-[12px]"
                       onClick={() => row.pid && kill(row.pid, row.process + ' · port ' + row.port + '\n' + row.cmd)}
                       disabled={!row.pid}
                       title="Kirim SIGTERM"
@@ -312,8 +313,8 @@ export default function PortsTool() {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[11px] backdrop-blur tracking-wide text-muted uppercase">
+          <table className="w-full border-collapse text-[13.5px]">
+            <thead className="sticky top-0 z-10 bg-panel/95 text-left text-[12px] backdrop-blur tracking-wide text-muted uppercase">
               <tr>
                 <SortTh label={t('ports.pid')} sortKey="pid" sort={sort} onSort={toggleSort} />
                 <SortTh label={t('ports.user')} sortKey="user" sort={sort} onSort={toggleSort} />
@@ -336,14 +337,14 @@ export default function PortsTool() {
                   <td className="mono border-b border-line/60 px-3 py-2 text-muted">{row.elapsed}</td>
                   <td className="max-w-[26rem] border-b border-line/60 px-3 py-2">
                     <div className="truncate font-medium">{row.command}</div>
-                    <div className="truncate text-[11px] text-muted" title={row.args}>
+                    <div className="truncate text-[12px] text-muted" title={row.args}>
                       {row.args}
                     </div>
                   </td>
                   <td className="border-b border-line/60 px-3 py-2 text-right">
                     <button
                       type="button"
-                      className="btn btn-danger px-1.5 py-0.5 text-[11px]"
+                      className="btn btn-danger px-1.5 py-0.5 text-[12px]"
                       onClick={() => kill(row.pid, row.command + '\n' + row.args)}
                       title="Kirim SIGTERM"
                     >

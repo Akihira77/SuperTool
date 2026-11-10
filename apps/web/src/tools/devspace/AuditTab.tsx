@@ -116,7 +116,7 @@ export default function AuditTab() {
                 setExpanded(null);
                 void load(true, next, appliedQuery);
               }}
-              className="input w-36 py-1.5 text-[12px]"
+              className="input w-36 py-1.5 text-[13px]"
               aria-label={t('audit.source')}
             >
               <option value="">{t('audit.allSources')}</option>
@@ -132,21 +132,21 @@ export default function AuditTab() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="input py-1.5 pl-8 text-[12px]"
+                className="input py-1.5 pl-8 text-[13px]"
                 placeholder={t('audit.searchPlaceholder')}
                 aria-label={t('audit.searchPlaceholder')}
               />
             </div>
-            <button type="submit" className="btn btn-primary py-1.5 text-[12px]">
+            <button type="submit" className="btn btn-primary py-1.5 text-[13px]">
               <Icon name="search" size={13} /> {t('audit.search')}
             </button>
           </form>
-          <button type="button" className="btn btn-ghost py-1.5 text-[12px]" onClick={reset} disabled={loading}>
+          <button type="button" className="btn btn-ghost py-1.5 text-[13px]" onClick={reset} disabled={loading}>
             {t('audit.reset')}
           </button>
           <button
             type="button"
-            className="btn py-1.5 text-[12px]"
+            className="btn py-1.5 text-[13px]"
             onClick={() => void load(true, source, appliedQuery)}
             disabled={loading}
           >
@@ -156,7 +156,7 @@ export default function AuditTab() {
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[12px] text-bad">{error}</div>
+          <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
         ) : null}
 
         {!items.length && !loading ? (
@@ -181,12 +181,12 @@ export default function AuditTab() {
                     aria-expanded={open}
                   >
                     <span className="mono w-24 shrink-0 leading-4" title={when.iso}>
-                      <span className="block text-[10.5px] text-ink/85">{when.time}</span>
-                      <span className="block text-[9.5px] text-muted">{when.date}</span>
+                      <span className="block text-[12.5px] text-ink/85">{when.time}</span>
+                      <span className="block text-[12.5px] text-muted">{when.date}</span>
                     </span>
                     <span
                       className={cn(
-                        'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                        'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12.5px] font-medium',
                         item.source === 'telegram_bot' ? 'bg-accent/10 text-accent' : 'bg-panel2 text-muted',
                       )}
                     >
@@ -198,16 +198,16 @@ export default function AuditTab() {
                       />
                       {item.source === 'telegram_bot' ? t('audit.telegram') : t('audit.web')}
                     </span>
-                    <span className="min-w-0 max-w-52 truncate text-[11.5px] font-medium" title={item.actor}>
+                    <span className="min-w-0 max-w-52 truncate text-[12.5px] font-medium" title={item.actor}>
                       {item.actor}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={item.action}>
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-muted" title={item.action}>
                       <span className="text-ink/80">{item.feature}</span> · {item.action}
                     </span>
-                    <span className={cn('mono rounded px-1.5 py-0.5 text-[10px] font-medium', statusTone(item.status))}>
+                    <span className={cn('mono rounded px-1.5 py-0.5 text-[12.5px] font-medium', statusTone(item.status))}>
                       {item.status ?? '—'}
                     </span>
-                    <span className="mono w-16 text-right text-[10px] text-muted">{item.durationMs} ms</span>
+                    <span className="mono w-16 text-right text-[12.5px] text-muted">{item.durationMs} ms</span>
                     <Icon
                       name={open ? 'chevronDown' : 'chevronRight'}
                       size={12}
@@ -225,12 +225,12 @@ export default function AuditTab() {
                         <span className="chip">#{item.id}</span>
                       </div>
                       {item.error ? (
-                        <div className="mb-2 rounded-lg border border-bad/30 bg-bad/10 px-2.5 py-2 text-[11px] text-bad">
+                        <div className="mb-2 rounded-lg border border-bad/30 bg-bad/10 px-2.5 py-2 text-[12px] text-bad">
                           {item.error}
                         </div>
                       ) : null}
                       <div className="label mb-1">{t('audit.payload')}</div>
-                      <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-panel2/50 p-2.5 font-mono text-[10.5px] leading-5 text-ink/85">
+                      <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-panel2/50 p-2.5 font-mono text-[12.5px] leading-5 text-ink/85">
                         {prettyPayload(item.payload)}
                       </pre>
                     </div>

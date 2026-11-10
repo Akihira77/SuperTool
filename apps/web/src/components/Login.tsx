@@ -33,21 +33,21 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
           </div>
           <div>
             <h1 className="text-[17px] font-semibold tracking-tight">Super Tool</h1>
-            <p className="mt-0.5 text-[11.5px] text-muted">{t('login.subtitle')}</p>
+            <p className="mt-0.5 text-[12.5px] text-muted">{t('login.subtitle')}</p>
           </div>
         </div>
 
         <label className="label mb-1.5 block">Password</label>
         <PasswordInput autoFocus value={password} onChange={setPassword} placeholder="••••••••" label="Password" />
 
-        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[11.5px] text-bad">{error}</p> : null}
+        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[12.5px] text-bad">{error}</p> : null}
 
         <button type="submit" disabled={busy || !password} className="btn btn-primary mt-5 w-full justify-center py-2.5">
           {busy ? <Spinner /> : <Icon name="lock" />}
           {t('login.submit')}
         </button>
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+        <p className="mt-4 text-center text-[12px] leading-relaxed text-muted">
           {t('login.firstTime')} <span className="mono text-ink/80">password</span>, {t('login.changeHint')}
         </p>
       </form>

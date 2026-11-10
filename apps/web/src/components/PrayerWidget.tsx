@@ -155,8 +155,8 @@ export function PrayerWidget() {
         aria-expanded={open}
       >
         <Icon name="clock" size={13} className="shrink-0 text-accent/80" />
-        <span className="hidden text-[11.5px] text-muted lg:inline">{dateText}</span>
-        <span className="mono text-[12px] font-medium tabular-nums">{clockText}</span>
+        <span className="hidden text-[12.5px] text-muted lg:inline">{dateText}</span>
+        <span className="mono text-[13px] font-medium tabular-nums">{clockText}</span>
         {headerNext ? (
           <span className="flex items-center gap-1.5 border-l border-line pl-1.5">
             {headerTone ? (
@@ -165,8 +165,8 @@ export function PrayerWidget() {
                 <span className={cn('relative inline-flex size-1.5 rounded-full', headerTone === 'after' ? 'bg-ok' : 'bg-warn')} />
               </span>
             ) : null}
-            <span className="hidden text-[11px] text-muted sm:inline">{prayerLabel(headerNext.key)}</span>
-            <span className="mono text-[11.5px] tabular-nums text-muted">{formatClock(headerNext.at)}</span>
+            <span className="hidden text-[12px] text-muted sm:inline">{prayerLabel(headerNext.key)}</span>
+            <span className="mono text-[12.5px] tabular-nums text-muted">{formatClock(headerNext.at)}</span>
           </span>
         ) : null}
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} className="shrink-0 text-muted" />
@@ -178,8 +178,8 @@ export function PrayerWidget() {
           <div className="flex items-start gap-2 rounded-lg bg-panel2/45 px-2 py-2">
             <Icon name="bell" size={14} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
-              <div className="text-[12.5px] font-medium">{t('prayer.today')}</div>
-              <div className="truncate text-[10.5px] text-muted" title={settings.label || coords}>
+              <div className="text-[13.5px] font-medium">{t('prayer.today')}</div>
+              <div className="truncate text-[12.5px] text-muted" title={settings.label || coords}>
                 {settings.label || coords || t('prayer.locationUnknown')}
               </div>
             </div>
@@ -194,7 +194,7 @@ export function PrayerWidget() {
                   <div
                     key={item.key}
                     className={cn(
-                      'flex items-center justify-between rounded-md px-1.5 py-1 text-[12px]',
+                      'flex items-center justify-between rounded-md px-1.5 py-1 text-[13px]',
                       next ? 'bg-accent/10 text-accent' : passed ? 'text-muted/70' : 'text-ink/85',
                     )}
                   >
@@ -202,7 +202,7 @@ export function PrayerWidget() {
                       {next ? <span className="size-1.5 rounded-full bg-accent" /> : <span className="size-1.5" />}
                       {prayerLabel(item.key)}
                     </span>
-                    <span className="mono text-[11.5px] tabular-nums">{formatClock(item.at)}</span>
+                    <span className="mono text-[12.5px] tabular-nums">{formatClock(item.at)}</span>
                   </div>
                 );
               })}
@@ -222,12 +222,12 @@ export function PrayerWidget() {
           <div className="mt-2 border-t border-line pt-1.5">
             <button
               type="button"
-              className="nav-item w-full text-[11.5px]"
+              className="nav-item w-full text-[12.5px]"
               onClick={openSettings}
             >
               <Icon name="pin" size={13} /> {t('prayer.settingsLink')}
             </button>
-            <div className="mt-1 px-1.5 text-[10px] leading-snug text-muted/70">
+            <div className="mt-1 px-1.5 text-[12.5px] leading-snug text-muted/70">
               {t('prayer.methodNote')}
             </div>
           </div>
@@ -241,9 +241,9 @@ export function PrayerWidget() {
               <Icon name="bell" size={16} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold">{t('prayer.reminder')} {alertLabel}</div>
-              <div className="mono mt-0.5 text-[11px] text-muted">{formatClock(alert.at)}</div>
-              <div className="mt-1 text-[11px] leading-snug text-muted">{t('prayer.reminderBody')}</div>
+              <div className="text-[13.5px] font-semibold">{t('prayer.reminder')} {alertLabel}</div>
+              <div className="mono mt-0.5 text-[12px] text-muted">{formatClock(alert.at)}</div>
+              <div className="mt-1 text-[12px] leading-snug text-muted">{t('prayer.reminderBody')}</div>
             </div>
             <button
               type="button"

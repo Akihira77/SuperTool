@@ -49,7 +49,7 @@ export default function RegexTab() {
     <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 lg:grid-cols-2">
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Pattern</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Pattern</span>
           <input value={pattern} onChange={(event) => setPattern(event.target.value)} className="input mono" spellCheck={false} />
         </label>
 
@@ -64,13 +64,13 @@ export default function RegexTab() {
               {flag}
             </button>
           ))}
-          <span className={cn('text-[11.5px]', result.error ? 'text-bad' : 'text-muted')}>
+          <span className={cn('text-[12.5px]', result.error ? 'text-bad' : 'text-muted')}>
             {result.error || result.hits.length + ' kecocokan'}
           </span>
         </div>
 
         <label className="flex min-h-0 flex-1 flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Teks uji</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Teks uji</span>
           <textarea
             value={text}
             onChange={(event) => setText(event.target.value)}
@@ -80,15 +80,15 @@ export default function RegexTab() {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Ganti dengan</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Ganti dengan</span>
           <input value={replacement} onChange={(event) => setReplacement(event.target.value)} className="input mono" spellCheck={false} />
         </label>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Sorotan</span>
-          <pre className="mono min-h-24 whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] leading-relaxed">
+          <span className="text-[12px] tracking-wide text-muted uppercase">Sorotan</span>
+          <pre className="mono min-h-24 whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[13.5px] leading-relaxed">
             {segments.map((segment, index) =>
               segment.hit ? (
                 <mark key={index} className="rounded bg-accent/30 px-0.5 text-ink">
@@ -102,9 +102,9 @@ export default function RegexTab() {
         </div>
 
         <div className="flex min-h-0 flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">Grup</span>
+          <span className="text-[12px] tracking-wide text-muted uppercase">Grup</span>
           <div className="max-h-64 overflow-auto rounded-lg border border-line">
-            <table className="w-full border-collapse text-[12px]">
+            <table className="w-full border-collapse text-[13px]">
               <tbody>
                 {result.hits.map((hit, index) => (
                   <tr key={index} className="border-b border-line/60 last:border-0">
@@ -119,8 +119,8 @@ export default function RegexTab() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-wide text-muted uppercase">{t('regex.result')}</span>
-          <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px]">
+          <span className="text-[12px] tracking-wide text-muted uppercase">{t('regex.result')}</span>
+          <pre className="mono max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-[#070d14] p-3 text-[13.5px]">
             {result.error ? '' : result.replaced}
           </pre>
         </div>
