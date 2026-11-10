@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon, PageHeader, Spinner, Tabs, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
+import { usePaletteIntent } from '../lib/palette';
 import { bytes } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { useToast } from '../components/toast';
@@ -164,6 +165,15 @@ export default function CompressTool() {
       }
     }, 700);
   };
+
+  // Workflow: terima path dari File Explorer lalu isi kolom sumber.
+  usePaletteIntent('compress', (action, payload) => {
+    if (action === 'pick' && typeof payload === 'string') {
+      setPath(payload);
+      setResult(null);
+      setError('');
+    }
+  });
 
   const run = async () => {
     if (!path.trim()) return;

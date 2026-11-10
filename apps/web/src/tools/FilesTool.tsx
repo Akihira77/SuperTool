@@ -6,6 +6,7 @@ import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent, type FilesSearchPayload } from '../lib/palette';
+import { runWorkflow } from '../lib/workflow';
 import { cleanPath, isInside, projectName, useProject } from '../lib/project';
 import { usePlayer } from '../lib/player';
 import { useConfirm } from '../components/confirm';
@@ -875,6 +876,17 @@ export default function FilesTool() {
                     </>
                   ) : null}
                   <CopyButton text={file.path} label="Path" />
+                  {['png', 'jpg', 'jpeg', 'webp', 'pdf'].includes(fileExt) ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      title={t('files.compressAction')}
+                      data-action="files:compress"
+                      onClick={() => runWorkflow({ tool: 'compress', action: 'pick', payload: file.path })}
+                    >
+                      <Icon name="compress" /> {t('files.compressAction')}
+                    </button>
+                  ) : null}
                   <a className="btn" href={RAW + encodeURIComponent(file.path) + '&download=1'} download>
                     <Icon name="download" />
                   </a>

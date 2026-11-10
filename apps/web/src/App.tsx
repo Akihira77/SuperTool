@@ -15,6 +15,8 @@ import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
 import { useSidebar } from './lib/useSidebar';
 import { dispatchIntent, runClick, runFocus, type FilesSearchPayload } from './lib/palette';
+import { actionsFor, findAction } from './lib/actions';
+import { onWorkflow } from './lib/workflow';
 import {
   MAX_SESSIONS,
   loadSessionStore,
@@ -147,29 +149,6 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Aksi per tool untuk submenu palette. Tombolnya di tool ditandai
-  // data-action="tool:aksi" supaya palette tinggal mengklik.
-  const act = (tool: string, action: string, icon = 'chevronRight'): PaletteNode => ({
-    id: tool + ':' + action,
-    label: t(('palette.act.' + action) as 'palette.act.write'),
-    icon,
-  });
-
-  const toolActions: Record<string, PaletteNode[]> = {
-    markdown: [act('markdown', 'write', 'markdown'), act('markdown', 'upload', 'download'), act('markdown', 'export', 'download'), act('markdown', 'sample', 'notes'), act('markdown', 'clear', 'trash')],
-    json: [act('json', 'write', 'json'), act('json', 'format', 'check'), act('json', 'minify', 'compress'), act('json', 'sort', 'types'), act('json', 'upload', 'download'), act('json', 'download', 'download')],
-    types: [act('types', 'download', 'download')],
-    notes: [act('notes', 'new', 'plus'), act('notes', 'search', 'search'), act('notes', 'delete', 'trash'), act('notes', 'list', 'notes')],
-    nginx: [act('nginx', 'save', 'save'), act('nginx', 'new', 'plus')],
-    ports: [act('ports', 'refresh', 'refresh'), act('ports', 'tabPorts', 'ports'), act('ports', 'tabProcs', 'dev'), act('ports', 'auto', 'play')],
-    compress: [act('compress', 'pick', 'files'), act('compress', 'run', 'play'), act('compress', 'download', 'download')],
-    devspace: ['regex', 'encode', 'http', 'log', 'docker', 'git', 'cron', 'dns', 'sqlite', 'audit'].map((tab) =>
-      act('devspace', tab, 'chevronRight'),
-    ),
-    webhook: [act('webhook', 'pause', 'play'), act('webhook', 'clear', 'trash')],
-    settings: [act('settings', 'backup', 'download'), act('settings', 'restore', 'upload')],
-  };
-
   const loadUrls = async (): Promise<PaletteNode[]> => {
     const data = await api.get<{ urls: Array<{ id: string; name: string; url: string }> }>('/urls').catch(() => ({ urls: [] }));
     const list = data.urls ?? [];
@@ -187,13 +166,20 @@ function Shell() {
         return {
           ...base,
           children: [
-            act('viewer', 'add', 'plus'),
+            { id: 'viewer:add', label: t(('palette.act.add') as 'palette.act.write'), icon: 'plus' },
             { id: 'viewer:access', label: t('palette.act.access'), desc: t('palette.act.accessDesc'), icon: 'url', children: loadUrls },
             { id: 'viewer:edit', label: t('palette.act.edit'), desc: t('palette.act.editDesc'), icon: 'edit', children: async () => (await loadUrls()).map((node) => ({ ...node, id: node.id.replace('viewer:open:', 'viewer:edit:') })) },
           ],
         };
       }
-      return { ...base, children: toolActions[id] };
+      return {
+        ...base,
+        children: actionsFor(id).map<PaletteNode>((action) => ({
+          id: action.tool + ':' + action.action,
+          label: t(('palette.act.' + action.action) as 'palette.act.write'),
+          icon: action.icon,
+        })),
+      };
     }),
     { id: 'action:lang', label: lang === 'id' ? 'Bahasa: English' : 'Bahasa: Indonesia', desc: t('palette.act.langDesc'), icon: 'dev' },
     { id: 'action:password', label: t('nav.password'), desc: t('palette.act.passwordDesc'), icon: 'lock' },
@@ -224,8 +210,8 @@ function Shell() {
     }
     const [tool, action] = node.id.split(':');
     openTool(tool);
-    const focusTarget: Record<string, string> = { 'markdown:write': 'editor', 'json:write': 'editor', 'notes:search': 'search' };
-    if (focusTarget[node.id]) void runFocus(tool, focusTarget[node.id]);
+    const spec = findAction(tool, action);
+    if (spec?.focus) void runFocus(tool, spec.focus);
     else void runClick(tool, action);
     void path;
   };
@@ -363,6 +349,18 @@ function Shell() {
     if (existing) activateSession(existing.id);
     else addSession(toolId);
   };
+
+  // Workflow lintas tool: buka sesi tujuan lalu teruskan aksi + payload.
+  const openToolRef = useRef(openTool);
+  openToolRef.current = openTool;
+  useEffect(
+    () =>
+      onWorkflow((intent) => {
+        openToolRef.current(intent.tool);
+        dispatchIntent(intent);
+      }),
+    [],
+  );
 
   const logout = async () => {
     await api.post('/auth/logout').catch(() => undefined);

@@ -108,7 +108,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 | --- | --- | --- | --- |
 | P2-1 | Belum ada job runner terpusat | Operasi panjang memblokir request / tidak tahan restart | **Selesai** — tabel `jobs`, API `/jobs`, kompresor memakai antrean; uji `apps/api/jobs.test.mjs` |
 | P2-2 | Belum ada pusat diagnostik | Sulit menelusuri error lintas tool | **Selesai** — `GET /api/diagnostics` + kartu Settings; ring buffer log |
-| P2-3 | Aksi tersebar per tool | Command palette tidak lengkap | **Terbuka** |
+| P2-3 | Aksi tersebar per tool | Command palette tidak lengkap | **Selesai** — registry `lib/actions.ts`, palette membangun submenu dari registry |
 | P2-4 | Tidak ada workspace | Konteks proyek bercampur | **Terbuka** |
 | P2-5 | Belum ada Git workbench / Docker Compose / log explorer / AI kontekstual | Fitur Fase 4 | **Terbuka** |
 
@@ -176,8 +176,8 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 ### Fase 3 — Produktivitas (M)
 
 - [ ] Action registry terpusat: id, label, ikon, shortcut, handler, guard.
-- [ ] Command palette memakai registry (bukan daftar manual).
-- [ ] Workflow lintas tool: mis. file → compress → download; URL → proxy → note.
+- [x] Command palette memakai registry `apps/web/src/lib/actions.ts` (bukan daftar manual).
+- [x] Workflow lintas tool: File Explorer → Kompresor lewat event `st:workflow` + `usePaletteIntent`; tool lain memakai jalur yang sama.
 - [ ] HTTP collections: simpan request, environment, riwayat.
 - [ ] Workspace: root proyek, session, preferensi per workspace.
 - Acceptance:

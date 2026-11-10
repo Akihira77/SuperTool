@@ -418,7 +418,9 @@ Aksi yang tersedia mengikuti isi tiap tool, misalnya:
 | Port | refresh, tab port, tab proses, auto refresh |
 | Webhook | jeda/lanjut live, bersihkan |
 
-Palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). Aksi yang butuh tool aktif dijalankan setelah halaman tujuan muncul (`data-action`), jadi tidak ada state yang hilang saat pindah menu.
+Workflow antar tool berjalan tanpa menyalin data: contohnya tombol **Kompres** di pratinjau File Explorer mengirim path berkas ke Kompresor, yang langsung mengisi kolom sumber (event `st:workflow`).
+
+Palette juga memuat aksi cepat (ganti bahasa, ganti password, keluar). Daftar aksi per tool berasal dari registry `apps/web/src/lib/actions.ts` (id, tool, ikon, target fokus), bukan daftar terpisah di komponen. Aksi yang butuh tool aktif dijalankan setelah halaman tujuan muncul (`data-action`), jadi tidak ada state yang hilang saat pindah menu.
 
 ## Bahasa (ID / EN)
 
