@@ -96,7 +96,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 | --- | --- | --- | --- |
 | P1-1 | Proxy HTTP memakai `fetch` global setelah validasi | DNS rebinding TOCTOU | **Selesai** — `streamLocal` mem-pin IP hasil resolusi |
 | P1-2 | Rewrite proxy membaca seluruh body | Memori naik untuk respons besar | **Selesai** — batas 8 MB, 502 |
-| P1-3 | Upload/backup/restore menahan data di memori | OOM pada file besar | **Terbuka** |
+| P1-3 | Upload/backup/restore menahan data di memori | OOM pada file besar | **Selesai** — upload file & restore ke disk (multer), backup di-stream archiver |
 | P1-4 | Restore tidak atomik / cache tidak invalid | Data lama/parsial setelah restore | **Selesai** — staging, validasi SQLite, rename atomik, rollback uploads, cache auth/disk dibuang |
 | P1-5 | Tidak ada health/graceful shutdown | Restart memutus job/tulis DB | **Selesai** — `/api/health`, shutdown hooks |
 | P1-6 | CORS default terbuka | Origin asing dapat memanggil API | **Selesai** — CORS hanya jika `ST_DEV_ORIGIN` |
@@ -162,7 +162,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 ### Fase 2 — Keandalan dan resource (M/L)
 
 - [x] Baca file besar per chunk (2 MB, offset byte) + streaming download; batas ukuran eksplisit.
-- [ ] Upload streaming ke disk (bukan buffer); batas per file dan total.
+- [x] Upload streaming ke disk (bukan buffer); batas per file dan total.
 - [x] Backup/restore atomik: staging, fsync, rename, rollback uploads, invalidasi cache auth/disk; uji kegagalan di `apps/api/restore.test.mjs`.
 - [ ] Job runner: antrean persisten, status, cancel, retry, batas konkurensi.
 - [ ] Pusat diagnostik: versi, uptime, DB, disk, log terakhir, error terakhir.
@@ -228,12 +228,11 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 ## 6. Backlog berprioritas
 
-1. Upload/backup/restore streaming + atomik.
-2. Job runner + diagnostik.
-3. Action registry + palette.
-4. Workspace.
-5. Git/Docker/log/AI.
-6. Test/CI lengkap.
+1. Job runner + diagnostik.
+2. Action registry + palette.
+3. Workspace.
+4. Git/Docker/log/AI.
+5. Test/CI lengkap.
 
 ---
 

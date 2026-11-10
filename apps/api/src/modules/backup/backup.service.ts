@@ -20,7 +20,7 @@ const MAX_UNZIPPED = 1024 * 1024 * 1024;
 const MAX_DB = 512 * 1024 * 1024;
 const MAX_ENTRIES = 3000;
 
-type Uploaded = { originalname: string; buffer: Buffer; size: number };
+type Uploaded = { originalname: string; path?: string; buffer?: Buffer; size: number };
 
 const stamp = () => {
   const now = new Date();
@@ -70,16 +70,22 @@ export class BackupService {
   }
 
   async restore(file?: Uploaded) {
-    if (!file?.buffer?.length) throw new BadRequestException('File .zip tidak ditemukan');
-    if (file.size > MAX_UPLOAD) throw new BadRequestException('File backup maksimal 100 MB');
-    if (!/\.zip$/i.test(file.originalname || '')) throw new BadRequestException('File harus berakhiran .zip');
+    if (!file || (!file.path && !file.buffer?.length)) throw new BadRequestException('File .zip tidak ditemukan');
 
-    const temp = await mkdtemp(join(tmpdir(), 'st-restore-'));
+    // Multer sudah menulis upload ke disk; buffer hanya dipakai pemanggil lama.
+    let temp: string | null = null;
+    let zipPath: string;
+    if (file.path) zipPath = file.path;
+    else {
+      temp = await mkdtemp(join(tmpdir(), 'st-restore-'));
+      zipPath = join(temp, 'upload.zip');
+    }
     // Staging di folder data supaya rename ke DB/uploads tetap satu filesystem.
     const stage = await mkdtemp(join(cfg.dataDir, '.restore-'));
     try {
-      const zipPath = join(temp, 'upload.zip');
-      await writeFile(zipPath, file.buffer);
+      if (file.size > MAX_UPLOAD) throw new BadRequestException('File backup maksimal 100 MB');
+      if (!/\.zip$/i.test(file.originalname || '')) throw new BadRequestException('File harus berakhiran .zip');
+      if (!file.path && file.buffer) await writeFile(zipPath, file.buffer);
 
       const names = await this.listZip(zipPath);
       if (!names.length) throw new BadRequestException('Arsip kosong');
@@ -132,7 +138,8 @@ export class BackupService {
       }
       throw new BadRequestException('Gagal memulihkan backup: ' + message.slice(0, 160));
     } finally {
-      await rm(temp, { recursive: true, force: true });
+      if (temp) await rm(temp, { recursive: true, force: true });
+      if (file.path) await rm(file.path, { force: true }).catch(() => undefined);
       await rm(stage, { recursive: true, force: true });
     }
   }

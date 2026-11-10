@@ -96,3 +96,12 @@ test('restore: arsip tanpa uploads mempertahankan uploads lama', async () => {
   assert.equal(result.uploads, false);
   assert.deepEqual((await readdir(join(dir, 'uploads'))).sort(), ['lama.txt', 'tetap.txt']);
 });
+
+test('restore: upload dari disk (tanpa buffer) diproses lalu dihapus', async () => {
+  const archive = await zip({ 'super-tool.db': snapshot, 'backup.json': '{}' });
+  const file = join(dir, 'upload-disk.zip');
+  await writeFile(file, archive);
+  const result = await service.restore({ originalname: 'disk.zip', path: file, size: archive.length });
+  assert.equal(result.ok, true);
+  await assert.rejects(() => readFile(file), /ENOENT/);
+});
