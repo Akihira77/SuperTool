@@ -97,7 +97,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 | P1-1 | Proxy HTTP memakai `fetch` global setelah validasi | DNS rebinding TOCTOU | **Selesai** — `streamLocal` mem-pin IP hasil resolusi |
 | P1-2 | Rewrite proxy membaca seluruh body | Memori naik untuk respons besar | **Selesai** — batas 8 MB, 502 |
 | P1-3 | Upload/backup/restore menahan data di memori | OOM pada file besar | **Terbuka** |
-| P1-4 | Restore tidak atomik / cache tidak invalid | Data lama/parsial setelah restore | **Terbuka** |
+| P1-4 | Restore tidak atomik / cache tidak invalid | Data lama/parsial setelah restore | **Selesai** — staging, validasi SQLite, rename atomik, rollback uploads, cache auth/disk dibuang |
 | P1-5 | Tidak ada health/graceful shutdown | Restart memutus job/tulis DB | **Selesai** — `/api/health`, shutdown hooks |
 | P1-6 | CORS default terbuka | Origin asing dapat memanggil API | **Selesai** — CORS hanya jika `ST_DEV_ORIGIN` |
 | P1-7 | Cookie `Secure` dipaksa di HTTP loopback | Login gagal di deployment HTTP lokal | **Selesai** — `secure: req.secure` |
@@ -163,13 +163,13 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 
 - [x] Baca file besar per chunk (2 MB, offset byte) + streaming download; batas ukuran eksplisit.
 - [ ] Upload streaming ke disk (bukan buffer); batas per file dan total.
-- [ ] Backup/restore atomik: tulis ke `*.tmp`, fsync, rename; invalidasi cache.
+- [x] Backup/restore atomik: staging, fsync, rename, rollback uploads, invalidasi cache auth/disk; uji kegagalan di `apps/api/restore.test.mjs`.
 - [ ] Job runner: antrean persisten, status, cancel, retry, batas konkurensi.
 - [ ] Pusat diagnostik: versi, uptime, DB, disk, log terakhir, error terakhir.
 - [ ] Standar Node >= 22.13 (sudah), `.nvmrc` (sudah), cek `engines` semua paket.
 - Acceptance:
   - File 1 GB tidak menaikkan RSS > 200 MB.
-  - Restore yang gagal tidak meninggalkan DB parsial.
+  - Restore yang gagal tidak meninggalkan DB parsial (diuji: arsip traversal, SQLite rusak, versi skema lebih baru).
   - Job bertahan setelah restart dan bisa dibatalkan.
   - Diagnostik menjawab < 1 detik.
 
@@ -245,7 +245,8 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 | Typecheck web | `pnpm --filter @super-tool/web typecheck` | lulus |
 | Build API | `pnpm --filter @super-tool/api build` | lulus |
 | Build web | `pnpm --filter @super-tool/web build` | lulus |
-| Selfcheck API | `node --test apps/api/selfcheck.test.mjs` | 10/10 lulus |
+| Selfcheck API | `node --test apps/api/selfcheck.test.mjs` | 11/11 lulus |
+| Uji restore | `node --test apps/api/restore.test.mjs` | 6/6 lulus (roundtrip, traversal, bentuk arsip, SQLite rusak, versi skema, uploads lama) |
 | Full check | `pnpm check` | dijalankan sebelum rilis |
 
 Uji manual keamanan yang sudah dilakukan:

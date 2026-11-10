@@ -95,7 +95,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | proxy | `proxy.controller.ts` | mode sederhana `?u=`, probe koneksi, dan `POST /proxy/ticket` (tiket per-origin 12 jam) |
 | proxy | `proxy.middleware.ts` | reverse proxy path-prefix (`/api/proxy/b/<token>/`) dan subdomain (`<hex>.localhost`): aset, cookie, POST body, WebSocket, tulis-ulang origin absolut di HTML/JS/JSON; subdomain wajib tiket, path-mode diberi CSP `sandbox`, body tulis-ulang dibatasi 8 MB |
 | sqlite | `sqlite.controller.ts` | viewer read-only database aplikasi (info tabel, isi tabel, query SELECT) |
-| backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip` lalu ganti DB aktif |
+| backup | `backup.service.ts`, `backup.controller.ts` | snapshot SQLite (`VACUUM INTO`) + `uploads/` → zip (archiver); restore zip tervalidasi dengan `unzip`, staging, penggantian DB atomik + rollback `uploads` |
 | webhook | `webhook.controller.ts` | receiver multi-endpoint: tiap endpoint punya token sendiri (`/hook/<token>`), CRUD endpoint + SSE `/webhook/stream` untuk UI |
 | telegram | `telegram.service.ts`, `telegram.module.ts` | bot long polling: download URL → dokumen Telegram/0x0.st (video tidak auto-play), `/compress` gambar/PDF lewat `CompressService`, allowlist chat ID |
 | audit | `audit.service.ts`, `audit.controller.ts`, `common/audit-http.middleware.ts` | catat request API pengubah state (POST/PUT/PATCH/DELETE) dan aksi Telegram ke `audit_log`: payload, actor, fitur, status, durasi, IP/user agent; GET/HEAD/OPTIONS diabaikan; UI di Dev Space → Audit Log |

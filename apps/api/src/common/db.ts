@@ -1,7 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { cfg } from '../config';
+import { notifyDatabaseReplaced } from './db-events';
 
 /**
  * Semua data aplikasi (akun, catatan, daftar URL, path yang pernah dibuka)
@@ -11,6 +12,21 @@ import { cfg } from '../config';
  */
 const file = join(cfg.dataDir, 'super-tool.db');
 mkdirSync(cfg.dataDir, { recursive: true });
+
+/** Versi skema yang dipahami build ini; backup dengan versi lebih baru ditolak. */
+export const SCHEMA_VERSION = 1;
+
+
+// Pulihkan DB lama bila proses sebelumnya berhenti di tengah replaceDatabase().
+const restoreOld = file + '.restore-old';
+if (!existsSync(file) && existsSync(restoreOld)) renameSync(restoreOld, file);
+rmSync(file + '.restore-new', { force: true });
+
+// Restore menukar folder uploads dengan rename; bila proses mati di antaranya,
+// kembalikan salinan lama alih-alih membiarkan folder hilang.
+const uploadsDir = join(cfg.dataDir, 'uploads');
+const uploadsOld = uploadsDir + '.restore-old';
+if (!existsSync(uploadsDir) && existsSync(uploadsOld)) renameSync(uploadsOld, uploadsDir);
 
 export let db = new DatabaseSync(file);
 
@@ -95,6 +111,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC);
 `);
+db.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 
 /** Salinan utuh database saat start — murah, dan menyelamatkan data kalau file rusak. */
 const backupFile = file + '.bak';
@@ -141,31 +158,86 @@ export function touchPath(kind: string, path: string): void {
  * Ganti database yang sedang dipakai dengan file hasil restore, lalu buka ulang.
  * Koneksi lama ditutup supaya tidak ada dua penulis; berkas -wal/-shm dibuang.
  */
-export function replaceDatabase(source: string): { ok: true; path: string } {
-  db.close();
-  for (const suffix of ['', '-wal', '-shm']) rmSync(file + suffix, { force: true });
-  copyFileSync(source, file);
-  db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL');
-  db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 5000');
-  db.exec('PRAGMA synchronous = NORMAL');
-  db.exec(
+function configureDb(target: DatabaseSync): void {
+  target.exec('PRAGMA journal_mode = WAL');
+  target.exec('PRAGMA foreign_keys = ON');
+  target.exec('PRAGMA busy_timeout = 5000');
+  target.exec('PRAGMA synchronous = NORMAL');
+}
+
+function ensureExtraSchema(target: DatabaseSync): void {
+  target.exec(
     'CREATE TABLE IF NOT EXISTS audit_log (' +
       'id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, source TEXT NOT NULL, actor TEXT NOT NULL, ' +
       'feature TEXT NOT NULL, action TEXT NOT NULL, method TEXT, path TEXT, status INTEGER, ' +
       'duration_ms INTEGER NOT NULL DEFAULT 0, ip TEXT, user_agent TEXT, payload TEXT, error TEXT)',
   );
-  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC)');
-  db.exec(
+  target.exec('CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)');
+  target.exec('CREATE INDEX IF NOT EXISTS idx_audit_source ON audit_log(source, ts DESC)');
+  target.exec('CREATE INDEX IF NOT EXISTS idx_audit_feature ON audit_log(feature, ts DESC)');
+  target.exec(
     'CREATE TABLE IF NOT EXISTS compare_history (' +
       'id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, left_text TEXT NOT NULL, ' +
       'right_text TEXT NOT NULL, left_lines INTEGER NOT NULL DEFAULT 0, right_lines INTEGER NOT NULL DEFAULT 0)',
   );
-  db.exec('CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC)');
-  return { ok: true, path: file };
+  target.exec('CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC)');
+  target.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
+}
+
+/**
+ * Ganti database secara atomik: salinan baru disiapkan di folder data, database
+ * lama dipindahkan ke .restore-old, lalu file baru di-rename. Gagal di tahap mana
+ * pun akan mengembalikan file lama.
+ */
+export function replaceDatabase(source: string): { ok: true; path: string } {
+  const incoming = file + '.restore-new';
+  const old = file + '.restore-old';
+  rmSync(incoming, { force: true });
+
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch {
+    // checkpoint gagal bukan alasan membatalkan restore; file lama tetap utuh
+  }
+  db.close();
+
+  let movedOld = false;
+  try {
+    copyFileSync(source, incoming);
+    const fd = openSync(incoming, 'r');
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+
+    rmSync(old, { force: true });
+    if (existsSync(file)) {
+      renameSync(file, old);
+      movedOld = true;
+    }
+    for (const suffix of ['-wal', '-shm']) rmSync(file + suffix, { force: true });
+    renameSync(incoming, file);
+
+    db = new DatabaseSync(file);
+    configureDb(db);
+    ensureExtraSchema(db);
+    rmSync(old, { force: true });
+    notifyDatabaseReplaced();
+    return { ok: true, path: file };
+  } catch (err) {
+    try {
+      for (const suffix of ['', '-wal', '-shm']) rmSync(file + suffix, { force: true });
+      if (movedOld && existsSync(old)) renameSync(old, file);
+      db = new DatabaseSync(file);
+      configureDb(db);
+    } catch {
+      // rollback terbaik; error asli tetap dilempar
+    }
+    throw err;
+  } finally {
+    rmSync(incoming, { force: true });
+  }
 }
 
 export function recentPaths(kind: string, limit = 8): Array<{ path: string; openedAt: number }> {

@@ -10,6 +10,7 @@ import { basename, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
+import { onDatabaseReplaced } from '../../common/db-events';
 
 const exec = promisify(execFile);
 // Scan hanya saat diminta (menu dibuka / tombol Pindai ulang), bukan cron.
@@ -98,6 +99,13 @@ function sortNodes(nodes: UsageNode[]): UsageNode[] {
 export class StorageUsageService {
   private cache: { at: number; data: UsageResult } | null = null;
   private scanning: Promise<UsageResult> | null = null;
+
+  constructor() {
+    // Cache scan ikut terbuang saat backup dipulihkan, bukan menampilkan data lama.
+    onDatabaseReplaced(() => {
+      this.cache = null;
+    });
+  }
 
   async usage(refresh = false): Promise<UsageResult> {
     if (!refresh && this.cache && Date.now() - this.cache.at < CACHE_MS) {

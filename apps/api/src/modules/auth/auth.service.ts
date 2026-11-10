@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes, scrypt } from 'node:crypto';
 import { one, run } from '../../common/db';
+import { onDatabaseReplaced } from '../../common/db-events';
 import { signToken, verifyToken } from '../../common/token';
 
 export const COOKIE_NAME = 'st_session';
@@ -32,6 +33,14 @@ function hashPassword(password: string, salt: string): Promise<string> {
 export class AuthService {
   private cache: Account | null = null;
   private attempts = new Map<string, { count: number; until: number }>();
+
+  constructor() {
+    // Restore mengganti isi database: hash, secret, dan pv bisa berbeda.
+    onDatabaseReplaced(() => {
+      this.cache = null;
+      this.attempts.clear();
+    });
+  }
 
   /** Akun (hash password + secret sesi) tersimpan di tabel account, bukan file. */
   private async state(): Promise<Account> {

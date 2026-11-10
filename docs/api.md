@@ -70,7 +70,7 @@ Catatan:
 | GET | `/backup` | – | file `.zip` (attachment) berisi `super-tool.db`, `uploads/` bila ada, `backup.json` |
 | POST | `/restore` | multipart `file` (bukan query), wajib header `x-st-csrf: 1` | `{ ok, size, uploads, revoked, at }` |
 
-`GET /backup` membuat snapshot konsisten dengan `VACUUM INTO` lalu mengompresnya (archiver). `POST /restore` memvalidasi arsip (nama entri tanpa `..`/path absolut, maks 3000 entri, maks 100 MB terkompresi dan 1 GB isi), memeriksa header `SQLite format 3`, mengekstrak dengan perintah sistem `unzip`, mengganti database aktif (koneksi ditutup lalu dibuka ulang) dan folder `uploads`. Sesi login lama tidak valid setelah restore karena secret HMAC tersimpan di database.
+`GET /backup` membuat snapshot konsisten dengan `VACUUM INTO` lalu mengompresnya (archiver). `POST /restore` mengekstrak ke staging, memvalidasi nama entri (tanpa `..`/path absolut, maks 3000 entri, maks 100 MB terkompresi dan 1 GB isi), menolak symbolic link dan entri di luar `super-tool.db`/`uploads/`/`backup.json`, memeriksa header SQLite, `PRAGMA integrity_check`, `foreign_key_check`, versi `user_version` (maks 1) dan tabel wajib. Database baru di-`fsync` lalu di-`rename` atomik dengan rollback; `uploads` ditukar dengan rollback. Sesi login lama tidak valid setelah restore karena `pv` dinaikkan dan cache auth dibuang.
 
 ## Storage Monitor
 
