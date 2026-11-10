@@ -242,7 +242,7 @@ Catatan fullscreen: permintaan memperbesar window browser tidak dapat dipenuhi d
 
 ## 10. File utama yang berubah
 
-44 file termodifikasi, 4 file baru, 63 screenshot.
+44 file termodifikasi, 3 modul baru (`fuzzy.ts`, `fuzzy.test.ts`, `useFocusTrap.ts`), 3 dokumen baru, dan 63 screenshot.
 
 Baru:
 
