@@ -110,6 +110,24 @@ db.exec(`
     right_lines INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC);
+  CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    label TEXT NOT NULL,
+    status TEXT NOT NULL,
+    progress INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    completed_at INTEGER,
+    error TEXT,
+    result TEXT,
+    payload TEXT NOT NULL DEFAULT '{}',
+    cancellable INTEGER NOT NULL DEFAULT 0,
+    dedupe_key TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status);
 `);
 db.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 
@@ -181,6 +199,16 @@ function ensureExtraSchema(target: DatabaseSync): void {
       'right_text TEXT NOT NULL, left_lines INTEGER NOT NULL DEFAULT 0, right_lines INTEGER NOT NULL DEFAULT 0)',
   );
   target.exec('CREATE INDEX IF NOT EXISTS idx_compare_created ON compare_history(id DESC)');
+  target.exec(
+    'CREATE TABLE IF NOT EXISTS jobs (' +
+      'id TEXT PRIMARY KEY, type TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL, ' +
+      'progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, started_at INTEGER, ' +
+      "completed_at INTEGER, error TEXT, result TEXT, payload TEXT NOT NULL DEFAULT '{}', " +
+      'cancellable INTEGER NOT NULL DEFAULT 0, dedupe_key TEXT)',
+  );
+  target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)');
+  target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at)');
+  target.exec('CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(dedupe_key, status)');
   target.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 }
 

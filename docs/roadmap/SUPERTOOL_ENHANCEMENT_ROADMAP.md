@@ -30,8 +30,8 @@ Status singkat:
 | Baca file | `readFile` utuh lalu potong | Baca maksimum 2 MB + deteksi biner |
 | Include grep | Escape lewat path absolut / `../` | Dijail ke `ST_FS_ROOTS` |
 | Download notes | Tidak ada | Unduh `.md` dari note aktif |
-| Jobs / diagnostik | Belum ada | Belum ada |
-| Backup/restore atomik | Belum atomik | Belum ada |
+| Jobs | Belum ada | Antrean persisten + status/cancel/retensi |
+| Backup/restore atomik | Belum atomik | Staging + fsync/rename + rollback uploads |
 
 ---
 
@@ -106,7 +106,7 @@ WebSocket mengikuti mode yang sama; subdomain wajib tiket, path wajib sesi.
 
 | ID | Temuan | Dampak | Status |
 | --- | --- | --- | --- |
-| P2-1 | Belum ada job runner terpusat | Operasi panjang memblokir request / tidak tahan restart | **Terbuka** |
+| P2-1 | Belum ada job runner terpusat | Operasi panjang memblokir request / tidak tahan restart | **Selesai** — tabel `jobs`, API `/jobs`, kompresor memakai antrean; uji `apps/api/jobs.test.mjs` |
 | P2-2 | Belum ada pusat diagnostik | Sulit menelusuri error lintas tool | **Terbuka** |
 | P2-3 | Aksi tersebar per tool | Command palette tidak lengkap | **Terbuka** |
 | P2-4 | Tidak ada workspace | Konteks proyek bercampur | **Terbuka** |
@@ -164,9 +164,9 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Baca file besar per chunk (2 MB, offset byte) + streaming download; batas ukuran eksplisit.
 - [x] Upload streaming ke disk (bukan buffer); batas per file dan total.
 - [x] Backup/restore atomik: staging, fsync, rename, rollback uploads, invalidasi cache auth/disk; uji kegagalan di `apps/api/restore.test.mjs`.
-- [ ] Job runner: antrean persisten, status, cancel, retry, batas konkurensi.
+- [x] Job runner: antrean persisten, status, cancel, batas konkurensi; retry manual lewat start ulang. Uji `apps/api/jobs.test.mjs`.
 - [ ] Pusat diagnostik: versi, uptime, DB, disk, log terakhir, error terakhir.
-- [ ] Standar Node >= 22.13 (sudah), `.nvmrc` (sudah), cek `engines` semua paket.
+- [x] Standar Node >= 22.13, `.nvmrc`, dan `engines` paket API/root; README menyebut prasyarat yang sama.
 - Acceptance:
   - File 1 GB tidak menaikkan RSS > 200 MB.
   - Restore yang gagal tidak meninggalkan DB parsial (diuji: arsip traversal, SQLite rusak, versi skema lebih baru).

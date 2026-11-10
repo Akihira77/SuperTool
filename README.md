@@ -83,7 +83,7 @@ Downloader memakai `ffmpeg-static` bawaannya sendiri; tidak perlu `ffmpeg` siste
 
 ## Menjalankan
 
-Prasyarat: Node.js 20+ dan pnpm 9+.
+Prasyarat: Node.js 22.13+ (fitur `node:sqlite`) dan pnpm 9+. Jalankan `nvm use` untuk memakai versi di `.nvmrc`.
 
 ~~~bash
 git clone <repo> super-tool && cd super-tool
@@ -216,6 +216,7 @@ Klik berkas audio/video di File Explorer tidak membuka halaman baru: berkas dipu
 - **Kompres**: gambar (kualitas + lebar maksimum + format keluaran) dan PDF. Hasil ditulis sebagai `<nama>-min.<ext>`.
 - **Konversi**: gambar → PDF, PDF → PNG/JPG, dan antar format gambar. Hasil `<nama>-conv.<ext>` atau `<nama>-page-N.png`.
 - Proses berjalan sebagai job di latar belakang: `POST /api/compress/*` langsung mengembalikan `jobId`, UI memantau `GET /api/compress/job?id=`. Halaman tidak terkunci dan ada indikator progres.
+- Job disimpan di tabel `jobs`, punya batas konkurensi (`ST_JOB_CONCURRENCY`, default 2), bisa dibatalkan selama masih `queued`, bertahan setelah restart, dan riwayat terminal dibatasi 200 job / 7 hari. Daftar dan detailnya tersedia di `GET /api/jobs` dan `GET /api/jobs/:id`.
 - Berkas dipilih lewat kotak drop (klik untuk membuka dialog file) atau ditarik ke sana; hasil unggahan masuk ke `<root>/.super-tool-drop`. Upload ditulis bertahap ke disk (bukan Buffer di RAM), menampilkan persen unggah; batas default 20 GB, ubah lewat `ST_MAX_UPLOAD_BYTES`.
 - PDF besar diproses satu per satu agar dua file GB tidak berebut RAM; output ditulis ke berkas `.part-*` lalu di-rename setelah ghostscript sukses.
 - Berkas rusak atau terkunci password menghasilkan pesan seperti "Berkas terkunci password, tidak bisa diproses", bukan halaman kosong.

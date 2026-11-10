@@ -18,6 +18,7 @@ import { BackupModule } from './modules/backup/backup.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { CompareModule } from './modules/compare/compare.module';
 import { DownloaderModule } from './modules/downloader/downloader.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     CalendarModule,
     CompareModule,
     DownloaderModule,
+    JobsModule,
     TelegramModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],

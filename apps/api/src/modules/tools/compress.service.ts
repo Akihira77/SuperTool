@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { jailPath } from '../../common/fs-jail';
+import { JobsService } from '../jobs/jobs.service';
 
 const exec = promisify(execFile);
 
@@ -25,7 +26,7 @@ export type CompressResult = {
   pages?: number;
 };
 
-type Job = {
+type JobState = {
   id: string;
   label: string;
   state: 'running' | 'done' | 'error';
@@ -49,12 +50,22 @@ type Tool = (typeof POWERED)[number];
 
 @Injectable()
 export class CompressService {
-  private jobs = new Map<string, Job>();
-  private counter = 0;
   private tools: Promise<Record<Tool, boolean>> | null = null;
   // Ghostscript pdfwrite memakai RAM besar untuk PDF kompleks. Satu proses
   // besar pada satu waktu supaya dua file GB tidak saling menghabiskan memori.
   private pdfQueue: Promise<void> = Promise.resolve();
+
+  constructor(private readonly jobs: JobsService) {
+    jobs.register('compress:image', {
+      run: (payload) => this.runImage(String(payload.input ?? ''), (payload.options ?? {}) as { quality?: number; maxWidth?: number; format?: string }),
+    });
+    jobs.register('compress:pdf', {
+      run: (payload) => this.serializePdf(() => this.runPdf(String(payload.input ?? ''), (payload.options ?? {}) as { mode?: string })),
+    });
+    jobs.register('compress:convert', {
+      run: (payload) => this.runConvert(String(payload.input ?? ''), (payload.options ?? {}) as { target?: string; quality?: number; dpi?: number }),
+    });
+  }
 
   private detect(): Promise<Record<Tool, boolean>> {
     if (!this.tools) {
@@ -86,45 +97,31 @@ export class CompressService {
     };
   }
 
-  job(id: string): Job {
+  job(id: string): JobState {
     const job = this.jobs.get(String(id ?? ''));
     if (!job) throw new NotFoundException('Proses tidak ditemukan');
-    return job;
+    return {
+      id: job.id,
+      label: job.label,
+      state: job.status === 'completed' ? 'done' : job.status === 'failed' || job.status === 'cancelled' ? 'error' : 'running',
+      startedAt: job.startedAt ?? job.createdAt,
+      finishedAt: job.completedAt ?? undefined,
+      result: (job.result as CompressResult | null) ?? undefined,
+      error: job.error ?? (job.status === 'cancelled' ? 'Dibatalkan.' : undefined),
+    };
   }
 
-  /** Kerja dijalankan setelah respons dikirim, jadi UI tidak menunggu. */
-  private queue(label: string, work: () => Promise<CompressResult>): { jobId: string } {
-    this.counter += 1;
-    const id = 'c' + this.counter + '-' + Date.now().toString(36);
-    const job: Job = { id, label, state: 'running', startedAt: Date.now() };
-    this.jobs.set(id, job);
-
-    void work()
-      .then((result) => {
-        job.state = 'done';
-        job.result = result;
-        job.finishedAt = Date.now();
-      })
-      .catch((err: unknown) => {
-        job.state = 'error';
-        job.error = friendlyMessage(err, 'Gagal memproses berkas.');
-        job.finishedAt = Date.now();
-      });
-
-    if (this.jobs.size > 40) {
-      for (const [key, value] of this.jobs) {
-        if (value.state !== 'running' && key !== id) this.jobs.delete(key);
-      }
-    }
-    return { jobId: id };
+  /** Kerja masuk antrean job persisten; respons HTTP hanya membawa jobId. */
+  private startJob(type: string, label: string, payload: Record<string, unknown>): { jobId: string } {
+    return { jobId: this.jobs.start(type, payload, { label }).id };
   }
 
   image(input: string, options: { quality?: number; maxWidth?: number; format?: string }) {
-    return this.queue('kompres gambar', () => this.runImage(input, options));
+    return this.startJob('compress:image', 'kompres gambar', { input, options });
   }
 
   pdf(input: string, options: { mode?: string }) {
-    return this.queue('kompres pdf', () => this.serializePdf(() => this.runPdf(input, options)));
+    return this.startJob('compress:pdf', 'kompres pdf', { input, options });
   }
 
   private serializePdf<T>(work: () => Promise<T>): Promise<T> {
@@ -143,7 +140,7 @@ export class CompressService {
   }
 
   convert(input: string, options: { target?: string; quality?: number; dpi?: number }) {
-    return this.queue('konversi', () => this.runConvert(input, options));
+    return this.startJob('compress:convert', 'konversi', { input, options });
   }
 
   private async runImage(input: string, options: { quality?: number; maxWidth?: number; format?: string }): Promise<CompressResult> {

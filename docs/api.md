@@ -235,6 +235,16 @@ curl -b cookies.txt -X POST http://127.0.0.1:3001/api/llm/explain \
   -d '{"code":"proxy_set_header Host $host;","model":"ocg/deepseek-flash"}'
 ```
 
+## Job latar belakang
+
+| Metode | Path | Query/Body | Hasil |
+|--------|------|------------|-------|
+| GET | `/jobs` | `type?`, `status?`, `limit?` (maks 100) | daftar job terbaru |
+| GET | `/jobs/:id` | – | detail satu job |
+| POST | `/jobs/:id/cancel` | – | job `cancelled`; job `running` hanya bisa dibatalkan bila `cancellable` |
+
+Job disimpan di tabel `jobs`, dijalankan dengan konkurensi terbatas (`ST_JOB_CONCURRENCY`, default 2, maks 8), dan status `running` dari proses lama otomatis menjadi `failed` saat startup. Job `queued` dilanjutkan setelah restart. Kompresor memakai antrean ini; endpoint `/compress/job?id=` tetap tersedia untuk kompatibilitas UI lama.
+
 ## Kompresor
 
 | Metode | Path | Query/Body | Hasil |
