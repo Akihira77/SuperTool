@@ -12,3 +12,6 @@ allowBuilds:
   esbuild: false
   ffmpeg-static: true
   youtube-dl-exec: true
+
+overrides:
+  multer: 2.5.0
