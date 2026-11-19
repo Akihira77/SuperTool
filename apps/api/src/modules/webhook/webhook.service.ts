@@ -27,7 +27,7 @@ const MAX_ITEMS = 100;
 const MAX_ENDPOINTS = 10;
 const MAX_BODY = 200 * 1024;
 
-const newToken = () => randomBytes(6).toString('hex');
+const newToken = () => randomBytes(8).toString('hex');
 
 /**
  * Penangkap webhook: beberapa endpoint sekaligus (masing-masing token sendiri),
@@ -72,8 +72,8 @@ export class WebhookService {
     const endpoint = this.endpoints.find((item) => item.id === id);
     if (!endpoint) throw new NotFoundException('Endpoint tidak ditemukan');
     const next = String(token ?? '').trim();
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(next)) {
-      throw new BadRequestException('Token hanya boleh huruf, angka, - dan _ (maks 64)');
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(next)) {
+      throw new BadRequestException('Token minimal 16 karakter, huruf/angka/-/_ (maks 64)');
     }
     if (this.endpoints.some((item) => item.id !== id && item.token === next)) {
       throw new BadRequestException('Token sudah dipakai endpoint lain');

@@ -9,11 +9,9 @@ export class ApiError extends Error {
   }
 }
 
-import { notify } from './notify';
-
 const BASE = '/api';
 
-async function request<T>(path: string, init: RequestInit = {}, silent = false): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(BASE + path, {
     credentials: 'same-origin',
     ...init,
@@ -31,8 +29,7 @@ async function request<T>(path: string, init: RequestInit = {}, silent = false):
     const payload = data as { message?: string | string[]; code?: string } | null;
     const raw = payload?.message;
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? res.statusText;
-    // Semua kegagalan aksi (bukan GET/polling) muncul sebagai toast global.
-    if (!silent && init.method && init.method !== 'GET') notify(message, 'error');
+    // Pemanggil yang menampilkan error (banner/toast) — hindari notifikasi ganda.
     throw new ApiError(message, res.status, payload?.code);
   }
   return data as T;
@@ -50,8 +47,6 @@ export const api = {
   get: <T>(path: string, init?: RequestInit) => request<T>(path, init),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
-  postSilent: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }, true),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),

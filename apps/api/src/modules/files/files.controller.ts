@@ -15,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { createReadStream, mkdirSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, extname, join } from 'node:path';
 import { cfg } from '../../config';
 import { jailPath } from '../../common/fs-jail';
 import { FilesService } from './files.service';
@@ -132,6 +132,12 @@ export class FilesController {
     const fallback = rawName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_') || 'download';
     const encoded = encodeURIComponent(rawName).replace(/[!'()*]/g, (char) => '%' + char.charCodeAt(0).toString(16).toUpperCase());
     res.setHeader('Content-Type', mimeOf(abs));
+    // SVG/HTML bisa mengeksekusi script bila dibuka sebagai dokumen di origin
+    // aplikasi; paksa sandbox supaya tidak bisa menyentuh API/cookie.
+    const ext = extname(abs).slice(1).toLowerCase();
+    if (ext === 'svg' || ext === 'svgz' || ext === 'html' || ext === 'htm' || ext === 'xml' || ext === 'xhtml') {
+      res.setHeader('Content-Security-Policy', 'sandbox');
+    }
     res.setHeader(
       'Content-Disposition',
       (download === '1' ? 'attachment' : 'inline') + '; filename="' + fallback + '"; filename*=UTF-8\'\'' + encoded,

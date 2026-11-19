@@ -3,10 +3,6 @@ packages:
 
 storeDir: .pnpm-store
 verifyDepsBeforeRun: false
-onlyBuiltDependencies:
-  - esbuild
-  - ffmpeg-static
-  - youtube-dl-exec
 allowBuilds:
   '@swc/core': true
   esbuild: false

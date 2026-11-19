@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { Readable } from 'node:stream';
 import type { ReadableStream } from 'node:stream/web';
 import type { AuthService } from '../auth/auth.service';
-import { assertLocalUrl } from '../../common/net-guard';
+import { assertLocalUrl, resolveLocalAddress } from '../../common/net-guard';
 import { streamLocal, type LocalStreamResponse } from '../../common/http-client';
 
 export const PROXY_PREFIX = '/api/proxy/b/';
@@ -278,6 +278,16 @@ export async function handleProxyRequest(
 
   const { origin, target } = targetInfo;
 
+  // Cookie sesi proxy bisa SameSite=None (mode subdomain), jadi POST lintas
+  // situs dari halaman asing harus ditolak. Aplikasi di dalam proxy selalu
+  // same-origin terhadap dirinya sendiri.
+  const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes((req.method ?? 'GET').toUpperCase());
+  if (unsafe && String(req.headers['sec-fetch-site'] ?? '').toLowerCase() === 'cross-site') {
+    res.writeHead(403, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ message: 'Permintaan lintas situs ditolak' }));
+    return true;
+  }
+
   // Mode subdomain punya cookie sendiri per host, jadi sesi aplikasi tidak ikut.
   // Izinnya tiket bearer yang terikat origin target (diminta frontend setelah login).
   if (targetInfo.kind === 'sub') {
@@ -436,15 +446,16 @@ export function handleProxyUpgrade(
   };
 
   const connectUpstream = async () => {
+    let resolved: { address: string; family: 4 | 6 };
     try {
-      await assertLocalUrl(target);
+      // Pin alamat hasil resolusi: lookup kedua bisa ditukar lewat DNS rebinding.
+      resolved = await resolveLocalAddress(target);
     } catch (err) {
       refuse(403, (err as Error).message);
       return;
     }
-    const host = target.hostname.replace(/^\[|\]$/g, '');
     const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
-    const upstream = connect({ host, port }, () => {
+    const upstream = connect({ host: resolved.address, family: resolved.family, port }, () => {
       const lines = ['GET ' + target.pathname + target.search + ' HTTP/1.1'];
       for (const [key, value] of Object.entries(req.headers)) {
         if (!value) continue;

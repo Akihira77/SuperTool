@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { Fragment, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ChangePassword from './components/ChangePassword';
 import CommandPalette, { type PaletteNode } from './components/CommandPalette';
 import { ToastProvider } from './components/toast';
@@ -8,6 +8,7 @@ import { PlayerProvider } from './lib/player';
 import { ProjectPicker } from './components/ProjectPicker';
 import { PrayerWidget } from './components/PrayerWidget';
 import { SessionTabs } from './components/SessionTabs';
+import { SessionContent } from './components/SessionContent';
 import Login from './components/Login';
 import { Icon, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
@@ -18,48 +19,15 @@ import { useFocusTrap } from './lib/useFocusTrap';
 import { dispatchIntent, type FilesSearchPayload } from './lib/palette';
 import { actionsFor, findAction } from './lib/actions';
 import { onWorkflow } from './lib/workflow';
+import { GROUPS, TOOLS, initialSessionStore, normalizeSessions, toolById } from './lib/catalog';
+import { waitForVisibleTarget } from './lib/wait-visible';
 import {
   MAX_SESSIONS,
-  loadSessionStore,
   newSession,
   saveSessionStore,
   subscribeSessionStore,
   type SessionStore,
 } from './lib/sessions';
-
-type ToolGroup = 'workspace' | 'build' | 'ops';
-type Tool = {
-  id: string;
-  label: string;
-  desc: string;
-  icon: string;
-  group: ToolGroup;
-  component: LazyExoticComponent<ComponentType>;
-};
-
-const TOOLS: Array<Tool & { key: string }> = [
-  { id: 'markdown', key: 'nav.markdown', label: 'Markdown', desc: 'Editor + live preview', icon: 'markdown', group: 'workspace', component: lazy(() => import('./tools/MarkdownTool')) },
-  { id: 'notes', key: 'nav.notes', label: 'Catatan', desc: 'Notepad tersimpan', icon: 'notes', group: 'workspace', component: lazy(() => import('./tools/NotesTool')) },
-  { id: 'files', key: 'nav.files', label: 'File Explorer', desc: 'Jelajah & lihat file', icon: 'files', group: 'workspace', component: lazy(() => import('./tools/FilesTool')) },
-  { id: 'viewer', key: 'nav.viewer', label: 'URL Viewer', desc: 'Buka tool lain via iframe', icon: 'url', group: 'workspace', component: lazy(() => import('./tools/UrlTool')) },
-  { key: 'nav.json', id: 'json', label: 'JSON', desc: 'Formatter & beautify', icon: 'json', group: 'build', component: lazy(() => import('./tools/JsonTool')) },
-  { key: 'nav.types', id: 'types', label: 'JSON ke TS', desc: 'Generate tipe TypeScript', icon: 'types', group: 'build', component: lazy(() => import('./tools/TypesTool')) },
-  { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', group: 'build', component: lazy(() => import('./tools/CompressTool')) },
-  { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', group: 'build', component: lazy(() => import('./tools/DownloaderTool')) },
-  { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', group: 'ops', component: lazy(() => import('./tools/DevSpaceTool')) },
-  { key: 'nav.storage', id: 'storage', label: 'Storage Monitor', desc: 'Pemakaian disk & bersihkan', icon: 'storage', group: 'ops', component: lazy(() => import('./tools/StorageTool')) },
-  { key: 'nav.nginx', id: 'nginx', label: 'Nginx', desc: 'Edit konfigurasi', icon: 'nginx', group: 'ops', component: lazy(() => import('./tools/NginxTool')) },
-  { key: 'nav.ports', id: 'ports', label: 'Port', desc: 'App yang sedang jalan', icon: 'ports', group: 'ops', component: lazy(() => import('./tools/PortsTool')) },
-  { key: 'nav.webhook', id: 'webhook', label: 'Webhook Receiver', desc: 'Tangkap request HTTP masuk', icon: 'webhook', group: 'ops', component: lazy(() => import('./tools/WebhookTool')) },
-  { key: 'nav.calendar', id: 'calendar', label: 'Calendar', desc: 'Agenda Google Calendar', icon: 'calendar', group: 'ops', component: lazy(() => import('./tools/CalendarTool')) },
-  { key: 'nav.settings', id: 'settings', label: 'Settings', desc: 'Backup & restore data', icon: 'save', group: 'ops', component: lazy(() => import('./tools/SettingsTool')) },
-];
-
-const GROUPS: Array<{ id: ToolGroup; key: 'nav.group.workspace' | 'nav.group.build' | 'nav.group.ops' }> = [
-  { id: 'workspace', key: 'nav.group.workspace' },
-  { id: 'build', key: 'nav.group.build' },
-  { id: 'ops', key: 'nav.group.ops' },
-];
 
 type AuthState = 'loading' | 'anon' | 'must-change' | 'ready';
 
@@ -77,91 +45,6 @@ type PendingAction = {
   /** Fokus root sesi (navigasi tool tanpa aksi lanjutan). */
   focusSession?: boolean;
 };
-
-/** Elemen dianggap siap difokuskan hanya jika benar-benar terlihat. */
-function isVisible(node: HTMLElement): boolean {
-  if (!node.getClientRects().length) return false;
-  const style = getComputedStyle(node);
-  return style.visibility !== 'hidden' && style.display !== 'none';
-}
-
-/**
- * Tunggu target muncul dan terlihat, dibatasi MutationObserver + interval ringan,
- * tanpa rantai setTimeout dan tanpa selector global. AbortSignal membatalkan
- * permintaan lama saat pengguna berpindah konteks.
- */
-function waitForVisibleTarget(
-  root: HTMLElement,
-  selector: string,
-  signal: AbortSignal,
-  timeoutMs = 5000,
-): Promise<HTMLElement | null> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (node: HTMLElement | null) => {
-      if (settled) return;
-      settled = true;
-      observer.disconnect();
-      window.clearInterval(interval);
-      window.clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-      resolve(node);
-    };
-    // Selector yang dikirim registry adalah sufiks data-action, bukan selector CSS.
-    const query = '[data-action="' + CSS.escape(selector) + '"]';
-    const check = () => {
-      const node = root.querySelector<HTMLElement>(query);
-      if (node && isVisible(node)) finish(node);
-    };
-    const onAbort = () => finish(null);
-    const observer = new MutationObserver(check);
-    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
-    const interval = window.setInterval(check, 120);
-    const timer = window.setTimeout(() => finish(null), timeoutMs);
-    signal.addEventListener('abort', onAbort, { once: true });
-    check();
-  });
-}
-
-/** Isi sesi tidak ikut re-render saat tab lain diaktifkan; elemennya tetap sama. */
-const SessionContent = memo(function SessionContent({
-  component: Component,
-}: {
-  component: LazyExoticComponent<ComponentType>;
-}) {
-  return <Component />;
-});
-
-function toolById(id: string): Tool | undefined {
-  return TOOLS.find((tool) => tool.id === id);
-}
-
-/** Satu sesi per tool; buang tool yang sudah tidak ada di katalog. */
-function normalizeSessions(store: SessionStore): SessionStore {
-  const seen = new Set<string>();
-  const sessions = store.sessions
-    .filter((session) => {
-      if (!toolById(session.tool) || seen.has(session.tool)) return false;
-      seen.add(session.tool);
-      return true;
-    })
-    .slice(0, MAX_SESSIONS);
-  const activeId = sessions.some((session) => session.id === store.activeId)
-    ? store.activeId
-    : sessions[0]?.id ?? null;
-  return { sessions, activeId };
-}
-
-function initialSessionStore(route: string): SessionStore {
-  const stored = loadSessionStore();
-  if (stored) {
-    const clean = normalizeSessions(stored);
-    if (clean.sessions.length || !stored.sessions.length) return clean;
-  }
-  const tool = toolById(route) ?? TOOLS[0];
-  const session = newSession(tool.id);
-  return { sessions: [session], activeId: session.id };
-}
 
 export default function App() {
   return (

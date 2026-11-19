@@ -95,9 +95,19 @@ export class SqliteService {
     }
     const db = this.open();
     try {
-      const rows = db.prepare(text).all() as Row[];
-      const columns = rows.length ? Object.keys(rows[0]) : [];
-      return { columns, rows: rows.slice(0, MAX_ROWS), total: rows.length, truncated: rows.length > MAX_ROWS };
+      const rows: Row[] = [];
+      let columns: string[] = [];
+      let truncated = false;
+      // iterate() berhenti di MAX_ROWS: hasil SELECT besar tidak masuk RAM semua.
+      for (const row of db.prepare(text).iterate() as Iterable<Row>) {
+        if (!columns.length) columns = Object.keys(row);
+        if (rows.length >= MAX_ROWS) {
+          truncated = true;
+          break;
+        }
+        rows.push(row);
+      }
+      return { columns, rows, total: rows.length, truncated };
     } catch (err) {
       throw new BadRequestException('SQL gagal: ' + (err as Error).message.slice(0, 160));
     } finally {

@@ -51,11 +51,13 @@ test('calendar: mode switch meminta pemilih akun', () => {
 test('webhook: token endpoint bisa diganti dan divalidasi', () => {
   const hooks = new WebhookService();
   const first = hooks.create('uji');
-  assert.equal(hooks.updateToken(first.id, 'custom-hook_1').token, 'custom-hook_1');
-  assert.throws(() => hooks.updateToken(first.id, 'bad/token'), /Token hanya/);
-  assert.throws(() => hooks.updateToken(first.id, ''), /Token hanya/);
+  const custom = 'custom-hook_token_1';
+  assert.equal(hooks.updateToken(first.id, custom).token, custom);
+  assert.throws(() => hooks.updateToken(first.id, 'bad/token'), /Token minimal 16/);
+  assert.throws(() => hooks.updateToken(first.id, ''), /Token minimal 16/);
+  assert.throws(() => hooks.updateToken(first.id, 'pendek'), /Token minimal 16/);
   const second = hooks.create('lain');
-  assert.throws(() => hooks.updateToken(second.id, 'custom-hook_1'), /sudah dipakai/);
+  assert.throws(() => hooks.updateToken(second.id, custom), /sudah dipakai/);
 });
 
 test('docker: aksi lifecycle dibatasi dan argumen aman', () => {

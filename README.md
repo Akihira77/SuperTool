@@ -11,7 +11,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 1 | Markdown | Editor + live preview, toolbar format, auto simpan ke browser |
 | 2 | JSON | Formatter, minify, urutkan kunci, highlight, unduh |
 | 3 | JSON ke TypeScript | Generate `interface` otomatis, array objek digabung |
-| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, unduh catatan aktif sebagai `.md`, tab Text Compare dengan sorotan perbedaan baris/kata, riwayat hasil bandingkan (infinite scroll) |
+| 4 | Catatan | Notepad tersimpan di server, autosave, pencarian, unduh catatan aktif sebagai `.md`, tab Text Compare dengan sorotan perbedaan baris/kata, riwayat hasil bandingkan (infinite scroll, retensi 30 hari) |
 | 5 | URL Viewer | Iframe untuk 9router/termix/docmost, cek koneksi, edit URL, mode proxy |
 | 6 | Nginx | CRUD file konfigurasi, cadangan otomatis + kembalikan asli, `nginx -t`, klik kanan → jelaskan ke LLM |
 | 7 | Port & Proses | Daftar port listening, tab proses ala htop, kill dengan konfirmasi, auto refresh |
@@ -52,7 +52,7 @@ Bar tab di atas area kerja menyimpan beberapa tool sekaligus, seperti tmux untuk
 | Kalender visual | `react-big-calendar` + `dayjs` | Bulan/minggu/agenda, lazy-load hanya di halaman Calendar |
 | Downloader | `youtube-dl-exec` + `ffmpeg-static` | yt-dlp + ffmpeg dibundel di backend; streaming, tanpa simpan permanen |
 
-Dependency runtime sengaja minim: backend hanya paket inti Nest, `sharp`, `pdf-lib`, plus binary downloader; frontend hanya React, `marked`, dan `DOMPurify`.
+Dependency runtime sengaja minim: backend memakai paket inti Nest, `sharp`, `pdf-lib`, `archiver`, `googleapis`, dan `telegraf` (plus binary downloader); frontend memakai React, `marked`, `DOMPurify`, `adhan`, `react-big-calendar`, `dayjs`, dan `@tanstack/react-virtual`.
 
 ## Alat eksternal (opsional, menaikkan kemampuan)
 
@@ -363,7 +363,7 @@ Request API pengubah state (`POST`/`PUT`/`PATCH`/`DELETE`) dan aksi Telegram dic
 
 - Payload disimpan sampai 64 KB; field sensitif seperti password, token, cookie, dan secret diredaksi.
 - Request proxy mentah dan file statis tidak masuk audit; request mutasi yang ditolak auth tetap dicatat.
-- Audit ikut masuk backup SQLite. Tidak ada penghapusan otomatis, jadi bersihkan tabel secara berkala jika sudah terlalu besar.
+- Audit ikut masuk backup SQLite. Baris lebih tua dari 30 hari dihapus otomatis saat server start dan setiap 6 jam.
 
 ## Widget Waktu & Jadwal Sholat
 

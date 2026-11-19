@@ -1,6 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { all, one, run } from '../../common/db';
 import { serializeAuditPayload } from './audit.payload';
+
+/** Audit hanya disimpan 30 hari agar database dan backup tidak tumbuh terus. */
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 
 export type AuditSource = 'web' | 'telegram_bot';
 
@@ -65,8 +69,30 @@ function parsePayload(value: string | null): unknown {
 }
 
 @Injectable()
-export class AuditService {
+export class AuditService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuditService.name);
+  private timer: NodeJS.Timeout | null = null;
+
+  onModuleInit(): void {
+    this.prune();
+    this.timer = setInterval(() => this.prune(), PRUNE_EVERY_MS);
+    this.timer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  /** Hapus audit lebih lama dari 30 hari; dipanggil saat start dan tiap 6 jam. */
+  prune(now = Date.now()): number {
+    try {
+      return run('DELETE FROM audit_log WHERE ts < ?', now - RETENTION_MS);
+    } catch (error) {
+      this.logger.warn('Gagal membersihkan audit log: ' + (error instanceof Error ? error.message : String(error)));
+      return 0;
+    }
+  }
 
   record(entry: AuditEntry): void {
     try {

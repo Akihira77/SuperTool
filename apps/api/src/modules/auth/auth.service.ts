@@ -58,8 +58,9 @@ export class AuthService {
       must_change: 1,
       secret: randomBytes(32).toString('hex'),
     };
+    // Dua login pertama bisa berbarengan: INSERT idempoten, lalu baca baris pemenang.
     run(
-      'INSERT INTO account (id, salt, hash, pv, must_change, secret, created_at) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO account (id, salt, hash, pv, must_change, secret, created_at) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
       created.salt,
       created.hash,
       created.pv,
@@ -67,8 +68,9 @@ export class AuthService {
       created.secret,
       Date.now(),
     );
-    this.cache = created;
-    return created;
+    const row = one<Account>('SELECT salt, hash, pv, must_change, secret FROM account WHERE id = 1');
+    this.cache = row ?? created;
+    return this.cache;
   }
 
   private issue(state: Account): string {

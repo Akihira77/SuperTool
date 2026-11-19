@@ -44,9 +44,11 @@ export function auditHttp(service: AuditService): RequestHandler {
 
       const original = req.originalUrl || req.url || '';
       const path = safePath(original.split('?')[0] || '');
+      // Kredensial tidak pernah masuk audit: body login/ubah-password tidak disimpan.
+      const secretBody = /\/auth\/(login|change-password)$/.test(path);
       const query = req.query && Object.keys(req.query).length ? req.query : undefined;
       const params = req.params && Object.keys(req.params).length ? req.params : undefined;
-      const body = (req as Request & { body?: unknown }).body;
+      const body = secretBody ? undefined : (req as Request & { body?: unknown }).body;
       const file = fileMeta(req as Request & { file?: { fieldname?: string; originalname?: string; mimetype?: string; size?: number } });
       const payload: Record<string, unknown> = {};
       if (query) payload.query = query;

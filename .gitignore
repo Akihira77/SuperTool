@@ -9,6 +9,8 @@ temp/
 *.db-shm
 .env
 *.log
+.shots-*.html
+.ports.txt
 .DS_Store
 apps/web/dist/
 apps/api/dist/

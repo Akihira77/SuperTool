@@ -94,6 +94,7 @@ export default function NotesTool() {
   const [jumpTick, setJumpTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
+  const openSeq = useRef(0);
   const searchStarted = useRef(false);
   const scopeTriggerRef = useRef<HTMLButtonElement>(null);
   const scopeMenuRef = useRef<HTMLDivElement>(null);
@@ -133,10 +134,15 @@ export default function NotesTool() {
   const gutterHeights = lineHeights.length === bodyLines.length ? lineHeights : bodyLines.map(() => 28);
 
   const open = useCallback(async (id: string) => {
+    const seq = ++openSeq.current;
     const note = await api.get<Note>('/notes/' + id);
+    // Klik cepat A lalu B: respons A yang datang terlambat tidak boleh menimpa B.
+    if (seq !== openSeq.current) return;
     setActive(note);
     setStatus('idle');
   }, []);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -261,16 +267,21 @@ export default function NotesTool() {
   };
 
   const create = async () => {
-    const note = await api.post<Note>('/notes', { title: t('notes.newTitle'), body: '' });
-    toast(t('common.created'), 'ok');
-    await fetchNotes(query, scope);
-    setActive(note);
-    setStatus('idle');
-    // Catatan baru langsung siap diganti namanya, tanpa klik tambahan.
-    requestAnimationFrame(() => {
-      titleRef.current?.focus();
-      titleRef.current?.select();
-    });
+    try {
+      const note = await api.post<Note>('/notes', { title: t('notes.newTitle'), body: '' });
+      toast(t('common.created'), 'ok');
+      await fetchNotes(query, scope);
+      setActive(note);
+      setStatus('idle');
+      // Catatan baru langsung siap diganti namanya, tanpa klik tambahan.
+      requestAnimationFrame(() => {
+        titleRef.current?.focus();
+        titleRef.current?.select();
+      });
+    } catch (err) {
+      setStatus('error');
+      toast(err instanceof Error ? err.message : t('err.save'), 'error');
+    }
   };
 
   const download = () => {
@@ -293,12 +304,16 @@ export default function NotesTool() {
   const remove = async (id: string) => {
     const ok = await confirm({ title: t('notes.confirmDelete'), danger: true, confirmLabel: t('common.delete') });
     if (!ok) return;
-    await api.del('/notes/' + id);
-    toast(t('common.deleted'), 'ok');
-    const list = await fetchNotes(query, scope);
-    if (active?.id === id) {
-      if (list.length) await open(list[0].id);
-      else setActive(null);
+    try {
+      await api.del('/notes/' + id);
+      toast(t('common.deleted'), 'ok');
+      const list = await fetchNotes(query, scope);
+      if (active?.id === id) {
+        if (list.length) await open(list[0].id);
+        else setActive(null);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : t('err.delete'), 'error');
     }
   };
 

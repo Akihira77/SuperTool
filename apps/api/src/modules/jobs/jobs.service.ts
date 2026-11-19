@@ -124,6 +124,11 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     const id = 'j' + now.toString(36) + '-' + randomUUID().slice(0, 8);
     const label = String(options.label ?? type).slice(0, 120);
     const cancellable = this.handlers.get(type)?.cancellable ? 1 : 0;
+    const payloadText = JSON.stringify(payload ?? null);
+    if (payloadText.length > MAX_RESULT) {
+      // Jangan potong JSON: handler akan menerima payload rusak/kosong.
+      throw new BadRequestException('Payload job terlalu besar');
+    }
     run(
       'INSERT INTO jobs (id, type, label, status, progress, created_at, payload, cancellable, dedupe_key) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)',
       id,
@@ -131,7 +136,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       label,
       'queued',
       now,
-      JSON.stringify(payload).slice(0, MAX_RESULT),
+      payloadText,
       cancellable,
       options.dedupeKey ?? null,
     );

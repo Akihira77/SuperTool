@@ -10,8 +10,6 @@ type PlayerApi = {
   track: Track | null;
   playing: boolean;
   expanded: boolean;
-  time: number;
-  duration: number;
   volume: number;
   play: (track: Track) => void;
   toggle: () => void;
@@ -26,8 +24,6 @@ const Ctx = createContext<PlayerApi>({
   track: null,
   playing: false,
   expanded: false,
-  time: 0,
-  duration: 0,
   volume: 1,
   play: () => undefined,
   toggle: () => undefined,
@@ -38,6 +34,7 @@ const Ctx = createContext<PlayerApi>({
   close: () => undefined,
 });
 
+// Waktu tidak ada di context: berubah ~4x/detik dan hanya dipakai UI pemutar.
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const clock = (seconds: number) => {
@@ -206,8 +203,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ track, playing, expanded, time, duration, volume, play, toggle, seek, setVolume, expand, minimize, close }),
-    [track, playing, expanded, time, duration, volume, play, toggle, seek, setVolume, expand, minimize, close],
+    () => ({ track, playing, expanded, volume, play, toggle, seek, setVolume, expand, minimize, close }),
+    [track, playing, expanded, volume, play, toggle, seek, setVolume, expand, minimize, close],
   );
 
   return (

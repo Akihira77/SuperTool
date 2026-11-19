@@ -29,6 +29,7 @@ export default function LogsTab() {
   const [error, setError] = useState('');
   const [available, setAvailable] = useState<Array<{ path: string; openedAt: number }>>([]);
   const streamRef = useRef<EventSource | null>(null);
+  const aliveRef = useRef(true);
   const boxRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -43,7 +44,9 @@ export default function LogsTab() {
   }, [lines, live]);
 
   useEffect(() => {
+    aliveRef.current = true;
     return () => {
+      aliveRef.current = false;
       streamRef.current?.close();
       streamRef.current = null;
     };
@@ -87,6 +90,7 @@ export default function LogsTab() {
       return;
     }
     setBusy(false);
+    if (!aliveRef.current) return;
     const source = new EventSource('/api/dev/logs/stream' + qs({ path: target }));
     streamRef.current = source;
     setLive(true);

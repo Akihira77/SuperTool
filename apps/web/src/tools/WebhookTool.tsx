@@ -89,7 +89,7 @@ export default function WebhookTool() {
   const current = items.find((item) => item.id === selected) ?? null;
   const urlPrefix = window.location.origin + '/api/hook/';
   const url = active ? urlOf(active) : '';
-  const tokenValid = /^[A-Za-z0-9_-]{1,64}$/.test(tokenDraft);
+  const tokenValid = /^[A-Za-z0-9_-]{16,64}$/.test(tokenDraft);
   const tokenDirty = Boolean(active && tokenDraft !== active.token);
 
   useEffect(() => {

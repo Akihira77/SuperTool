@@ -80,4 +80,17 @@ test('alur login, baca berkas, dan tolak path keluar jail', async (t) => {
     body: JSON.stringify({ origin: 'http://169.254.169.254' }),
   });
   assert.equal(ticket.status, 400, 'alamat metadata harus ditolak');
+
+  // CSRF: request pengubah tanpa header khusus harus ditolak sebelum sesi dipakai.
+  const logoutNoCsrf = await fetch(base + '/api/auth/logout', {
+    method: 'POST',
+    headers: { cookie },
+  });
+  assert.equal(logoutNoCsrf.status, 403);
+
+  const logout = await fetch(base + '/api/auth/logout', {
+    method: 'POST',
+    headers: { cookie, 'x-st-csrf': '1' },
+  });
+  assert.equal(logout.status, 201);
 });

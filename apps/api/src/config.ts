@@ -36,9 +36,10 @@ export const cfg = {
   proxyAllowPublic: env.ST_PROXY_ALLOW_PUBLIC === '1',
   // Kosong = CORS mati. Vite dev/preview sudah mem-proxy /api, jadi tidak perlu CORS.
   devOrigin: env.ST_DEV_ORIGIN,
-  webDist: resolve(env.ST_WEB_DIST ?? join(process.cwd(), '..', 'web', 'dist')),
+  // Kosong = pakai build lokal (apps/web/dist).
+  webDist: resolve(env.ST_WEB_DIST || join(process.cwd(), '..', 'web', 'dist')),
   // File sementara yt-dlp. Default: temp/ di root repo, stabil dari src maupun dist.
-  tempDir: resolve(env.ST_TEMP_DIR || join(__dirname, '..', '..', 'temp')),
+  tempDir: resolve(env.ST_TEMP_DIR || join(__dirname, '..', '..', '..', 'temp')),
   // Google Calendar (OAuth2). Kosong = endpoint calendar menolak dengan pesan jelas.
   calendar: {
     clientId: env.GOOGLE_CLIENT_ID ?? '',

@@ -87,7 +87,10 @@ async function bootstrap() {
       req._body = true;
       next();
     });
-    req.on('error', () => next());
+    req.on('error', () => {
+      // 413 sudah menutup response; jangan lanjut ke route.
+      if (!done && !res.writableEnded) next();
+    });
   });
 
   // Catat semua request API sebelum parser body; payload dibaca saat respons selesai.

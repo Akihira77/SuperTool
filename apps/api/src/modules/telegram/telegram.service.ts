@@ -117,7 +117,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!this.allowed.size) {
-      this.logger.warn('TELEGRAM_ALLOWED_CHAT_IDS kosong; bot menerima chat dari siapa saja.');
+      this.logger.warn('TELEGRAM_ALLOWED_CHAT_IDS kosong; hanya /start, /help, /id yang dilayani.');
     }
 
     const bot = new Telegraf(token, { handlerTimeout: HANDLER_TIMEOUT_MS });
@@ -155,15 +155,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   private register(bot: Telegraf): void {
     bot.use(async (ctx, next) => {
-      if (this.allowed.size) {
-        const chatId = ctx.chat?.id;
-        const text = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
-        const publicCommand = /^\/(?:start|help|id)(?:@\w+)?(?:\s|$)/i.test(text);
-        if (chatId === undefined || (!this.allowed.has(String(chatId)) && !publicCommand)) {
-          this.auditEvent(ctx, 'telegram.access', 'deny', { reason: 'chat-not-allowed' }, 403);
-          await ctx.reply('Chat ini belum diizinkan. Kirim /id untuk melihat chat ID, lalu tambahkan ke TELEGRAM_ALLOWED_CHAT_IDS.');
-          return;
-        }
+      // Allowlist kosong = hanya /start, /help, /id yang dilayani. Jangan pernah
+      // membuka download/upload ke chat sembarang.
+      const chatId = ctx.chat?.id;
+      const text = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
+      const publicCommand = /^\/(?:start|help|id)(?:@\w+)?(?:\s|$)/i.test(text);
+      if (chatId === undefined || (!this.allowed.has(String(chatId)) && !publicCommand)) {
+        this.auditEvent(ctx, 'telegram.access', 'deny', {
+          reason: this.allowed.size ? 'chat-not-allowed' : 'allowlist-empty',
+        }, 403);
+        await ctx.reply('Chat ini belum diizinkan. Kirim /id untuk melihat chat ID, lalu tambahkan ke TELEGRAM_ALLOWED_CHAT_IDS.');
+        return;
       }
       return next();
     });

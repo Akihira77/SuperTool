@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { all, db, one } from '../../common/db';
+import { BadRequestException, Injectable, Logger, NotFoundException, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { all, db, one, run } from '../../common/db';
 
 export type CompareHistoryItem = {
   id: number;
@@ -22,6 +22,9 @@ type CompareHistoryRow = {
 const MAX_TEXT_LENGTH = 1_000_000;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+/** Riwayat bandingkan disimpan 30 hari. */
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 
 function countLines(text: string): number {
   return text ? text.replace(/\r\n?/g, '\n').split('\n').length : 0;
@@ -43,7 +46,30 @@ function toItem(row: CompareHistoryRow): CompareHistoryItem {
 }
 
 @Injectable()
-export class CompareService {
+export class CompareService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CompareService.name);
+  private timer: NodeJS.Timeout | null = null;
+
+  onModuleInit(): void {
+    this.prune();
+    this.timer = setInterval(() => this.prune(), PRUNE_EVERY_MS);
+    this.timer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  prune(now = Date.now()): number {
+    try {
+      return run('DELETE FROM compare_history WHERE created_at < ?', now - RETENTION_MS);
+    } catch (error) {
+      this.logger.warn('Gagal membersihkan riwayat bandingkan: ' + (error instanceof Error ? error.message : String(error)));
+      return 0;
+    }
+  }
+
   list(limitRaw?: string, beforeRaw?: string) {
     const limit = Math.min(Math.max(Number(limitRaw) || DEFAULT_LIMIT, 1), MAX_LIMIT);
     const before = Math.floor(Number(beforeRaw));

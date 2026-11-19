@@ -185,7 +185,7 @@ export async function streamLocal(rawUrl: string, options: StreamOptions = {}): 
       method,
       headers,
       lookup: (_hostname, _lookupOptions, callback) => callback(null, address.address, address.family),
-      servername: url.protocol === 'https:' ? url.hostname.replace(/^[|]$/g, '') : undefined,
+      servername: url.protocol === 'https:' ? url.hostname.replace(/^\[|\]$/g, '') : undefined,
     });
     req.setTimeout(timeoutMs, () => req.destroy(new Error('Request timeout')));
     req.on('error', reject);

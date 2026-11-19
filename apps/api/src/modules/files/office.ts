@@ -15,10 +15,17 @@ export type OfficePreview = { kind: string; blocks: Block[]; editable: 'text' | 
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
+function codePoint(value: number): string {
+  // Entitas rusak (mis. &#xFFFFFFFF;) tidak boleh menjatuhkan request.
+  return Number.isInteger(value) && value >= 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
+    ? String.fromCodePoint(value)
+    : '\uFFFD';
+}
+
 function decode(text: string): string {
   return text
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, code) => codePoint(Number(code)))
     .replace(/&([a-z]+);/gi, (all, name) => ENTITIES[String(name).toLowerCase()] ?? all);
 }
 

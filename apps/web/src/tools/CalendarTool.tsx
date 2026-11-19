@@ -447,7 +447,7 @@ export default function CalendarTool() {
     setSaving(true);
     setFormError('');
     try {
-      await api.postSilent<CalendarEvent>('/calendar/events', {
+      await api.post<CalendarEvent>('/calendar/events', {
         summary,
         start: start.toISOString(),
         end: end.toISOString(),
@@ -495,7 +495,7 @@ export default function CalendarTool() {
     if (!ok) return;
     setDisconnecting(true);
     try {
-      await api.postSilent<{ ok: boolean }>('/calendar/disconnect');
+      await api.post<{ ok: boolean }>('/calendar/disconnect');
       setEvents([]);
       setAccount('');
       setWriteScope(true);

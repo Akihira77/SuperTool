@@ -150,7 +150,7 @@ export default function DockerTab() {
         setBusy(false);
       }
     },
-    [],
+    [t],
   );
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, open, readdir, lstat, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { ZipArchive } from 'archiver';
@@ -100,7 +100,7 @@ export class BackupService {
 
       const out = join(stage, 'out');
       await mkdir(out, { recursive: true });
-      await exec('unzip', ['-o', '-q', zipPath, '-d', out]);
+      await this.extractZip(zipPath, out);
       await this.validateTree(out);
 
       const dbFile = join(out, DB_NAME);
@@ -150,6 +150,67 @@ export class BackupService {
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
+  }
+
+  /**
+   * Ekstrak sambil memantau ukuran nyata di disk. Ukuran di header zip bisa
+   * dipalsukan; kalau melewati batas, proses unzip dimatikan dan staging dibuang.
+   */
+  private async extractZip(zipPath: string, out: string): Promise<void> {
+    await mkdir(out, { recursive: true });
+    const child = spawn('unzip', ['-o', '-q', zipPath, '-d', out], { stdio: 'ignore' });
+    let over = false;
+    let checking = false;
+    const timer = setInterval(() => {
+      if (over || checking) return;
+      checking = true;
+      void this.dirBytes(out)
+        .then((bytes) => {
+          if (bytes > MAX_UNZIPPED && child.exitCode === null) {
+            over = true;
+            child.kill('SIGKILL');
+          }
+        })
+        .finally(() => {
+          checking = false;
+        });
+    }, 150);
+    timer.unref();
+    let code: number;
+    try {
+      code = await new Promise<number>((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (value) => resolve(value ?? 0));
+      });
+    } finally {
+      clearInterval(timer);
+    }
+    // Proses bisa selesai sebelum interval sempat memeriksa; ukur sekali lagi.
+    const bytes = await this.dirBytes(out);
+    if (over || bytes > MAX_UNZIPPED) throw new BadRequestException('Isi arsip terlalu besar (maks 1 GB)');
+    if (code !== 0) throw new Error('unzip gagal (kode ' + code + ')');
+  }
+
+  /** Jumlah byte file di bawah root; berhenti lebih awal setelah melewati batas. */
+  private async dirBytes(root: string): Promise<number> {
+    let total = 0;
+    const stack = [root];
+    while (stack.length) {
+      const dir = stack.pop() as string;
+      const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const abs = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(abs);
+          continue;
+        }
+        const info = await lstat(abs).catch(() => null);
+        if (!info?.isFile()) continue;
+        total += info.size;
+        if (total > MAX_UNZIPPED) return total;
+      }
+    }
+    return total;
   }
 
   private async unzippedSize(zipPath: string): Promise<number> {

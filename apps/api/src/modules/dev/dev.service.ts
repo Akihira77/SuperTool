@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { execFile } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { promises as dns } from 'node:dns';
-import { open, stat, writeFile } from 'node:fs/promises';
+import { open, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { Request, Response } from 'express';
@@ -146,12 +146,16 @@ export class DevService {
         if (info.size === offset) return;
         const from = Math.max(offset, info.size - 1024 * 1024);
         const handle = await open(abs, 'r');
-        const buffer = Buffer.alloc(info.size - from);
-        await handle.read(buffer, 0, buffer.length, from);
-        await handle.close();
-        offset = info.size;
-        for (const line of buffer.toString('utf8').split('\n')) {
-          if (line) send({ line });
+        try {
+          const buffer = Buffer.alloc(info.size - from);
+          await handle.read(buffer, 0, buffer.length, from);
+          offset = info.size;
+          for (const line of buffer.toString('utf8').split('\n')) {
+            if (line) send({ line });
+          }
+        } finally {
+          // Read bisa gagal (berkas diputar ulang/rotasi); fd tetap harus ditutup.
+          await handle.close().catch(() => undefined);
         }
       } catch {
         // berkas sementara tidak bisa dibaca: diamkan
@@ -403,6 +407,8 @@ export class DevService {
       await exec('crontab', [file], { timeout: 10_000 });
     } catch (err) {
       throw new BadRequestException('Gagal menulis crontab: ' + (err as Error).message.slice(0, 120));
+    } finally {
+      await rm(file, { force: true }).catch(() => undefined);
     }
   }
 
@@ -472,8 +478,9 @@ export class DevService {
       run(['branch', '--show-current']).catch(() => ''),
       run(['status', '--porcelain=v1', '-uall']).catch(() => ''),
       // Riwayat commit untuk grafik: hash, parent, penulis, dekorasi branch.
+      // --end-of-options: ref tidak bisa dibaca git sebagai opsi (mis. --output).
       (wanted
-        ? run(['log', '-60', '--pretty=%H%x1f%P%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%D%x1f%s', wanted])
+        ? run(['log', '-60', '--pretty=%H%x1f%P%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%D%x1f%s', '--end-of-options', wanted])
         : run(['log', '--all', '-60', '--pretty=%H%x1f%P%x1f%h%x1f%an%x1f%ae%x1f%ar%x1f%D%x1f%s'])
       ).catch(() => ''),
       run(['diff', '--stat=100']).catch(() => ''),
@@ -481,7 +488,7 @@ export class DevService {
       run(['branch', '--format=%(refname:short)']).catch(() => ''),
       // Grafik commit: semua branch (atau satu ref kalau dipilih).
       (wanted
-        ? run(['log', '--graph', '--oneline', '--decorate', '-40', wanted])
+        ? run(['log', '--graph', '--oneline', '--decorate', '-40', '--end-of-options', wanted])
         : run(['log', '--graph', '--oneline', '--decorate', '--all', '-40'])
       ).catch(() => ''),
     ]);

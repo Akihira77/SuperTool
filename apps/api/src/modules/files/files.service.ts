@@ -539,8 +539,16 @@ export class FilesService {
   async saveUpload(dirInput: string, name: string, tempPath: string) {
     if (!name) throw new NotFoundException('Nama file kosong');
     if (!tempPath) throw new BadRequestException('Berkas upload kosong');
-    const dir = await jailPath(dirInput);
-    const target = await jailPath(join(dir, basename(name)));
+    let dir: string;
+    let target: string;
+    try {
+      dir = await jailPath(dirInput);
+      target = await jailPath(join(dir, basename(name)));
+    } catch (err) {
+      // Jail menolak path: berkas sementara multer tetap harus dibuang.
+      await unlink(tempPath).catch(() => undefined);
+      throw err;
+    }
     let copied: string | null = null;
     try {
       try {

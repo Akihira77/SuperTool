@@ -98,7 +98,7 @@ export function readZip(buffer: Buffer): ZipItem[] {
 export function entryText(items: ZipItem[], name: string): string {
   const item = items.find((entry) => entry.name === name);
   if (!item) return '';
-  const raw = item.method === 0 ? item.data : inflateRawSync(item.data);
+  const raw = item.method === 0 ? item.data : inflateRawSync(item.data, { maxOutputLength: 64 * 1024 * 1024 });
   return raw.toString('utf8');
 }
 
