@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, Empty, Icon, PageHeader } from '../components/ui';
+import { Button, CopyButton, Empty, IconButton, PageHeader } from '../components/ui';
 import { bytes } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { highlightJson } from '../lib/highlight';
@@ -89,22 +89,18 @@ export default function JsonTool() {
               : t('json.paste')
         }
       >
-        <button type="button" className="btn" data-action="json:format" onClick={() => apply((v) => JSON.stringify(v, null, 2))} disabled={!parsed.ok}>
-          <Icon name="sort" /> {t('json.format')}
-        </button>
-        <button type="button" className="btn" data-action="json:minify" onClick={() => apply((v) => JSON.stringify(v))} disabled={!parsed.ok}>
-          <Icon name="minify" /> {t('json.minify')}
-        </button>
-        <button type="button" className="btn" data-action="json:sort" onClick={() => apply((v) => JSON.stringify(sortDeep(v), null, 2))} disabled={!parsed.ok}>
+        <Button icon="sort" data-action="json:format" onClick={() => apply((v) => JSON.stringify(v, null, 2))} disabled={!parsed.ok}>
+          {t('json.format')}
+        </Button>
+        <Button icon="minify" data-action="json:minify" onClick={() => apply((v) => JSON.stringify(v))} disabled={!parsed.ok}>
+          {t('json.minify')}
+        </Button>
+        <Button data-action="json:sort" onClick={() => apply((v) => JSON.stringify(sortDeep(v), null, 2))} disabled={!parsed.ok}>
           {t('json.sort')}
-        </button>
+        </Button>
         <CopyButton text={pretty} />
-        <button type="button" className="btn btn-icon" data-action="json:upload" onClick={() => fileRef.current?.click()} title={t('json.upload')} aria-label={t('json.upload')}>
-          <Icon name="folderPlus" />
-        </button>
-        <button type="button" className="btn btn-icon" data-action="json:download" onClick={download} disabled={!parsed.ok} title={t('json.download')} aria-label={t('json.download')}>
-          <Icon name="download" />
-        </button>
+        <IconButton icon="folderPlus" size="md" data-action="json:upload" onClick={() => fileRef.current?.click()} label={t('json.upload')} />
+        <IconButton icon="download" size="md" data-action="json:download" onClick={download} disabled={!parsed.ok} label={t('json.download')} />
         <input ref={fileRef} type="file" accept=".json,application/json,text/plain" hidden onChange={(event) => void upload(event.target.files?.[0])} />
       </PageHeader>
 
@@ -124,13 +120,13 @@ export default function JsonTool() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 border-t border-line bg-panel/20 px-3 py-2 text-[12px] text-muted">
-        <button type="button" className="btn btn-ghost btn-sm" data-action="json:sample" onClick={() => setText(SAMPLE)}>
+        <Button variant="ghost" size="sm" data-action="json:sample" onClick={() => setText(SAMPLE)}>
           {t('common.sample')}
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" data-action="json:clear" onClick={() => setText('')}>
+        </Button>
+        <Button variant="ghost" size="sm" data-action="json:clear" onClick={() => setText('')}>
           {t('common.clear')}
-        </button>
-        <span className="ml-auto">{parsed.ok ? t('json.valid') : t('json.waiting')}</span>
+        </Button>
+        <span className="ml-auto tabular-nums">{parsed.ok ? t('json.valid') : t('json.waiting')}</span>
       </div>
     </div>
   );

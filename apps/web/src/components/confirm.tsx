@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useId, useRef, useState, type ReactNode } from 'react';
-import { Icon, cn } from './ui';
+import { Button, Dialog, Icon } from './ui';
 import { useI18n } from '../lib/i18n';
-import { useFocusTrap } from '../lib/useFocusTrap';
 
 export type ConfirmOptions = {
   title: string;
@@ -23,9 +22,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const messageId = useId();
-  useFocusTrap(Boolean(state), dialogRef, cancelRef);
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -45,46 +42,45 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {state ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={() => close(false)}>
-          <div
-            ref={dialogRef}
-            className="flex w-full max-w-md flex-col gap-3 rounded-xl border border-line bg-panel p-4 shadow-2xl"
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                event.stopPropagation();
-                close(false);
+        <Dialog
+          open
+          onClose={() => close(false)}
+          role="alertdialog"
+          size="md"
+          initialFocusRef={cancelRef}
+          labelledBy="confirm-title"
+          describedBy={state.message ? messageId : undefined}
+          className="gap-3 p-4"
+        >
+          <div className="flex items-start gap-2">
+            <span
+              className={
+                'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control ' +
+                (state.danger ? 'bg-bad/15 text-bad' : 'bg-accent/15 text-accent')
               }
-            }}
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={"confirm-title"}
-            aria-describedby={state.message ? messageId : undefined}
-          >
-            <div className="flex items-start gap-2">
-              <span className={cn('mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg', state.danger ? 'bg-bad/15 text-bad' : 'bg-accent/15 text-accent')}>
-                <Icon name={state.danger ? 'trash' : 'check'} size={14} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div id="confirm-title" className="text-[14px] font-medium text-ink">{state.title}</div>
-                {state.message ? <p id={messageId} className="mt-1 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-muted">{state.message}</p> : null}
+            >
+              <Icon name={state.danger ? 'trash' : 'check'} size={14} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div id="confirm-title" className="text-[14px] font-medium text-ink">
+                {state.title}
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button ref={cancelRef} type="button" className="btn cursor-pointer" onClick={() => close(false)}>
-                {state.cancelLabel ?? t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                className={cn('btn cursor-pointer', state.danger ? 'btn-danger' : 'btn-primary')}
-                onClick={() => close(true)}
-              >
-                {state.confirmLabel ?? t('common.confirm')}
-              </button>
+              {state.message ? (
+                <p id={messageId} className="mt-1 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-muted">
+                  {state.message}
+                </p>
+              ) : null}
             </div>
           </div>
-        </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button ref={cancelRef} onClick={() => close(false)}>
+              {state.cancelLabel ?? t('common.cancel')}
+            </Button>
+            <Button variant={state.danger ? 'danger' : 'primary'} onClick={() => close(true)}>
+              {state.confirmLabel ?? t('common.confirm')}
+            </Button>
+          </div>
+        </Dialog>
       ) : null}
     </ConfirmContext.Provider>
   );

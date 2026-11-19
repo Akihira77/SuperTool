@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CopyButton, Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Badge, Button, Card, CopyButton, Empty, Icon, IconButton, Input, PageHeader, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -155,20 +155,20 @@ export default function WebhookTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('webhook.title')} subtitle={t('webhook.subtitle')} icon="webhook">
-        <span className={cn('flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px]', live ? 'bg-ok/15 text-ok' : 'bg-panel2 text-muted')}>
-          <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-ok' : 'bg-muted')} />
+        <Badge tone={live ? 'ok' : 'neutral'} className="py-1">
+          <span aria-hidden="true" className={cn('size-1.5 rounded-full', live ? 'bg-ok' : 'bg-muted')} />
           {live ? t('webhook.live') : t('webhook.paused')}
-        </span>
-        <button type="button" className="btn cursor-pointer" data-action="webhook:pause" onClick={() => setLive((prev) => !prev)}>
-          <Icon name={live ? 'x' : 'play'} size={13} /> {live ? t('webhook.pause') : t('webhook.resume')}
-        </button>
-        <button type="button" className="btn cursor-pointer" data-action="webhook:clear" onClick={() => void clear()} disabled={!items.length}>
-          <Icon name="trash" size={13} /> {t('webhook.clear')}
-        </button>
+        </Badge>
+        <Button icon={live ? 'x' : 'play'} data-action="webhook:pause" onClick={() => setLive((prev) => !prev)}>
+          {live ? t('webhook.pause') : t('webhook.resume')}
+        </Button>
+        <Button icon="trash" data-action="webhook:clear" onClick={() => void clear()} disabled={!items.length}>
+          {t('webhook.clear')}
+        </Button>
       </PageHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 md:p-5">
-        <div className="card flex flex-col gap-3 bg-panel/80 p-4">
+        <Card className="flex flex-col gap-3 bg-panel/80 p-4">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="label mr-1">{t('webhook.endpoints')}</span>
             {(info?.endpoints ?? []).map((endpoint) => {
@@ -178,25 +178,28 @@ export default function WebhookTool() {
                 <span
                   key={endpoint.id}
                   className={cn(
-                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12.5px] transition-colors',
+                    'flex items-center gap-1.5 rounded-control border px-2 py-1 text-[12.5px] transition-colors duration-[var(--duration-fast)]',
                     isActive ? 'border-accent/50 bg-accent/12 text-ink' : 'border-line text-muted hover:border-accent/30 hover:text-ink',
                   )}
                 >
-                  <button type="button" onClick={() => { setActiveId(endpoint.id); setSelected(null); }} className="min-h-6 max-w-40 cursor-pointer truncate">
+                  <button
+                    type="button"
+                    onClick={() => { setActiveId(endpoint.id); setSelected(null); }}
+                    aria-current={isActive ? 'true' : undefined}
+                    className="min-h-6 max-w-40 cursor-pointer truncate rounded-sm"
+                  >
                     {endpoint.name}
                   </button>
-                  <span className={cn('rounded px-1 text-[12.5px]', isActive ? 'bg-accent/20 text-accent' : 'bg-panel2')}>{count}</span>
+                  <span className={cn('rounded px-1 text-[12.5px] tabular-nums', isActive ? 'bg-accent/20 text-accent' : 'bg-panel2')}>{count}</span>
                   {info && info.endpoints.length > 1 ? (
-                    <button type="button" onClick={() => void removeEndpoint(endpoint)} title={t('webhook.deleteEndpoint')} className="inline-flex size-6 cursor-pointer items-center justify-center text-muted hover:text-bad">
-                      <Icon name="x" size={11} />
-                    </button>
+                    <IconButton icon="x" size="sm" tone="danger" label={t('webhook.deleteEndpoint')} onClick={() => void removeEndpoint(endpoint)} />
                   ) : null}
                 </span>
               );
             })}
             {adding ? (
               <span className="flex items-center gap-1">
-                <input
+                <Input
                   autoFocus
                   value={nameDraft}
                   onChange={(event) => setNameDraft(event.target.value)}
@@ -205,15 +208,20 @@ export default function WebhookTool() {
                     if (event.key === 'Escape') { setAdding(false); setNameDraft(''); }
                   }}
                   placeholder={t('webhook.endpointPlaceholder')}
-                  className="input w-52 py-1 text-[12.5px]"
+                  aria-label={t('webhook.endpointPlaceholder')}
+                  className="w-52 py-1 text-[12.5px]"
                 />
-                <button type="button" className="btn btn-primary cursor-pointer px-2 py-1 text-[12.5px]" onClick={() => void addEndpoint()}>{t('common.save')}</button>
-                <button type="button" className="btn btn-ghost cursor-pointer px-1 py-1" onClick={() => { setAdding(false); setNameDraft(''); }}><Icon name="x" size={12} /></button>
+                <Button size="sm" variant="primary" onClick={() => void addEndpoint()}>{t('common.save')}</Button>
+                <IconButton
+                  icon="x"
+                  label={t('common.close')}
+                  onClick={() => { setAdding(false); setNameDraft(''); }}
+                />
               </span>
             ) : (
-              <button type="button" className="btn btn-ghost cursor-pointer px-2 py-1 text-[12.5px] min-h-8" data-action="webhook:addEndpoint" onClick={() => setAdding(true)}>
-                <Icon name="plus" size={12} /> {t('webhook.addEndpoint')}
-              </button>
+              <Button variant="ghost" size="sm" icon="plus" data-action="webhook:addEndpoint" onClick={() => setAdding(true)}>
+                {t('webhook.addEndpoint')}
+              </Button>
             )}
           </div>
 
@@ -221,7 +229,7 @@ export default function WebhookTool() {
             <span className="label">{t('webhook.endpoint')}</span>
             <div className="flex flex-wrap items-center gap-2">
               <span className="mono shrink-0 rounded-md border border-line bg-panel2 px-2 py-1.5 text-[12.5px] font-semibold text-accent">POST</span>
-              <div className="flex min-w-0 flex-1 flex-col rounded-[9px] border border-line bg-panel2/60 px-2 py-1.5 focus-within:border-accent/50 max-sm:basis-full sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 flex-col rounded-control border border-line bg-panel2/60 px-2 py-1.5 transition-colors duration-[var(--duration-fast)] focus-within:border-accent/50 max-sm:basis-full sm:flex-row sm:items-center">
                 <span className="mono min-w-0 break-all text-[11.5px] text-muted/75 sm:shrink-0 sm:text-[12px]">{urlPrefix}</span>
                 <input
                   value={tokenDraft}
@@ -241,9 +249,9 @@ export default function WebhookTool() {
               </div>
               {tokenDirty && !tokenValid ? <span className="text-[12px] text-bad">{t('webhook.tokenRule')}</span> : null}
               {tokenDirty ? (
-                <button type="button" className="btn btn-primary cursor-pointer" onClick={() => void saveToken()} disabled={savingToken || !tokenValid}>
-                  <Icon name="check" size={13} /> {t('common.save')}
-                </button>
+                <Button variant="primary" icon="check" onClick={() => void saveToken()} disabled={!tokenValid} loading={savingToken}>
+                  {t('common.save')}
+                </Button>
               ) : null}
               {url ? <CopyButton text={url} label={t('webhook.copy')} /> : null}
               {url ? (
@@ -254,15 +262,15 @@ export default function WebhookTool() {
             </div>
             <span className="hint">{t('webhook.hint')}</span>
           </div>
-        </div>
+        </Card>
 
-        {error ? <div className="text-[13px] text-bad">{error}</div> : null}
+        {error ? <div role="alert" className="text-[13px] text-bad">{error}</div> : null}
 
         <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[320px_1fr]">
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-panel/60">
+          <Card className="flex min-h-0 flex-col overflow-hidden bg-panel/60">
             <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/70 px-3 py-2 text-[12px] text-muted">
               {t('webhook.requests')}
-              <span className="rounded bg-panel2 px-1 text-ink">{items.length}</span>
+              <span className="rounded bg-panel2 px-1 tabular-nums text-ink">{items.length}</span>
               {active ? <span className="ml-auto truncate text-[12.5px]">{active.name}</span> : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -271,35 +279,36 @@ export default function WebhookTool() {
                   key={item.id}
                   type="button"
                   onClick={() => setSelected(item.id)}
+                  aria-current={selected === item.id ? 'true' : undefined}
                   className={cn(
-                    'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left transition-colors',
-                    selected === item.id ? 'bg-accent/10' : 'hover:bg-panel2',
+                    'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left transition-colors duration-[var(--duration-fast)]',
+                    selected === item.id ? 'bg-accent/10' : 'hover:bg-panel2 focus-visible:bg-panel2',
                   )}
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="mono rounded bg-panel2 px-1 text-[12.5px] text-accent">{item.method}</span>
                     <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink/85">{item.path}</span>
                   </span>
-                  <span className="flex items-center gap-2 text-[12.5px] text-muted">
+                  <span className="flex items-center gap-2 text-[12.5px] tabular-nums text-muted">
                     {timeAgo(item.at)} · {bytes(item.size)}
                   </span>
                 </button>
               ))}
               {!items.length ? <Empty icon="webhook" text={t('webhook.empty')} /> : null}
             </div>
-          </div>
+          </Card>
 
-          <div className="min-h-0 overflow-auto rounded-xl border border-line bg-panel/60">
+          <Card className="min-h-0 overflow-auto bg-panel/60">
             {current ? (
               <div className="flex flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
-                  <span className="mono rounded bg-accent/15 px-1.5 py-0.5 text-accent">{current.method}</span>
+                  <Badge tone="accent" className="mono">{current.method}</Badge>
                   <span className="mono truncate text-ink/85">{current.path}</span>
-                  <span className="ml-auto">{new Date(current.at).toLocaleString()}</span>
+                  <span className="ml-auto tabular-nums">{new Date(current.at).toLocaleString()}</span>
                 </div>
                 <div>
                   <div className="mb-1 label">{t('webhook.headers')}</div>
-                  <div className="rounded border border-line bg-panel2/60 p-2">
+                  <div className="rounded-control border border-line bg-panel2/60 p-2">
                     {current.headers.map((header) => (
                       <div key={header.key} className="mono flex gap-2 text-[12.5px]">
                         <span className="w-44 shrink-0 text-muted">{header.key}</span>
@@ -314,7 +323,7 @@ export default function WebhookTool() {
                     {current.body ? <CopyButton text={pretty(current.body, current.contentType)} label={t('webhook.copy')} /> : null}
                   </div>
                   {current.body ? (
-                    <pre className="mono max-h-[45vh] overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[12.5px] whitespace-pre-wrap text-ink/85">
+                    <pre className="mono max-h-[45vh] overflow-auto rounded-panel border border-line bg-[#070d14] p-3 text-[12.5px] whitespace-pre-wrap text-ink/85">
                       {pretty(current.body, current.contentType)}
                     </pre>
                   ) : (
@@ -325,7 +334,7 @@ export default function WebhookTool() {
             ) : (
               <Empty icon="webhook" text={t('webhook.select')} />
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>

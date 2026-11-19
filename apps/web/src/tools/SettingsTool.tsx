@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Badge, Button, Card, Icon, Input, PageHeader, Skeleton, cn } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { bytes, timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -189,29 +189,30 @@ export default function SettingsTool() {
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} icon="save" />
 
       <div className="page-body">
-        <nav aria-label={t('settings.navLabel')} className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-lg border border-line bg-bg/90 p-1 backdrop-blur-sm">
+        <nav aria-label={t('settings.navLabel')} className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-control border border-line bg-bg/90 p-1 backdrop-blur-sm">
           {[
             ['settings-backup', 'settings.navData'],
             ['settings-diagnostics', 'settings.navDiagnostics'],
             ['settings-workspace', 'settings.navWorkspace'],
             ['settings-prayer', 'settings.navPreferences'],
           ].map(([id, key]) => (
-            <button
+            <Button
               key={id}
-              type="button"
-              className="btn btn-ghost btn-sm shrink-0"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
               onClick={() => {
                 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                 document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
               }}
             >
               {t(key as 'settings.navData')}
-            </button>
+            </Button>
           ))}
         </nav>
-        <div id="settings-backup" className="scroll-mt-4 card flex flex-col gap-3 p-4">
+        <Card id="settings-backup" className="scroll-mt-4 flex flex-col gap-3 p-4">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="download" size={14} /></span>
+            <span className="flex size-7 items-center justify-center rounded-control bg-accent/15 text-accent"><Icon name="download" size={14} /></span>
             <div>
               <div className="text-[13.5px] font-medium">{t('settings.backup')}</div>
               <div className="text-[12.5px] text-muted">{t('settings.backupHint')}</div>
@@ -224,7 +225,7 @@ export default function SettingsTool() {
             <span className="text-[12.5px] text-muted">{t('settings.backupContains')}</span>
           </div>
           {info ? (
-            <div className="grid gap-2 rounded-lg border border-line bg-panel2/40 p-2.5 text-[12.5px] sm:grid-cols-3">
+            <div className="grid gap-2 rounded-control border border-line bg-panel2/40 p-2.5 text-[12.5px] sm:grid-cols-3">
               <div>
                 <div className="label">{t('settings.dbSize')}</div>
                 <div className="mono text-ink/85">{bytes(info.size)}</div>
@@ -241,33 +242,33 @@ export default function SettingsTool() {
               </div>
             </div>
           ) : null}
-        </div>
+        </Card>
 
-        <div id="settings-diagnostics" className="scroll-mt-4 card flex flex-col gap-3 p-4">
+        <Card id="settings-diagnostics" className="scroll-mt-4 flex flex-col gap-3 p-4">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="ports" size={14} /></span>
+            <span className="flex size-7 items-center justify-center rounded-control bg-accent/15 text-accent"><Icon name="ports" size={14} /></span>
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium">{t('settings.diagnostics')}</div>
               <div className="text-[12.5px] text-muted">{t('settings.diagnosticsHint')}</div>
             </div>
-            <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" onClick={refreshDiagnostics}>
-              <Icon name="refresh" size={12} /> {t('settings.diagRefresh')}
-            </button>
+            <Button size="sm" icon="refresh" onClick={refreshDiagnostics}>
+              {t('settings.diagRefresh')}
+            </Button>
           </div>
           {diag ? (
             <div className="flex flex-col gap-2">
-              <div className="grid gap-2 rounded-lg border border-line bg-panel2/40 p-2.5 text-[12.5px] sm:grid-cols-3 lg:grid-cols-4">
-                <div><div className="label">{t('settings.diagVersion')}</div><div className="mono text-ink/85">{diag.version}</div></div>
-                <div><div className="label">{t('settings.diagNode')}</div><div className="mono text-ink/85">{diag.node}</div></div>
-                <div><div className="label">{t('settings.diagUptime')}</div><div className="mono text-ink/85">{uptime(diag.uptimeSec)}</div></div>
-                <div><div className="label">{t('settings.diagMemory')}</div><div className="mono text-ink/85">{bytes(diag.memory.rss)}</div></div>
-                <div><div className="label">{t('settings.diagDb')}</div><div className={cn('mono', diag.db.ok ? 'text-ink/85' : 'text-bad')}>{bytes(diag.db.size)} · v{diag.db.userVersion}</div></div>
-                <div><div className="label">WAL</div><div className="mono text-ink/85">{bytes(diag.db.walSize)}</div></div>
-                <div><div className="label">{t('settings.diagDisk')}</div><div className="mono text-ink/85">{diag.disk ? bytes(diag.disk.available) : '—'}</div></div>
-                <div><div className="label">Pages</div><div className="mono text-ink/85">{diag.db.pageCount} × {bytes(diag.db.pageSize)}</div></div>
+              <div className="grid gap-2 rounded-control border border-line bg-panel2/40 p-2.5 text-[12.5px] sm:grid-cols-3 lg:grid-cols-4">
+                <div><div className="label">{t('settings.diagVersion')}</div><div className="mono tabular-nums text-ink/85">{diag.version}</div></div>
+                <div><div className="label">{t('settings.diagNode')}</div><div className="mono tabular-nums text-ink/85">{diag.node}</div></div>
+                <div><div className="label">{t('settings.diagUptime')}</div><div className="mono tabular-nums text-ink/85">{uptime(diag.uptimeSec)}</div></div>
+                <div><div className="label">{t('settings.diagMemory')}</div><div className="mono tabular-nums text-ink/85">{bytes(diag.memory.rss)}</div></div>
+                <div><div className="label">{t('settings.diagDb')}</div><div className={cn('mono tabular-nums', diag.db.ok ? 'text-ink/85' : 'text-bad')}>{bytes(diag.db.size)} · v{diag.db.userVersion}</div></div>
+                <div><div className="label">WAL</div><div className="mono tabular-nums text-ink/85">{bytes(diag.db.walSize)}</div></div>
+                <div><div className="label">{t('settings.diagDisk')}</div><div className="mono tabular-nums text-ink/85">{diag.disk ? bytes(diag.disk.available) : '—'}</div></div>
+                <div><div className="label">Pages</div><div className="mono tabular-nums text-ink/85">{diag.db.pageCount} × {bytes(diag.db.pageSize)}</div></div>
               </div>
-              {diag.db.error ? <div className="rounded-lg border border-bad/30 bg-bad/10 p-2 text-[12.5px] text-bad">{diag.db.error}</div> : null}
-              <div className="rounded-lg border border-line bg-panel2/40 p-2.5">
+              {diag.db.error ? <div role="alert" className="rounded-control border border-bad/30 bg-bad/10 p-2 text-[12.5px] text-bad">{diag.db.error}</div> : null}
+              <div className="rounded-control border border-line bg-panel2/40 p-2.5">
                 <div className="label mb-1">{t('settings.diagLogs')}</div>
                 {diag.lastError ? (
                   <div className="mb-1.5 rounded border border-bad/30 bg-bad/10 p-1.5 font-mono text-[12.5px] text-bad">
@@ -284,15 +285,22 @@ export default function SettingsTool() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-[12.5px] text-muted">
-              {diagError ? <span className="text-bad">{diagError}</span> : <><Spinner /> {t('settings.diagnostics')}</>}
+            <div className="flex flex-col gap-1.5">
+              {diagError ? (
+                <span role="alert" className="text-[12.5px] text-bad">{diagError}</span>
+              ) : (
+                <>
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-16 w-full" />
+                </>
+              )}
             </div>
           )}
-        </div>
+        </Card>
 
-        <div id="settings-restore" className={cn('scroll-mt-4 card flex flex-col gap-3 p-4', file && 'border-warn/40')}>
+        <Card id="settings-restore" className={cn('scroll-mt-4 flex flex-col gap-3 p-4', file && 'border-warn/40')}>
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-warn/15 text-warn"><Icon name="upload" size={14} /></span>
+            <span className="flex size-7 items-center justify-center rounded-control bg-warn/15 text-warn"><Icon name="upload" size={14} /></span>
             <div>
               <div className="text-[13.5px] font-medium">{t('settings.restore')}</div>
               <div className="text-[12.5px] text-muted">{t('settings.restoreHint')}</div>
@@ -300,7 +308,7 @@ export default function SettingsTool() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <Input
               ref={fileRef}
               type="file"
               accept=".zip,application/zip"
@@ -309,23 +317,23 @@ export default function SettingsTool() {
                 setFile(next);
                 setError('');
               }}
-              className="input max-w-sm cursor-pointer py-1.5 text-[13px]"
+              className="max-w-sm cursor-pointer py-1.5 text-[13px]"
               aria-label={t('settings.chooseZip')}
             />
-            <button type="button" className="btn cursor-pointer" data-action="settings:restore" onClick={() => void restore()} disabled={!file || busy}>
-              {busy ? <Spinner /> : <Icon name="upload" size={13} />} {t('settings.restoreNow')}
-            </button>
+            <Button icon="upload" data-action="settings:restore" onClick={() => void restore()} disabled={!file} loading={busy}>
+              {t('settings.restoreNow')}
+            </Button>
           </div>
 
-          <div className="rounded-lg border border-warn/30 bg-warn/5 p-2.5 text-[12.5px] leading-relaxed text-warn/90">
+          <div className="rounded-control border border-warn/30 bg-warn/5 p-2.5 text-[12.5px] leading-relaxed text-warn/90">
             {t('settings.restoreWarning')}
           </div>
-          {error ? <div className="text-[12.5px] text-bad">{error}</div> : null}
-        </div>
+          {error ? <div role="alert" className="text-[12.5px] text-bad">{error}</div> : null}
+        </Card>
 
-        <div id="settings-cookies" className="scroll-mt-4 card flex flex-col gap-3 p-4">
+        <Card id="settings-cookies" className="scroll-mt-4 flex flex-col gap-3 p-4">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Icon name="upload" size={14} /></span>
+            <span className="flex size-7 items-center justify-center rounded-control bg-accent/15 text-accent"><Icon name="upload" size={14} /></span>
             <div className="min-w-0">
               <div className="text-[13.5px] font-medium">{t('settings.cookies')}</div>
               <div className="text-[12.5px] text-muted">{t('settings.cookiesHint')}</div>
@@ -333,18 +341,18 @@ export default function SettingsTool() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className={cn('badge', cookieInfo?.configured ? 'text-ok' : 'text-muted')}>
+            <Badge tone={cookieInfo?.configured ? 'ok' : 'neutral'}>
               {cookieInfo?.configured ? t('settings.cookiesActive') : t('settings.cookiesEmpty')}
-            </span>
+            </Badge>
             {cookieInfo?.configured ? (
-              <span className="text-[12.5px] text-muted">
+              <span className="text-[12.5px] tabular-nums text-muted">
                 {bytes(cookieInfo.size)}{cookieInfo.mtime ? ' · ' + timeAgo(cookieInfo.mtime) : ''}
               </span>
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <Input
               ref={cookieRef}
               type="file"
               accept=".txt,text/plain"
@@ -355,27 +363,26 @@ export default function SettingsTool() {
               }}
               aria-label={t('settings.cookiesFile')}
             />
-            <button
-              type="button"
-              className="btn cursor-pointer"
+            <Button
+              icon="upload"
               onClick={() => cookieRef.current?.click()}
               disabled={cookieBusy}
+              loading={cookieBusy}
             >
-              {cookieBusy ? <Spinner /> : <Icon name="upload" size={13} />}
               {cookieInfo?.configured ? t('settings.cookiesReplace') : t('settings.cookiesUpload')}
-            </button>
+            </Button>
             {cookieInfo?.configured ? (
-              <button type="button" className="btn cursor-pointer" onClick={() => void removeCookies()} disabled={cookieBusy}>
+              <Button onClick={() => void removeCookies()} disabled={cookieBusy}>
                 {t('settings.cookiesRemove')}
-              </button>
+              </Button>
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-line bg-panel2/40 p-2.5 text-[12.5px] leading-relaxed text-muted">
+          <div className="rounded-control border border-line bg-panel2/40 p-2.5 text-[12.5px] leading-relaxed text-muted">
             {t('settings.cookiesWarning')}
           </div>
-          {cookieError ? <div className="text-[12.5px] text-bad">{cookieError}</div> : null}
-        </div>
+          {cookieError ? <div role="alert" className="text-[12.5px] text-bad">{cookieError}</div> : null}
+        </Card>
 
         <section id="settings-workspace" className="scroll-mt-4" aria-label={t('settings.workspace')}>
           <WorkspacePanel />

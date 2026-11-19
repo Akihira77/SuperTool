@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Icon, Spinner, cn } from '../../components/ui';
+import { Button, Card, IconButton, Input, Spinner } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { useConfirm } from '../../components/confirm';
@@ -72,26 +72,25 @@ export default function CronTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
-      <div className="card flex flex-col gap-2 p-3">
+      <Card className="flex flex-col gap-2 p-3">
         <div className="flex items-center gap-2">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Tambah jadwal</span>
+          <span className="field-label">Tambah jadwal</span>
           {busy ? <Spinner /> : null}
-          <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => void load()} title={t('common.reload')}>
-            <Icon name="refresh" size={13} />
-          </button>
+          <IconButton className="ml-auto" icon="refresh" label={t('common.reload')} size="sm" onClick={() => void load()} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
+          <Input
             value={line}
             onChange={(event) => setLine(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && void add()}
-            className="input mono flex-1 py-1.5"
+            className="mono min-w-0 flex-1 py-1.5"
             spellCheck={false}
             placeholder="0 3 * * * /path/script.sh"
+            aria-label="Jadwal cron"
           />
-          <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={busy || !line.trim()}>
-            <Icon name="plus" /> Tambah
-          </button>
+          <Button variant="primary" icon="plus" onClick={() => void add()} disabled={busy || !line.trim()}>
+            Tambah
+          </Button>
         </div>
         <div className="flex flex-wrap gap-1">
           {PRESETS.map((preset) => (
@@ -99,14 +98,14 @@ export default function CronTab() {
               key={preset.label}
               type="button"
               onClick={() => setLine(preset.value)}
-              className="rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
+              className="rounded border border-line px-2 py-0.5 text-[12px] text-muted transition-colors hover:border-accent/50 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
             >
               {preset.label}
             </button>
           ))}
         </div>
         {error ? <div className="text-[12.5px] text-bad">{error}</div> : null}
-      </div>
+      </Card>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line">
         <table className="w-full border-collapse text-[13px]">
@@ -118,12 +117,10 @@ export default function CronTab() {
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr key={entry.index} className="border-b border-line/60 hover:bg-panel2/50">
-                <td className="mono px-3 py-1.5 break-all text-ink/90">{entry.line}</td>
+              <tr key={entry.index} className="border-b border-line/60 odd:bg-panel/20 hover:bg-panel2/50">
+                <td className="mono px-3 py-1.5 break-all tabular-nums text-ink/90">{entry.line}</td>
                 <td className="px-3 py-1.5 text-right">
-                  <button type="button" className="btn btn-danger px-1.5 py-0.5" onClick={() => void remove(entry)}>
-                    <Icon name="trash" size={13} />
-                  </button>
+                  <IconButton icon="trash" label={t('common.delete')} tone="danger" size="sm" onClick={() => void remove(entry)} />
                 </td>
               </tr>
             ))}
@@ -138,7 +135,7 @@ export default function CronTab() {
         </table>
       </div>
 
-      <div className={cn('text-[12px]', 'text-muted')}>
+      <div className="text-[12px] text-muted">
         Mengubah crontab user yang menjalankan server. Perubahan langsung aktif pada cron daemon.
       </div>
     </div>

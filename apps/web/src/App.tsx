@@ -10,7 +10,7 @@ import { PrayerWidget } from './components/PrayerWidget';
 import { SessionTabs } from './components/SessionTabs';
 import { SessionContent } from './components/SessionContent';
 import Login from './components/Login';
-import { Icon, Spinner, cn } from './components/ui';
+import { Icon, SegmentedControl, Spinner, cn } from './components/ui';
 import { api } from './lib/api';
 import { I18nProvider, useI18n } from './lib/i18n';
 import { useRoute } from './lib/router';
@@ -511,19 +511,17 @@ function Shell() {
           {expanded ? (
             <div className="mb-1 hidden items-center gap-1 px-1 lg:flex">
               <span className="text-[12.5px] tracking-wide text-muted uppercase">{t('nav.language')}</span>
-              {(['id', 'en'] as const).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setLang(item)}
-                  className={cn(
-                    'cursor-pointer rounded border px-1.5 py-0.5 text-[12px] transition-colors',
-                    lang === item ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-ink',
-                  )}
-                >
-                  {item.toUpperCase()}
-                </button>
-              ))}
+              <SegmentedControl
+                label={t('nav.language')}
+                value={lang}
+                onChange={setLang}
+                className="ml-auto border-0 bg-transparent p-0"
+                itemClassName="px-1.5 py-0.5 text-[12px]"
+                items={[
+                  { id: 'id', label: 'ID' },
+                  { id: 'en', label: 'EN' },
+                ]}
+              />
             </div>
           ) : null}
           <button

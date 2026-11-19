@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Icon, Spinner } from './ui';
+import { Badge, Button, Icon, IconButton, Input } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useToast } from './toast';
@@ -234,15 +234,15 @@ export function WorkspacePanel() {
           <p className="text-[12.5px] text-muted">{t('settings.workspaceHint')}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <button type="button" className="btn btn-sm" onClick={() => { setDraft({ ...EMPTY }); setError(''); }} disabled={busy}>
-            <Icon name="plus" size={13} /> {t('settings.workspaceNew')}
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => void exportData()} disabled={!items.length || busy}>
-            <Icon name="download" size={13} /> {t('settings.workspaceExport')}
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>
-            <Icon name="upload" size={13} /> {t('settings.workspaceImport')}
-          </button>
+          <Button size="sm" icon="plus" onClick={() => { setDraft({ ...EMPTY }); setError(''); }} disabled={busy}>
+            {t('settings.workspaceNew')}
+          </Button>
+          <Button size="sm" icon="download" onClick={() => void exportData()} disabled={!items.length || busy}>
+            {t('settings.workspaceExport')}
+          </Button>
+          <Button size="sm" icon="upload" onClick={() => fileRef.current?.click()} disabled={busy}>
+            {t('settings.workspaceImport')}
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -266,25 +266,30 @@ export function WorkspacePanel() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-[13.5px] font-medium">{workspace.name}</span>
-                    {active ? <span className="badge text-accent">{t('settings.workspaceActive')}</span> : null}
+                    {active ? <Badge tone="accent">{t('settings.workspaceActive')}</Badge> : null}
                   </div>
                   <div className="truncate font-mono text-[12.5px] text-muted" title={workspace.root}>{workspace.root}</div>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {!active ? (
-                    <button type="button" className="btn btn-sm" onClick={() => activate(workspace)} disabled={busy}>
+                    <Button size="sm" onClick={() => activate(workspace)} disabled={busy}>
                       {t('settings.workspaceActivate')}
-                    </button>
+                    </Button>
                   ) : null}
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setDraft(draftOf(workspace)); setError(''); }}>
-                    <Icon name="edit" size={12} /> {t('settings.workspaceEdit')}
-                  </button>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => void duplicate(workspace)} disabled={busy}>
+                  <Button size="sm" variant="ghost" icon="edit" onClick={() => { setDraft(draftOf(workspace)); setError(''); }}>
+                    {t('settings.workspaceEdit')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void duplicate(workspace)} disabled={busy}>
                     {t('settings.workspaceDuplicate')}
-                  </button>
-                  <button type="button" className="btn btn-sm btn-ghost text-bad" onClick={() => void remove(workspace)} disabled={busy} aria-label={t('settings.workspaceDelete') + ': ' + workspace.name}>
-                    <Icon name="trash" size={12} />
-                  </button>
+                  </Button>
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label={t('settings.workspaceDelete') + ': ' + workspace.name}
+                    size="md"
+                    onClick={() => void remove(workspace)}
+                    disabled={busy}
+                  />
                 </div>
               </li>
             );
@@ -299,23 +304,28 @@ export function WorkspacePanel() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-[12.5px] text-muted">
               {t('settings.workspaceName')}
-              <input className="input" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required maxLength={80} />
+              <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required maxLength={80} />
             </label>
             <label className="flex flex-col gap-1.5 text-[12.5px] text-muted">
               {t('settings.workspaceRoot')}
               <div className="flex gap-1.5">
-                <input className="input font-mono" value={draft.root} onChange={(event) => setDraft({ ...draft, root: event.target.value })} required placeholder="/home/user/proyek" />
+                <Input className="font-mono" value={draft.root} onChange={(event) => setDraft({ ...draft, root: event.target.value })} required placeholder="/home/user/proyek" />
                 {projectPath ? (
-                  <button type="button" className="btn shrink-0" onClick={() => setDraft({ ...draft, root: projectPath })} title={t('settings.workspaceUseProject')}>
-                    <Icon name="folder" size={13} />
+                  <Button
+                    className="shrink-0"
+                    icon="folder"
+                    aria-label={t('settings.workspaceUseProject')}
+                    onClick={() => setDraft({ ...draft, root: projectPath })}
+                    title={t('settings.workspaceUseProject')}
+                  >
                     <span className="hidden sm:inline">{t('settings.workspaceUseProject')}</span>
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </label>
             <label className="flex flex-col gap-1.5 text-[12.5px] text-muted">
               {t('settings.workspaceGit')}
-              <input className="input font-mono" value={draft.gitRepo} onChange={(event) => setDraft({ ...draft, gitRepo: event.target.value })} placeholder={t('settings.workspaceOptional')} />
+              <Input className="font-mono" value={draft.gitRepo} onChange={(event) => setDraft({ ...draft, gitRepo: event.target.value })} placeholder={t('settings.workspaceOptional')} />
             </label>
             <div className="flex flex-col gap-1.5 text-[12.5px] text-muted">
               <span>{t('settings.workspaceTools')}</span>
@@ -349,23 +359,26 @@ export function WorkspacePanel() {
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 flex w-full items-center justify-between gap-2 text-[12.5px] font-medium text-ink">
               {t('settings.workspaceUrls')}
-              <button type="button" className="btn btn-sm" onClick={() => setDraft({ ...draft, favoriteUrls: [...draft.favoriteUrls, { key: rowKey(), value: '' }] })}>
-                <Icon name="plus" size={12} /> {t('settings.workspaceAddUrl')}
-              </button>
+              <Button size="sm" icon="plus" onClick={() => setDraft({ ...draft, favoriteUrls: [...draft.favoriteUrls, { key: rowKey(), value: '' }] })}>
+                {t('settings.workspaceAddUrl')}
+              </Button>
             </legend>
             {draft.favoriteUrls.length ? draft.favoriteUrls.map((row, index) => (
               <div key={row.key} className="flex gap-1.5">
-                <input
-                  className="input font-mono"
+                <Input
+                  className="font-mono"
                   type="url"
                   value={row.value}
                   placeholder="https://example.com"
                   aria-label={t('settings.workspaceUrls') + ' ' + (index + 1)}
                   onChange={(event) => setDraft({ ...draft, favoriteUrls: draft.favoriteUrls.map((item) => item.key === row.key ? { ...item, value: event.target.value } : item) })}
                 />
-                <button type="button" className="btn btn-icon" aria-label={t('settings.workspaceRemoveUrl')} onClick={() => setDraft({ ...draft, favoriteUrls: draft.favoriteUrls.filter((item) => item.key !== row.key) })}>
-                  <Icon name="trash" size={13} />
-                </button>
+                <IconButton
+                  icon="trash"
+                  label={t('settings.workspaceRemoveUrl')}
+                  size="md"
+                  onClick={() => setDraft({ ...draft, favoriteUrls: draft.favoriteUrls.filter((item) => item.key !== row.key) })}
+                />
               </div>
             )) : <p className="hint">{t('settings.workspaceNoUrls')}</p>}
           </fieldset>
@@ -373,30 +386,32 @@ export function WorkspacePanel() {
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 flex w-full items-center justify-between gap-2 text-[12.5px] font-medium text-ink">
               {t('settings.workspaceServices')}
-              <button type="button" className="btn btn-sm" onClick={() => setDraft({ ...draft, services: [...draft.services, { key: rowKey(), name: '', url: '' }] })}>
-                <Icon name="plus" size={12} /> {t('settings.workspaceAddService')}
-              </button>
+              <Button size="sm" icon="plus" onClick={() => setDraft({ ...draft, services: [...draft.services, { key: rowKey(), name: '', url: '' }] })}>
+                {t('settings.workspaceAddService')}
+              </Button>
             </legend>
             {draft.services.length ? draft.services.map((row, index) => (
               <div key={row.key} className="grid gap-1.5 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto]">
-                <input
-                  className="input"
+                <Input
                   value={row.name}
                   placeholder={t('settings.workspaceServiceName')}
                   aria-label={t('settings.workspaceServiceName') + ' ' + (index + 1)}
                   onChange={(event) => setDraft({ ...draft, services: draft.services.map((item) => item.key === row.key ? { ...item, name: event.target.value } : item) })}
                 />
-                <input
-                  className="input font-mono"
+                <Input
+                  className="font-mono"
                   type="url"
                   value={row.url}
                   placeholder="http://127.0.0.1:3001"
                   aria-label={t('settings.workspaceServiceUrl') + ' ' + (index + 1)}
                   onChange={(event) => setDraft({ ...draft, services: draft.services.map((item) => item.key === row.key ? { ...item, url: event.target.value } : item) })}
                 />
-                <button type="button" className="btn btn-icon" aria-label={t('settings.workspaceRemoveService')} onClick={() => setDraft({ ...draft, services: draft.services.filter((item) => item.key !== row.key) })}>
-                  <Icon name="trash" size={13} />
-                </button>
+                <IconButton
+                  icon="trash"
+                  label={t('settings.workspaceRemoveService')}
+                  size="md"
+                  onClick={() => setDraft({ ...draft, services: draft.services.filter((item) => item.key !== row.key) })}
+                />
               </div>
             )) : <p className="hint">{t('settings.workspaceNoServices')}</p>}
           </fieldset>
@@ -404,29 +419,31 @@ export function WorkspacePanel() {
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 flex w-full items-center justify-between gap-2 text-[12.5px] font-medium text-ink">
               {t('settings.workspaceShortcuts')}
-              <button type="button" className="btn btn-sm" onClick={() => setDraft({ ...draft, shortcuts: [...draft.shortcuts, { key: rowKey(), label: '', path: '' }] })}>
-                <Icon name="plus" size={12} /> {t('settings.workspaceAddShortcut')}
-              </button>
+              <Button size="sm" icon="plus" onClick={() => setDraft({ ...draft, shortcuts: [...draft.shortcuts, { key: rowKey(), label: '', path: '' }] })}>
+                {t('settings.workspaceAddShortcut')}
+              </Button>
             </legend>
             {draft.shortcuts.length ? draft.shortcuts.map((row, index) => (
               <div key={row.key} className="grid gap-1.5 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto]">
-                <input
-                  className="input"
+                <Input
                   value={row.label}
                   placeholder={t('settings.workspaceShortcutLabel')}
                   aria-label={t('settings.workspaceShortcutLabel') + ' ' + (index + 1)}
                   onChange={(event) => setDraft({ ...draft, shortcuts: draft.shortcuts.map((item) => item.key === row.key ? { ...item, label: event.target.value } : item) })}
                 />
-                <input
-                  className="input font-mono"
+                <Input
+                  className="font-mono"
                   value={row.path}
                   placeholder="/path/atau/url"
                   aria-label={t('settings.workspaceShortcutPath') + ' ' + (index + 1)}
                   onChange={(event) => setDraft({ ...draft, shortcuts: draft.shortcuts.map((item) => item.key === row.key ? { ...item, path: event.target.value } : item) })}
                 />
-                <button type="button" className="btn btn-icon" aria-label={t('settings.workspaceRemoveShortcut')} onClick={() => setDraft({ ...draft, shortcuts: draft.shortcuts.filter((item) => item.key !== row.key) })}>
-                  <Icon name="trash" size={13} />
-                </button>
+                <IconButton
+                  icon="trash"
+                  label={t('settings.workspaceRemoveShortcut')}
+                  size="md"
+                  onClick={() => setDraft({ ...draft, shortcuts: draft.shortcuts.filter((item) => item.key !== row.key) })}
+                />
               </div>
             )) : <p className="hint">{t('settings.workspaceNoShortcuts')}</p>}
           </fieldset>
@@ -434,12 +451,12 @@ export function WorkspacePanel() {
           {error ? <div role="alert" className="rounded-md border border-bad/30 bg-bad/10 px-2.5 py-2 text-[12.5px] text-bad">{error}</div> : null}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? <Spinner /> : <Icon name="check" size={13} />} {t('settings.workspaceSave')}
-            </button>
-            <button type="button" className="btn" onClick={() => { setDraft(null); setError(''); }} disabled={busy}>
+            <Button type="submit" variant="primary" icon="check" loading={busy} disabled={busy}>
+              {t('settings.workspaceSave')}
+            </Button>
+            <Button onClick={() => { setDraft(null); setError(''); }} disabled={busy}>
               {t('settings.workspaceCancel')}
-            </button>
+            </Button>
             <span className="hint ml-auto hidden sm:inline">{t('settings.workspaceFormHint')}</span>
           </div>
         </form>

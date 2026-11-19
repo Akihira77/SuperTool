@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CopyButton, Icon, Spinner, cn } from '../../components/ui';
+import { Badge, Button, Card, CopyButton, Field, Icon, IconButton, Input, Select, Textarea, cn } from '../../components/ui';
 import { api, ApiError } from '../../lib/api';
 import { bytes } from '../../lib/format';
 
@@ -20,6 +20,7 @@ type Env = { id: string; name: string; variables: Row[] };
 type History = { id: number; ts: number; method: string; url: string; status: number | null; durationMs: number; size: number; error: string | null };
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
+const METHOD_OPTIONS = METHODS.map((item) => ({ value: item, label: item }));
 const ENV_KEY = 'st:http:env';
 
 function fillVars(value: string, env: Env | null): string {
@@ -201,14 +202,18 @@ export default function HttpTab() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
       <aside className="flex w-full shrink-0 flex-col gap-2 overflow-y-auto border-b border-line p-3 md:w-64 md:border-r md:border-b-0">
         <div className="flex items-center gap-2">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Koleksi</span>
-          <button type="button" className="btn ml-auto px-1.5 py-0.5" title="Koleksi baru" onClick={() => setNewCollection((value) => (value ? '' : ' '))}>
-            <Icon name="plus" size={13} />
-          </button>
+          <span className="field-label">Koleksi</span>
+          <IconButton
+            className="ml-auto"
+            icon="plus"
+            label="Koleksi baru"
+            size="sm"
+            onClick={() => setNewCollection((value) => (value ? '' : ' '))}
+          />
         </div>
         {newCollection ? (
           <div className="flex items-center gap-1">
-            <input
+            <Input
               autoFocus
               value={newCollection.trimStart()}
               onChange={(event) => setNewCollection(event.target.value)}
@@ -217,11 +222,10 @@ export default function HttpTab() {
                 if (event.key === 'Escape') setNewCollection('');
               }}
               placeholder="Nama koleksi"
-              className="input py-1 text-[12.5px]"
+              aria-label="Nama koleksi"
+              className="py-1 text-[12.5px]"
             />
-            <button type="button" className="btn px-1.5 py-1" onClick={() => void addCollection()}>
-              <Icon name="check" size={13} />
-            </button>
+            <IconButton icon="check" label="Simpan koleksi" size="sm" onClick={() => void addCollection()} />
           </div>
         ) : null}
         <div className="flex flex-col gap-0.5">
@@ -229,80 +233,86 @@ export default function HttpTab() {
             <button
               key={item.id}
               type="button"
+              aria-pressed={collectionId === item.id}
               onClick={() => setCollectionId(collectionId === item.id ? '' : item.id)}
               className={cn(
-                'flex items-center gap-1 rounded px-1.5 py-1 text-left text-[12.5px]',
+                'flex items-center gap-1 rounded px-1.5 py-1 text-left text-[12.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
                 collectionId === item.id ? 'bg-accent/12 text-accent' : 'text-muted hover:bg-panel2',
               )}
             >
               <Icon name="folder" size={12} />
               <span className="truncate">{item.name}</span>
-              <span className="ml-auto text-[12.5px] text-muted/60">{item.count}</span>
+              <span className="ml-auto tabular-nums text-[12.5px] text-muted/60">{item.count}</span>
             </button>
           ))}
           {!collections.length ? <span className="px-1 text-[12px] text-muted/70">Belum ada koleksi</span> : null}
         </div>
 
         <div className="mt-1 flex items-center gap-2 border-t border-line pt-2">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Tersimpan</span>
-          <span className="ml-auto text-[12.5px] text-muted/60">{saved.length}</span>
+          <span className="field-label">Tersimpan</span>
+          <span className="ml-auto tabular-nums text-[12.5px] text-muted/60">{saved.length}</span>
         </div>
-        <input value={savedQuery} onChange={(event) => setSavedQuery(event.target.value)} placeholder="Cari request" className="input py-1 text-[12.5px]" />
+        <Input value={savedQuery} onChange={(event) => setSavedQuery(event.target.value)} placeholder="Cari request" aria-label="Cari request" className="py-1 text-[12.5px]" />
         <div className="flex flex-col gap-0.5">
           {shownSaved.map((item) => (
-            <div key={item.id} className={cn('group flex items-center gap-1 rounded px-1.5 py-1', activeSaved === item.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
-              <button type="button" onClick={() => loadSaved(item)} className="min-w-0 flex-1 text-left" title={item.url}>
+            <div key={item.id} className={cn('group flex items-center gap-1 rounded px-1.5 py-1 transition-colors', activeSaved === item.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
+              <button type="button" onClick={() => loadSaved(item)} className="min-w-0 flex-1 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus" title={item.url}>
                 <div className="flex items-center gap-1 text-[12.5px]">
                   <span className="text-accent/80">{item.method}</span>
                   <span className="truncate text-ink/85">{item.name}</span>
                 </div>
                 <div className="mono truncate text-[12.5px] text-muted/65">{item.url}</div>
               </button>
-              <button type="button" className="btn btn-ghost px-1 py-0.5 opacity-0 group-hover:opacity-100" title="Hapus" onClick={() => void removeSaved(item)}>
-                <Icon name="x" size={12} />
-              </button>
+              <IconButton
+                icon="x"
+                label="Hapus"
+                tone="danger"
+                size="sm"
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                onClick={() => void removeSaved(item)}
+              />
             </div>
           ))}
           {!shownSaved.length ? <span className="px-1 text-[12px] text-muted/70">Belum ada request tersimpan</span> : null}
         </div>
 
         <div className="mt-1 flex items-center gap-2 border-t border-line pt-2">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Environment</span>
-          <button type="button" className="btn ml-auto px-1.5 py-0.5" title="Environment baru" onClick={() => setEnvDraft({ id: '', name: '', variables: [{ key: '', value: '' }] })}>
-            <Icon name="plus" size={13} />
-          </button>
+          <span className="field-label">Environment</span>
+          <IconButton
+            className="ml-auto"
+            icon="plus"
+            label="Environment baru"
+            size="sm"
+            onClick={() => setEnvDraft({ id: '', name: '', variables: [{ key: '', value: '' }] })}
+          />
         </div>
-        <select
+        <Select
           value={envId}
-          onChange={(event) => {
-            setEnvId(event.target.value);
-            if (event.target.value) localStorage.setItem(ENV_KEY, event.target.value);
+          onChange={(next) => {
+            setEnvId(next);
+            if (next) localStorage.setItem(ENV_KEY, next);
             else localStorage.removeItem(ENV_KEY);
           }}
-          className="input py-1 text-[12.5px]"
-        >
-          <option value="">Tanpa environment</option>
-          {envs.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
+          options={[{ value: '', label: 'Tanpa environment' }, ...envs.map((item) => ({ value: item.id, label: item.name }))]}
+          size="sm"
+          label="Environment"
+        />
         {activeEnv ? (
-          <button type="button" className="btn justify-center px-2 py-1 text-[12px]" onClick={() => setEnvDraft(activeEnv)}>
+          <Button size="sm" className="justify-center text-[12px]" onClick={() => setEnvDraft(activeEnv)}>
             Edit environment aktif
-          </button>
+          </Button>
         ) : null}
 
         <div className="mt-1 flex items-center gap-2 border-t border-line pt-2">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Riwayat</span>
-          <button
-            type="button"
-            className="ml-auto text-[12.5px] text-muted hover:text-ink"
+          <span className="field-label">Riwayat</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-[12.5px]"
             onClick={() => void api.del('/dev/http/history').then(refresh).catch(() => undefined)}
           >
             Bersihkan
-          </button>
+          </Button>
         </div>
         <div className="flex flex-col gap-0.5">
           {history.slice(0, 8).map((item) => (
@@ -314,13 +324,13 @@ export default function HttpTab() {
                 setUrl(item.url);
                 setError('');
               }}
-              className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-[12.5px] hover:bg-panel2"
+              className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-[12.5px] transition-colors hover:bg-panel2 focus-visible:bg-panel2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
               title={item.url}
             >
-              <span className={item.error || (item.status ?? 0) >= 400 ? 'text-bad' : 'text-ok'}>{item.status ?? 'ERR'}</span>
+              <span className={cn('tabular-nums', item.error || (item.status ?? 0) >= 400 ? 'text-bad' : 'text-ok')}>{item.status ?? 'ERR'}</span>
               <span className="text-muted">{item.method}</span>
               <span className="mono truncate text-muted/75">{item.url}</span>
-              <span className="ml-auto shrink-0 text-muted/50">{timeAgo(item.ts)}</span>
+              <span className="ml-auto shrink-0 tabular-nums text-muted/50">{timeAgo(item.ts)}</span>
             </button>
           ))}
           {!history.length ? <span className="px-1 text-[12px] text-muted/70">Belum ada riwayat</span> : null}
@@ -329,144 +339,146 @@ export default function HttpTab() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <select value={method} onChange={(event) => setMethod(event.target.value)} className="input w-auto py-1.5">
-            {METHODS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-          <input
+          <Select value={method} onChange={setMethod} options={METHOD_OPTIONS} size="sm" label="Metode" className="w-28" />
+          <Input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && void send()}
             placeholder="http://127.0.0.1:3001/api/... atau {{baseUrl}}/api"
-            className="input mono flex-1 py-1.5"
+            aria-label="URL request"
+            className="mono min-w-0 flex-1 py-1.5"
             spellCheck={false}
           />
-          <button type="button" className="btn btn-primary" onClick={() => void send()} disabled={busy || !url.trim()}>
-            {busy ? <Spinner /> : <Icon name="play" />} Kirim
-          </button>
+          <Button variant="primary" icon="play" loading={busy} onClick={() => void send()} disabled={busy || !url.trim()}>
+            Kirim
+          </Button>
         </div>
 
-        <div className="card flex flex-wrap items-center gap-2 p-2.5">
-          <input value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Nama request" className="input min-w-32 flex-1 py-1 text-[12.5px]" />
-          <select value={collectionId} onChange={(event) => setCollectionId(event.target.value)} className="input w-auto py-1 text-[12.5px]">
-            <option value="">Tanpa koleksi</option>
-            {collections.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => void saveRequest()} disabled={!url.trim()} title="Simpan ke SQLite">
-            <Icon name="save" size={12} /> {activeSaved ? 'Perbarui' : 'Simpan'}
-          </button>
+        <Card className="flex flex-wrap items-center gap-2 p-2.5">
+          <Input value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Nama request" aria-label="Nama request" className="min-w-32 flex-1 py-1 text-[12.5px]" />
+          <Select
+            value={collectionId}
+            onChange={setCollectionId}
+            options={[{ value: '', label: 'Tanpa koleksi' }, ...collections.map((item) => ({ value: item.id, label: item.name }))]}
+            size="sm"
+            label="Koleksi"
+            className="w-44"
+          />
+          <Button icon="save" size="sm" onClick={() => void saveRequest()} disabled={!url.trim()} title="Simpan ke SQLite">
+            {activeSaved ? 'Perbarui' : 'Simpan'}
+          </Button>
           <span className="text-[12.5px] text-muted/70">Authorization/Cookie tidak disimpan</span>
-        </div>
+        </Card>
 
         {envDraft ? (
-          <div className="card flex flex-col gap-2 p-3">
+          <Card className="flex flex-col gap-2 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <input
+              <Input
                 value={envDraft.name}
                 onChange={(event) => setEnvDraft({ ...envDraft, name: event.target.value })}
                 placeholder="Nama environment"
-                className="input min-w-40 flex-1 py-1 text-[13px]"
+                aria-label="Nama environment"
+                className="min-w-40 flex-1 py-1 text-[13px]"
               />
-              <button type="button" className="btn px-2 py-1 text-[12.5px]" onClick={() => void saveEnv()}>
-                <Icon name="save" size={12} /> Simpan
-              </button>
+              <Button icon="save" size="sm" onClick={() => void saveEnv()}>
+                Simpan
+              </Button>
               {envDraft.id ? (
-                <button type="button" className="btn btn-danger px-2 py-1 text-[12.5px]" onClick={() => void removeEnv(envDraft.id)}>
-                  <Icon name="trash" size={12} /> Hapus
-                </button>
+                <Button variant="danger" icon="trash" size="sm" onClick={() => void removeEnv(envDraft.id)}>
+                  Hapus
+                </Button>
               ) : null}
-              <button type="button" className="btn px-2 py-1 text-[12.5px]" onClick={() => setEnvDraft(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setEnvDraft(null)}>
                 Batal
-              </button>
+              </Button>
             </div>
             {envDraft.variables.map((row, index) => (
               <div key={index} className="flex items-center gap-2">
-                <input
+                <Input
                   value={row.key}
                   onChange={(event) =>
                     setEnvDraft({ ...envDraft, variables: envDraft.variables.map((item, at) => (at === index ? { ...item, key: event.target.value } : item)) })
                   }
                   placeholder="nama"
-                  className="input mono w-44 py-1"
+                  aria-label="Nama variabel"
+                  className="mono w-44 py-1"
                 />
-                <input
+                <Input
                   value={row.value}
                   onChange={(event) =>
                     setEnvDraft({ ...envDraft, variables: envDraft.variables.map((item, at) => (at === index ? { ...item, value: event.target.value } : item)) })
                   }
                   placeholder="nilai"
-                  className="input mono flex-1 py-1"
+                  aria-label="Nilai variabel"
+                  className="mono min-w-0 flex-1 py-1"
                 />
-                <button
-                  type="button"
-                  className="btn btn-ghost px-1.5 py-1"
+                <IconButton
+                  icon="x"
+                  label="Hapus variabel"
+                  tone="danger"
+                  size="sm"
                   onClick={() => setEnvDraft({ ...envDraft, variables: envDraft.variables.filter((_, at) => at !== index) })}
-                >
-                  <Icon name="x" size={13} />
-                </button>
+                />
               </div>
             ))}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="btn px-1.5 py-0.5"
+              <Button
+                icon="plus"
+                size="sm"
                 onClick={() => setEnvDraft({ ...envDraft, variables: [...envDraft.variables, { key: '', value: '' }] })}
               >
-                <Icon name="plus" size={13} /> Variabel
-              </button>
+                Variabel
+              </Button>
               <span className="text-[12.5px] text-muted/70">Dipakai lewat {'{{nama}}'} di URL, header, atau body. Variabel disimpan lokal.</span>
             </div>
-          </div>
+          </Card>
         ) : null}
 
-        <div className="card flex flex-col gap-2 p-3">
+        <Card className="flex flex-col gap-2 p-3">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] tracking-wide text-muted uppercase">Header</span>
-            <button type="button" className="btn px-1.5 py-0.5" onClick={() => setHeaders([...headers, { key: '', value: '' }])}>
-              <Icon name="plus" size={13} />
-            </button>
+            <span className="field-label">Header</span>
+            <IconButton icon="plus" label="Tambah header" size="sm" onClick={() => setHeaders([...headers, { key: '', value: '' }])} />
           </div>
           {headers.map((row, index) => (
             <div key={index} className="flex items-center gap-2">
-              <input
+              <Input
                 value={row.key}
                 onChange={(event) => setHeaders(headers.map((item, at) => (at === index ? { ...item, key: event.target.value } : item)))}
                 placeholder="Nama"
-                className="input mono w-48 py-1"
+                aria-label="Nama header"
+                className="mono w-48 py-1"
                 spellCheck={false}
               />
-              <input
+              <Input
                 value={row.value}
                 onChange={(event) => setHeaders(headers.map((item, at) => (at === index ? { ...item, value: event.target.value } : item)))}
                 placeholder="Nilai"
-                className="input mono flex-1 py-1"
+                aria-label="Nilai header"
+                className="mono min-w-0 flex-1 py-1"
                 spellCheck={false}
               />
-              <button type="button" className="btn btn-ghost px-1.5 py-1" onClick={() => setHeaders(headers.filter((_, at) => at !== index))}>
-                <Icon name="x" size={13} />
-              </button>
+              <IconButton
+                icon="x"
+                label="Hapus header"
+                tone="danger"
+                size="sm"
+                onClick={() => setHeaders(headers.filter((_, at) => at !== index))}
+              />
             </div>
           ))}
-        </div>
+        </Card>
 
         {!['GET', 'HEAD'].includes(method) ? (
-          <label className="flex flex-col gap-1">
-            <span className="text-[12px] tracking-wide text-muted uppercase">Body</span>
-            <textarea
+          <Field id="http-body" label="Body">
+            <Textarea
+              id="http-body"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               spellCheck={false}
-              className="input mono min-h-[120px] resize-y"
+              className="mono min-h-[120px] resize-y"
               placeholder='{"hello": "world"}'
             />
-          </label>
+          </Field>
         ) : null}
 
         {error ? <div className="text-[13px] text-bad">{error}</div> : null}
@@ -474,28 +486,30 @@ export default function HttpTab() {
         {reply ? (
           <div className="flex min-h-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3 text-[13.5px]">
-              <span className={cn('rounded px-1.5 py-0.5 font-medium', reply.status < 400 ? 'bg-ok/15 text-ok' : 'bg-bad/15 text-bad')}>
+              <Badge tone={reply.status < 400 ? 'ok' : 'bad'} className="tabular-nums px-1.5 py-0.5 text-[13px]">
                 {reply.status} {reply.statusText}
-              </span>
-              <span className="text-muted">{reply.ms} ms</span>
-              <span className="text-muted">{bytes(reply.size)}</span>
+              </Badge>
+              <span className="tabular-nums text-muted">{reply.ms} ms</span>
+              <span className="tabular-nums text-muted">{bytes(reply.size)}</span>
               <span className="mono truncate text-muted">{reply.url}</span>
               <CopyButton text={reply.body} label="Salin body" />
             </div>
 
-            <details className="card px-3 py-2">
-              <summary className="cursor-pointer text-[13px] text-muted">Header respons ({Object.keys(reply.headers).length})</summary>
-              <div className="mt-2 flex flex-col gap-0.5">
-                {Object.entries(reply.headers).map(([key, value]) => (
-                  <div key={key} className="mono flex gap-2 text-[12.5px]">
-                    <span className="text-accent/80">{key}:</span>
-                    <span className="break-all text-ink/85">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
+            <Card className="px-3 py-2">
+              <details>
+                <summary className="cursor-pointer rounded text-[13px] text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">Header respons ({Object.keys(reply.headers).length})</summary>
+                <div className="mt-2 flex flex-col gap-0.5">
+                  {Object.entries(reply.headers).map(([key, value]) => (
+                    <div key={key} className="mono flex gap-2 text-[12.5px]">
+                      <span className="shrink-0 text-accent/80">{key}:</span>
+                      <span className="break-all text-ink/85">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </Card>
 
-            <pre className="input mono min-h-[200px] flex-1 overflow-auto whitespace-pre-wrap text-[13.5px]">{pretty}</pre>
+            <pre className="input mono min-h-[200px] flex-1 overflow-auto leading-relaxed whitespace-pre-wrap text-[13.5px]">{pretty}</pre>
             {reply.truncated ? <div className="text-[12px] text-warn">Body dipotong 1 MB</div> : null}
           </div>
         ) : null}

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useFocusTrap } from '../lib/useFocusTrap';
 import {
   Calendar as BigCalendar,
   dayjsLocalizer,
@@ -13,7 +12,19 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar.css';
-import { Icon, PageHeader, Spinner } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Dialog,
+  Field,
+  Icon,
+  IconButton,
+  Input,
+  PageHeader,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
@@ -265,12 +276,8 @@ export default function CalendarTool() {
   const booted = useRef(false);
   const fetching = useRef(false);
   const notified = useRef<Set<string>>(new Set());
-  const detailRef = useRef<HTMLDivElement>(null);
   const detailCloseRef = useRef<HTMLButtonElement>(null);
-  const composerRef = useRef<HTMLFormElement>(null);
   const composerTitleRef = useRef<HTMLInputElement>(null);
-  useFocusTrap(Boolean(selected), detailRef, detailCloseRef);
-  useFocusTrap(composer, composerRef, composerTitleRef);
   const locale = lang === 'id' ? 'id-ID' : 'en-US';
 
   const errorText = (message: string): string => {
@@ -398,24 +405,6 @@ export default function CalendarTool() {
   useEffect(() => {
     dayjs.locale(lang);
   }, [lang]);
-
-  useEffect(() => {
-    if (!selected) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelected(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected]);
-
-  useEffect(() => {
-    if (!composer) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving) setComposer(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [composer, saving]);
 
   const openComposer = () => {
     setForm(defaultEventForm());
@@ -623,77 +612,54 @@ export default function CalendarTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title={t('calendar.title')} subtitle={subtitle} icon="calendar">
-        <label
-          className="flex items-center gap-1.5 rounded-lg border border-line bg-panel/50 px-2 py-1 text-[12px] text-muted"
-          title={t('calendar.remindHint')}
-        >
+        <div className="flex items-center gap-1.5 text-[12px] text-muted" title={t('calendar.remindHint')}>
           <Icon name="bell" size={13} className={remindBefore > 0 ? 'text-accent' : ''} />
           <span className="hidden lg:inline">{t('calendar.remind')}</span>
-          <select
-            className="input h-6 cursor-pointer border-0 py-0 pr-6 pl-1 text-[12px] shadow-none focus:ring-0"
-            style={{ width: 'auto', colorScheme: 'dark', background: 'var(--color-panel2)', color: 'var(--color-ink)' }}
-            value={remindBefore}
-            onChange={(event) => {
-              const value = Number(event.target.value);
+          <Select
+            size="sm"
+            className="w-28"
+            value={String(remindBefore)}
+            onChange={(next) => {
+              const value = Number(next);
               if (value === remindBefore) return;
               setRemindBefore(value);
               toast(t(value === 0 ? 'calendar.reminderOff' : 'calendar.reminderUpdated'), 'ok');
             }}
-            aria-label={t('calendar.remind')}
-          >
-            <option value={60}>{t('calendar.remind1h')}</option>
-            <option value={30}>{t('calendar.remind30m')}</option>
-            <option value={15}>{t('calendar.remind15m')}</option>
-            <option value={0}>{t('calendar.remindOff')}</option>
-          </select>
-        </label>
-        <button type="button" className="btn btn-primary" onClick={openComposer} disabled={phase !== 'ready' || busy || !writeScope}>
-          <Icon name="plus" />
+            label={t('calendar.remind')}
+            options={[
+              { value: '60', label: t('calendar.remind1h') },
+              { value: '30', label: t('calendar.remind30m') },
+              { value: '15', label: t('calendar.remind15m') },
+              { value: '0', label: t('calendar.remindOff') },
+            ]}
+          />
+        </div>
+        <Button variant="primary" icon="plus" onClick={openComposer} disabled={phase !== 'ready' || busy || !writeScope}>
           {t('calendar.addEvent')}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void fetchEvents(false)}
-          disabled={busy || phase === 'loading'}
-          title={t('calendar.sync')}
-        >
-          <Icon name="refresh" className={busy ? 'animate-spin' : ''} />
+        </Button>
+        <Button icon="refresh" onClick={() => void fetchEvents(false)} disabled={busy || phase === 'loading'} loading={busy} title={t('calendar.sync')}>
           {busy ? t('calendar.syncing') : t('calendar.sync')}
-        </button>
+        </Button>
         {phase === 'ready' || phase === 'error' ? (
           <>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void connect(true)}
-              disabled={opening || disconnecting}
-              title={t('calendar.switchHint')}
-            >
-              {opening ? <Spinner /> : <Icon name="refresh" />}
+            <Button icon="refresh" onClick={() => void connect(true)} disabled={opening || disconnecting} loading={opening} title={t('calendar.switchHint')}>
               {opening ? t('calendar.connecting') : t('calendar.changeAccount')}
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={() => void signOut()}
-              disabled={opening || disconnecting}
-              title={t('calendar.signOut')}
-            >
-              {disconnecting ? <Spinner /> : <Icon name="logout" />}
+            </Button>
+            <Button variant="danger" icon="logout" onClick={() => void signOut()} disabled={opening || disconnecting} loading={disconnecting} title={t('calendar.signOut')}>
               {disconnecting ? t('calendar.signingOut') : t('calendar.signOut')}
-            </button>
+            </Button>
           </>
         ) : null}
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
         {phase === 'loading' ? (
-          <div className="flex h-full items-center justify-center">
-            <Spinner />
+          <div aria-busy="true" className="flex h-full flex-col gap-2">
+            <Skeleton className="h-8 w-52" />
+            <Skeleton className="h-full min-h-[420px] w-full rounded-panel" />
           </div>
         ) : phase === 'disconnected' ? (
-          <div className="mx-auto max-w-xl rounded-xl border border-line bg-panel/40 p-6 text-center">
+          <div className="mx-auto max-w-xl rounded-panel border border-line bg-panel/40 p-6 text-center">
             <Icon name="calendar" size={30} className="mx-auto text-accent" />
             <h2 className="mt-3 text-base font-semibold">{t('calendar.notConnected')}</h2>
             <p className="mx-auto mt-1 max-w-md text-[13.5px] text-muted">
@@ -702,35 +668,33 @@ export default function CalendarTool() {
             {configMissing ? (
               <p className="mx-auto mt-3 max-w-md text-[12.5px] text-muted">{t('calendar.configMissingHint')}</p>
             ) : (
-              <button type="button" className="btn btn-primary mt-4" onClick={() => void connect()} disabled={opening}>
-                <Icon name="external" />
+              <Button variant="primary" icon="external" className="mt-4" onClick={() => void connect()} loading={opening}>
                 {opening ? t('calendar.connecting') : t('calendar.connect')}
-              </button>
+              </Button>
             )}
             {hint ? <p className="mt-3 text-[12.5px] text-muted">{t('calendar.hint')}</p> : null}
           </div>
         ) : phase === 'error' ? (
-          <div className="mx-auto max-w-xl rounded-xl border border-bad/40 bg-bad/5 p-6 text-center">
+          <div className="mx-auto max-w-xl rounded-panel border border-bad/40 bg-bad/5 p-6 text-center">
             <Icon name="calendar" size={28} className="mx-auto text-bad" />
             <h2 className="mt-3 text-base font-semibold">{t('calendar.error')}</h2>
             <p className="mono mx-auto mt-2 max-w-lg text-[12.5px] break-words text-muted">{message}</p>
-            <button type="button" className="btn mt-4" onClick={() => void fetchEvents(true)}>
-              <Icon name="refresh" />
+            <Button icon="refresh" className="mt-4" onClick={() => void fetchEvents(true)}>
               {t('calendar.retry')}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex h-full min-h-[520px] flex-col gap-2">
             {!writeScope ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[12.5px] text-warn">
+              <div className="flex flex-wrap items-center gap-2 rounded-control border border-warn/40 bg-warn/5 px-3 py-2 text-[12.5px] text-warn">
                 <Icon name="bell" size={13} className="shrink-0" />
                 <span className="min-w-0 flex-1">{t('calendar.writeScopeHint')}</span>
-                <button type="button" className="btn px-2 py-1 text-[12px]" onClick={() => void connect()} disabled={opening}>
+                <Button size="sm" onClick={() => void connect()} disabled={opening} loading={opening}>
                   {opening ? t('calendar.connecting') : t('calendar.reconnect')}
-                </button>
+                </Button>
               </div>
             ) : null}
-            <div className="calendar-shell flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-panel/40 p-2">
+            <div className="calendar-shell flex min-h-0 flex-1 flex-col rounded-panel border border-line bg-panel/40 p-2">
               <BigCalendar<RbcEvent>
               localizer={localizer}
               culture={lang}
@@ -761,11 +725,11 @@ export default function CalendarTool() {
           role="alertdialog"
           aria-live="assertive"
           aria-labelledby="calendar-reminder-title"
-          className="fixed right-4 bottom-4 z-[100] w-[min(380px,calc(100vw-2rem))] rounded-xl border border-accent/35 bg-panel p-3 shadow-2xl"
+          className="fixed right-4 bottom-4 z-[100] w-[min(380px,calc(100vw-2rem))] rounded-panel border border-accent/35 bg-panel p-3 shadow-elev-3"
         >
           <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-              <Icon name="bell" size={16} className="animate-pulse" />
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-control bg-accent/15 text-accent">
+              <Icon name="bell" size={16} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] font-semibold uppercase tracking-wide text-accent">
@@ -781,50 +745,30 @@ export default function CalendarTool() {
                 {eventWhen(reminderEvent, locale, t('calendar.allDay'))}
               </div>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost shrink-0 px-1.5 py-0.5"
-              onClick={dismissReminder}
-              title={t('common.close')}
-              aria-label={t('common.close')}
-            >
-              <Icon name="x" size={13} />
-            </button>
+            <IconButton icon="x" label={t('common.close')} onClick={dismissReminder} className="shrink-0" />
           </div>
           <div className="mt-2.5 flex justify-end gap-2">
-            <button type="button" className="btn px-2 py-1 text-[12px]" onClick={dismissReminder}>
+            <Button size="sm" onClick={dismissReminder}>
               {t('common.close')}
-            </button>
-            <button type="button" className="btn btn-primary px-2 py-1 text-[12px]" onClick={openReminder}>
+            </Button>
+            <Button size="sm" variant="primary" onClick={openReminder}>
               {t('calendar.reminderOpen')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
 
       {selected ? (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelected(null);
-          }}
+        <Dialog
+          open
+          onClose={() => setSelected(null)}
+          size="xl"
+          labelledBy="calendar-detail-title"
+          initialFocusRef={detailCloseRef}
+          className="max-h-[88vh] overflow-y-auto"
         >
-          <div
-            ref={detailRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="calendar-detail-title"
-            className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation();
-                setSelected(null);
-              }
-            }}
-          >
             <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-line bg-panel px-5 py-4">
-              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-control bg-accent/15 text-accent">
                 <Icon name="calendar" size={16} />
               </span>
               <div className="min-w-0 flex-1">
@@ -839,14 +783,12 @@ export default function CalendarTool() {
                     {selected.title}
                   </h2>
                   {isCancelled ? (
-                    <span className="rounded-full bg-bad/15 px-2 py-0.5 text-[12.5px] font-semibold text-bad">
-                      {t('calendar.cancelled')}
-                    </span>
+                    <Badge tone="bad">{t('calendar.cancelled')}</Badge>
                   ) : null}
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
                   <span
-                    className="max-w-[320px] truncate rounded-md border border-line bg-white/5 px-1.5 py-0.5 text-[12.5px]"
+                    className="max-w-[320px] truncate rounded-control border border-line bg-white/5 px-1.5 py-0.5 text-[12.5px]"
                     title={calendarName}
                   >
                     {calendarName}
@@ -855,21 +797,12 @@ export default function CalendarTool() {
                   <span>{selected.allDay ? t('calendar.allDay') : zoneLabel(selected.start)}</span>
                 </div>
               </div>
-              <button
-                ref={detailCloseRef}
-                type="button"
-                className="btn btn-ghost shrink-0 cursor-pointer px-1.5 py-0.5"
-                onClick={() => setSelected(null)}
-                title={t('common.close')}
-                aria-label={t('common.close')}
-              >
-                <Icon name="x" size={14} />
-              </button>
+              <IconButton ref={detailCloseRef} icon="x" label={t('common.close')} onClick={() => setSelected(null)} className="shrink-0" />
             </div>
 
             <div className="flex flex-col gap-5 p-5 text-[13.5px]">
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control bg-white/5 text-accent">
                   <Icon name="clock" size={14} />
                 </span>
                 <div className="min-w-0">
@@ -891,7 +824,7 @@ export default function CalendarTool() {
 
               {selected.resource.location ? (
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control bg-white/5 text-accent">
                     <Icon name="pin" size={14} />
                   </span>
                   <div className="min-w-0">
@@ -911,7 +844,7 @@ export default function CalendarTool() {
 
               {descriptionHtml ? (
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control bg-white/5 text-accent">
                     <Icon name="notes" size={14} />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -927,7 +860,7 @@ export default function CalendarTool() {
 
               {attendees.length ? (
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control bg-white/5 text-accent">
                     <Icon name="users" size={14} />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -966,7 +899,7 @@ export default function CalendarTool() {
 
               {attachments.length ? (
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-accent">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-control bg-white/5 text-accent">
                     <Icon name="files" size={14} />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -991,66 +924,52 @@ export default function CalendarTool() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line p-4">
-              <button type="button" className="btn" onClick={() => setSelected(null)}>
+              <Button onClick={() => setSelected(null)}>
                 {t('common.close')}
-              </button>
+              </Button>
               {eventLink ? (
                 <a className="btn btn-primary" href={eventLink} target="_blank" rel="noreferrer noopener">
                   <Icon name="external" size={13} /> {t('calendar.open')}
                 </a>
               ) : null}
             </div>
-          </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {composer ? (
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) setComposer(false);
+        <Dialog
+          open
+          onClose={() => {
+            if (!saving) setComposer(false);
           }}
+          size="lg"
+          labelledBy="calendar-create-title"
+          initialFocusRef={composerTitleRef}
+          closeOnBackdrop={!saving}
+          className="max-h-[90vh] overflow-y-auto"
         >
-          <form
-            ref={composerRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="calendar-create-title"
-            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"
-            onSubmit={createEvent}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && !saving) {
-                event.stopPropagation();
-                setComposer(false);
-              }
-            }}
-          >
+          <form onSubmit={createEvent}>
             <div className="sticky top-0 flex items-center gap-2.5 border-b border-line bg-panel p-4">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-accent/15 text-accent">
                 <Icon name="plus" size={15} />
               </span>
               <h2 id="calendar-create-title" className="min-w-0 flex-1 text-[15px] font-semibold">
                 {t('calendar.addEvent')}
               </h2>
-              <button
-                type="button"
-                className="btn btn-ghost shrink-0 cursor-pointer px-1.5 py-0.5"
+              <IconButton
+                icon="x"
+                label={t('common.close')}
                 onClick={() => setComposer(false)}
                 disabled={saving}
-                title={t('common.close')}
-                aria-label={t('common.close')}
-              >
-                <Icon name="x" size={14} />
-              </button>
+                className="shrink-0"
+              />
             </div>
 
             <div className="flex flex-col gap-3 p-4">
-              <label className="flex flex-col">
-                <span className="label">{t('calendar.eventTitle')}</span>
-                <input
+              <Field id="calendar-event-title" label={t('calendar.eventTitle')}>
+                <Input
                   ref={composerTitleRef}
-                  className="input mt-1"
+                  id="calendar-event-title"
                   value={form.summary}
                   onChange={(event) => setField('summary', event.target.value)}
                   required
@@ -1058,85 +977,81 @@ export default function CalendarTool() {
                   placeholder={t('calendar.eventTitlePlaceholder')}
                   disabled={saving}
                 />
-              </label>
+              </Field>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col">
-                  <span className="label">{t('calendar.start')}</span>
-                  <input
+                <Field id="calendar-event-start" label={t('calendar.start')}>
+                  <Input
+                    id="calendar-event-start"
                     type="datetime-local"
-                    className="input mt-1"
                     value={form.start}
                     onChange={(event) => setField('start', event.target.value)}
                     required
                     disabled={saving}
                   />
-                </label>
-                <label className="flex flex-col">
-                  <span className="label">{t('calendar.end')}</span>
-                  <input
+                </Field>
+                <Field id="calendar-event-end" label={t('calendar.end')}>
+                  <Input
+                    id="calendar-event-end"
                     type="datetime-local"
-                    className="input mt-1"
                     value={form.end}
                     onChange={(event) => setField('end', event.target.value)}
                     required
                     disabled={saving}
                   />
-                </label>
+                </Field>
               </div>
 
-              <label className="flex flex-col">
-                <span className="label">{t('calendar.location')}</span>
-                <input
-                  className="input mt-1"
+              <Field id="calendar-event-location" label={t('calendar.location')}>
+                <Input
+                  id="calendar-event-location"
                   value={form.location}
                   onChange={(event) => setField('location', event.target.value)}
                   maxLength={1024}
                   disabled={saving}
                 />
-              </label>
+              </Field>
 
-              <label className="flex flex-col">
-                <span className="label">{t('calendar.description')}</span>
-                <textarea
-                  className="input mt-1 min-h-24 resize-y"
+              <Field id="calendar-event-description" label={t('calendar.description')}>
+                <Textarea
+                  id="calendar-event-description"
+                  className="min-h-24"
                   value={form.description}
                   onChange={(event) => setField('description', event.target.value)}
                   maxLength={8192}
                   disabled={saving}
                 />
-              </label>
+              </Field>
 
               {formError ? (
-                <div role="alert" className="rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] break-words text-bad">
+                <div role="alert" className="rounded-control border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] break-words text-bad">
                   {formError}
                   {/izin|hubungkan ulang|scope|reconnect/i.test(formError) ? (
-                    <button
-                      type="button"
-                      className="btn mt-2 w-full justify-center"
+                    <Button
+                      icon="external"
+                      className="mt-2 w-full justify-center"
                       onClick={() => {
                         setComposer(false);
                         void connect();
                       }}
                     >
-                      <Icon name="external" size={13} /> {t('calendar.reconnect')}
-                    </button>
+                      {t('calendar.reconnect')}
+                    </Button>
                   ) : null}
                 </div>
               ) : null}
 
               <div className="mt-1 flex flex-wrap justify-end gap-2 border-t border-line pt-3">
-                <button type="button" className="btn" onClick={() => setComposer(false)} disabled={saving}>
+                <Button onClick={() => setComposer(false)} disabled={saving}>
                   {t('common.cancel')}
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <Spinner /> : <Icon name="check" size={14} />}
+                </Button>
+                <Button type="submit" variant="primary" icon="check" disabled={saving} loading={saving}>
                   {saving ? t('calendar.saving') : t('calendar.save')}
-                </button>
+                </Button>
               </div>
             </div>
           </form>
-        </div>
+        </Dialog>
       ) : null}
     </div>
   );

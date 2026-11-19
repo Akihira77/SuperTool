@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Spinner } from '../../components/ui';
+import { Button, Card, Input } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 
@@ -17,15 +17,15 @@ type Result = {
 
 function Group({ title, rows }: { title: string; rows: string[] }) {
   return (
-    <div className="card flex flex-col gap-1 p-3">
+    <Card className="flex flex-col gap-1 p-3">
       <div className="flex items-center gap-2 text-[12px] tracking-wide text-muted uppercase">
         {title}
-        <span className="text-ink">{rows.length}</span>
+        <span className="tabular-nums text-ink">{rows.length}</span>
       </div>
-      <div className="mono max-h-40 overflow-auto text-[12.5px]">
-        {rows.length ? rows.map((row) => <div key={row} className="truncate text-ink/85">{row}</div>) : <div className="text-muted/70">-</div>}
+      <div className="mono max-h-40 overflow-auto text-[12.5px] leading-relaxed">
+        {rows.length ? rows.map((row) => <div key={row} className="truncate tabular-nums text-ink/85" title={row}>{row}</div>) : <div className="text-muted/70">-</div>}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -54,17 +54,18 @@ export default function DnsTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           value={host}
           onChange={(event) => setHost(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && void lookup()}
           placeholder="contoh: github.com"
-          className="input mono flex-1 py-1.5"
+          aria-label="Host atau IP"
+          className="mono min-w-0 flex-1 py-1.5"
           spellCheck={false}
         />
-        <button type="button" className="btn btn-primary" onClick={() => void lookup()} disabled={busy || !host.trim()}>
-          {busy ? <Spinner /> : <Icon name="search" />} Lookup
-        </button>
+        <Button variant="primary" icon="search" loading={busy} onClick={() => void lookup()} disabled={busy || !host.trim()}>
+          Lookup
+        </Button>
       </div>
 
       {error ? <div className="text-[13px] text-bad">{error}</div> : null}
@@ -79,7 +80,7 @@ export default function DnsTab() {
             <Group title="MX" rows={result.mx} />
             <Group title="TXT" rows={result.txt} />
             {result.geo ? (
-              <div className="card col-span-1 flex flex-col gap-1 p-3 sm:col-span-2">
+              <Card className="col-span-1 flex flex-col gap-1 p-3 sm:col-span-2">
                 <div className="text-[12px] tracking-wide text-muted uppercase">Lokasi</div>
                 <div className="text-[13.5px] text-ink">
                   {[result.geo.city, result.geo.regionName, result.geo.country].filter(Boolean).join(', ') || '-'}
@@ -87,8 +88,8 @@ export default function DnsTab() {
                 <div className="text-[12.5px] text-muted">
                   {result.geo.isp ?? '-'} · {result.geo.org ?? '-'} · {result.geo.timezone ?? '-'}
                 </div>
-                <div className="mono text-[12px] text-muted">{result.geo.query}</div>
-              </div>
+                <div className="mono text-[12px] tabular-nums text-muted">{result.geo.query}</div>
+              </Card>
             ) : null}
           </div>
           <div className="text-[12px] text-muted">

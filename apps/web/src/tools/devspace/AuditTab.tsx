@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, qs } from '../../lib/api';
-import { Empty, Icon, Spinner, cn } from '../../components/ui';
+import { Badge, Button, Card, CopyButton, Empty, Icon, Input, Select, Skeleton, cn } from '../../components/ui';
 import { useI18n } from '../../lib/i18n';
 
 type AuditItem = {
@@ -23,6 +23,7 @@ type AuditItem = {
 type AuditResponse = { items: AuditItem[]; total: number; limit: number; offset: number };
 
 const PAGE_SIZE = 100;
+const SKELETON_ROWS = [0, 1, 2, 3];
 
 function prettyPayload(payload: unknown): string {
   if (payload === null || payload === undefined) return '—';
@@ -34,10 +35,10 @@ function prettyPayload(payload: unknown): string {
   }
 }
 
-function statusTone(status: number | null): string {
-  if (!status || status < 400) return 'bg-ok/10 text-ok';
-  if (status < 500) return 'bg-warn/10 text-warn';
-  return 'bg-bad/10 text-bad';
+function statusTone(status: number | null): 'ok' | 'warn' | 'bad' {
+  if (!status || status < 400) return 'ok';
+  if (status < 500) return 'warn';
+  return 'bad';
 }
 
 function formatTime(ts: number): { date: string; time: string; iso: string } {
@@ -106,66 +107,75 @@ export default function AuditTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 md:p-4">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <div className="card flex flex-wrap items-center gap-2 p-2.5">
+        <Card className="flex flex-wrap items-center gap-2 p-2.5">
           <form onSubmit={submit} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <select
+            <Select
               value={source}
-              onChange={(event) => {
-                const next = event.target.value;
+              onChange={(next) => {
                 setSource(next);
                 setExpanded(null);
                 void load(true, next, appliedQuery);
               }}
-              className="input w-36 py-1.5 text-[13px]"
-              aria-label={t('audit.source')}
-            >
-              <option value="">{t('audit.allSources')}</option>
-              <option value="web">{t('audit.web')}</option>
-              <option value="telegram_bot">{t('audit.telegram')}</option>
-            </select>
+              options={[
+                { value: '', label: t('audit.allSources') },
+                { value: 'web', label: t('audit.web') },
+                { value: 'telegram_bot', label: t('audit.telegram') },
+              ]}
+              size="sm"
+              label={t('audit.source')}
+              className="w-36"
+            />
             <div className="relative min-w-44 flex-1">
               <Icon
                 name="search"
                 size={13}
                 className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted/70"
               />
-              <input
+              <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="input py-1.5 pl-8 text-[13px]"
+                className="py-1.5 pl-8 text-[13px]"
                 placeholder={t('audit.searchPlaceholder')}
                 aria-label={t('audit.searchPlaceholder')}
               />
             </div>
-            <button type="submit" className="btn btn-primary py-1.5 text-[13px]">
-              <Icon name="search" size={13} /> {t('audit.search')}
-            </button>
+            <Button type="submit" variant="primary" icon="search" className="py-1.5 text-[13px]">
+              {t('audit.search')}
+            </Button>
           </form>
-          <button type="button" className="btn btn-ghost py-1.5 text-[13px]" onClick={reset} disabled={loading}>
+          <Button variant="ghost" className="py-1.5 text-[13px]" onClick={reset} disabled={loading}>
             {t('audit.reset')}
-          </button>
-          <button
-            type="button"
-            className="btn py-1.5 text-[13px]"
+          </Button>
+          <Button
+            icon="refresh"
+            loading={loading}
+            className="py-1.5 text-[13px]"
             onClick={() => void load(true, source, appliedQuery)}
             disabled={loading}
           >
-            {loading ? <Spinner /> : <Icon name="refresh" size={13} />} {t('audit.refresh')}
-          </button>
-          <span className="chip">{total.toLocaleString()} {t('audit.total')}</span>
-        </div>
+            {t('audit.refresh')}
+          </Button>
+          <Badge className="tabular-nums">{total.toLocaleString()} {t('audit.total')}</Badge>
+        </Card>
 
         {error ? (
           <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
         ) : null}
 
-        {!items.length && !loading ? (
+        {!items.length && loading ? (
+          <div className="flex flex-col gap-1.5">
+            {SKELETON_ROWS.map((row) => (
+              <Skeleton key={row} className="h-[52px] w-full" />
+            ))}
+          </div>
+        ) : !items.length ? (
           <Empty icon="notes" text={t('audit.empty')} />
         ) : (
           <div className="flex flex-col gap-1.5">
             {items.map((item) => {
               const open = expanded === item.id;
               const when = formatTime(item.ts);
+              const payload = open ? prettyPayload(item.payload) : '';
               return (
                 <div
                   key={item.id}
@@ -180,34 +190,29 @@ export default function AuditTab() {
                     onClick={() => setExpanded(open ? null : item.id)}
                     aria-expanded={open}
                   >
-                    <span className="mono w-24 shrink-0 leading-4" title={when.iso}>
+                    <span className="mono w-24 shrink-0 leading-4 tabular-nums" title={when.iso}>
                       <span className="block text-[12.5px] text-ink/85">{when.time}</span>
                       <span className="block text-[12.5px] text-muted">{when.date}</span>
                     </span>
-                    <span
-                      className={cn(
-                        'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12.5px] font-medium',
-                        item.source === 'telegram_bot' ? 'bg-accent/10 text-accent' : 'bg-panel2 text-muted',
-                      )}
-                    >
+                    <Badge tone={item.source === 'telegram_bot' ? 'accent' : 'neutral'} className="shrink-0">
                       <span
                         className={cn(
-                          'h-1.5 w-1.5 rounded-full',
+                          'size-1.5 rounded-full',
                           item.source === 'telegram_bot' ? 'bg-accent' : 'bg-muted/70',
                         )}
                       />
                       {item.source === 'telegram_bot' ? t('audit.telegram') : t('audit.web')}
-                    </span>
+                    </Badge>
                     <span className="min-w-0 max-w-52 truncate text-[12.5px] font-medium" title={item.actor}>
                       {item.actor}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[12px] text-muted" title={item.action}>
                       <span className="text-ink/80">{item.feature}</span> · {item.action}
                     </span>
-                    <span className={cn('mono rounded px-1.5 py-0.5 text-[12.5px] font-medium', statusTone(item.status))}>
+                    <Badge tone={statusTone(item.status)} className="mono tabular-nums px-1.5">
                       {item.status ?? '—'}
-                    </span>
-                    <span className="mono w-16 text-right text-[12.5px] text-muted">{item.durationMs} ms</span>
+                    </Badge>
+                    <span className="mono w-16 text-right text-[12.5px] tabular-nums text-muted">{item.durationMs} ms</span>
                     <Icon
                       name={open ? 'chevronDown' : 'chevronRight'}
                       size={12}
@@ -217,21 +222,26 @@ export default function AuditTab() {
                   {open ? (
                     <div className="border-t border-line bg-panel/25 px-3 py-2.5">
                       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                        <span className="chip">{item.method ?? '—'} {item.path ?? ''}</span>
-                        {item.ip ? <span className="chip">IP {item.ip}</span> : null}
+                        <Badge>{item.method ?? '—'} {item.path ?? ''}</Badge>
+                        {item.ip ? <Badge>IP {item.ip}</Badge> : null}
                         {item.userAgent ? (
-                          <span className="chip max-w-full truncate" title={item.userAgent}>{item.userAgent}</span>
+                          <span className="block max-w-full" title={item.userAgent}>
+                            <Badge className="max-w-full truncate">{item.userAgent}</Badge>
+                          </span>
                         ) : null}
-                        <span className="chip">#{item.id}</span>
+                        <Badge>#{item.id}</Badge>
                       </div>
                       {item.error ? (
                         <div className="mb-2 rounded-lg border border-bad/30 bg-bad/10 px-2.5 py-2 text-[12px] text-bad">
                           {item.error}
                         </div>
                       ) : null}
-                      <div className="label mb-1">{t('audit.payload')}</div>
+                      <div className="label mb-1 flex items-center gap-2">
+                        {t('audit.payload')}
+                        {payload ? <CopyButton text={payload} size="sm" /> : null}
+                      </div>
                       <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-panel2/50 p-2.5 font-mono text-[12.5px] leading-5 text-ink/85">
-                        {prettyPayload(item.payload)}
+                        {payload}
                       </pre>
                     </div>
                   ) : null}
@@ -242,9 +252,9 @@ export default function AuditTab() {
         )}
 
         {items.length > 0 && items.length < total ? (
-          <button type="button" className="btn self-center" onClick={() => void load(false, source, appliedQuery)} disabled={loading}>
-            {loading ? <Spinner /> : <Icon name="chevronDown" size={13} />} {t('audit.loadMore')}
-          </button>
+          <Button icon="chevronDown" loading={loading} className="self-center" onClick={() => void load(false, source, appliedQuery)} disabled={loading}>
+            {t('audit.loadMore')}
+          </Button>
         ) : null}
       </div>
     </div>

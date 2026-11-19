@@ -1,5 +1,20 @@
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+  type TextareaHTMLAttributes,
+} from 'react';
 import { useI18n } from '../lib/i18n';
+import { useMenu } from '../lib/useMenu';
+import { useFocusTrap } from '../lib/useFocusTrap';
 
 export const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
@@ -86,6 +101,9 @@ export function PasswordInput({
   autoFocus,
   label,
   invalid,
+  id,
+  autoComplete,
+  describedBy,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -93,19 +111,25 @@ export function PasswordInput({
   autoFocus?: boolean;
   label?: string;
   invalid?: boolean;
+  id?: string;
+  autoComplete?: string;
+  describedBy?: string;
 }) {
   const [show, setShow] = useState(false);
   const { t } = useI18n();
   return (
     <div className="relative">
       <input
+        id={id}
         type={show ? 'text' : 'password'}
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={label}
         aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         className={cn('input pr-10', invalid && 'border-bad')}
       />
       <button
@@ -145,18 +169,26 @@ export function PageHeader({
           {subtitle ? <p className="mt-0.5 hidden max-w-[70vw] truncate text-[13px] text-muted sm:block">{subtitle}</p> : null}
         </div>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:w-full max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:py-0.5">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:w-full">{children}</div>
     </header>
   );
 }
 
-export function CopyButton({ text, label }: { text: string; label?: string }) {
+export function CopyButton({
+  text,
+  label,
+  size = 'md',
+}: {
+  text: string;
+  label?: string;
+  size?: 'sm' | 'md';
+}) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
   return (
     <button
       type="button"
-      className="btn"
+      className={cn('btn', size === 'sm' && 'btn-sm')}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -167,7 +199,7 @@ export function CopyButton({ text, label }: { text: string; label?: string }) {
         setTimeout(() => setDone(false), 1200);
       }}
     >
-      <Icon name={done ? 'check' : 'copy'} />
+      <Icon name={done ? 'check' : 'copy'} size={size === 'sm' ? 12 : 14} />
       {done ? t('common.copied') : (label ?? t('common.copy'))}
     </button>
   );
@@ -215,7 +247,7 @@ export function Tabs<T extends string>({
     refs.current[index]?.focus();
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     let target = -1;
     if (event.key === 'ArrowRight') target = (index + 1) % items.length;
     else if (event.key === 'ArrowLeft') target = (index - 1 + items.length) % items.length;
@@ -262,4 +294,762 @@ export function Spinner() {
       aria-hidden="true"
     />
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Primitives                                                          */
+/* ------------------------------------------------------------------ */
+
+const BUTTON_VARIANTS = {
+  default: '',
+  primary: 'btn-primary',
+  ghost: 'btn-ghost',
+  subtle: 'btn-subtle',
+  danger: 'btn-danger',
+} as const;
+
+export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
+
+export function Button({
+  variant = 'default',
+  size = 'md',
+  loading = false,
+  icon,
+  type = 'button',
+  className,
+  children,
+  disabled,
+  ref,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  size?: 'sm' | 'md';
+  loading?: boolean;
+  icon?: string;
+  ref?: Ref<HTMLButtonElement>;
+}) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={cn('btn', size === 'sm' && 'btn-sm', BUTTON_VARIANTS[variant], className)}
+      {...rest}
+    >
+      {loading ? <Spinner /> : icon ? <Icon name={icon} size={size === 'sm' ? 13 : 14} /> : null}
+      {children}
+    </button>
+  );
+}
+
+export function IconButton({
+  icon,
+  label,
+  tooltip,
+  size = 'sm',
+  tone = 'default',
+  type = 'button',
+  className,
+  children,
+  ref,
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {
+  icon?: string;
+  label: string;
+  tooltip?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  tone?: 'default' | 'danger';
+  ref?: Ref<HTMLButtonElement>;
+}) {
+  const iconSize = size === 'xs' ? 12 : size === 'sm' ? 13 : size === 'lg' ? 17 : 15;
+  return (
+    <button
+      ref={ref}
+      type={type}
+      aria-label={label}
+      className={cn('icon-btn group', `icon-btn-${size}`, tone === 'danger' && 'icon-btn-danger', className)}
+      {...rest}
+    >
+      {children ?? <Icon name={icon ?? 'chevronDown'} size={iconSize} />}
+      <Tooltip label={tooltip ?? label} />
+    </button>
+  );
+}
+
+export function Tooltip({
+  label,
+  side = 'bottom',
+  className,
+}: {
+  label: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  className?: string;
+}) {
+  return (
+    <span aria-hidden="true" className={cn('tooltip', `tooltip-${side}`, className)}>
+      {label}
+    </span>
+  );
+}
+
+export function Input({
+  invalid,
+  className,
+  ref,
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; ref?: Ref<HTMLInputElement> }) {
+  return (
+    <input
+      ref={ref}
+      aria-invalid={invalid || undefined}
+      className={cn('input', invalid && 'border-bad/60', className)}
+      {...rest}
+    />
+  );
+}
+
+export function Textarea({
+  invalid,
+  className,
+  ref,
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean; ref?: Ref<HTMLTextAreaElement> }) {
+  return (
+    <textarea
+      ref={ref}
+      aria-invalid={invalid || undefined}
+      className={cn('input resize-y leading-relaxed', invalid && 'border-bad/60', className)}
+      {...rest}
+    />
+  );
+}
+
+export function Field({
+  id,
+  label,
+  hint,
+  error,
+  required,
+  className,
+  children,
+}: {
+  id?: string;
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  required?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
+      <label htmlFor={id} className="field-label">
+        {label}
+        {required ? <span aria-hidden="true"> *</span> : null}
+      </label>
+      {children}
+      {error ? (
+        <p id={id ? id + '-error' : undefined} className="field-error" role="alert">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={id ? id + '-hint' : undefined} className="field-hint">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function Checkbox({
+  label,
+  className,
+  ref,
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement> & { label?: ReactNode; ref?: Ref<HTMLInputElement> }) {
+  const autoId = useId();
+  const inputId = rest.id ?? autoId;
+  return (
+    <label htmlFor={inputId} className={cn('inline-flex cursor-pointer items-center gap-2 text-[13px] text-ink', className)}>
+      <input ref={ref} id={inputId} type="checkbox" className="checkbox" {...rest} />
+      {label ? <span className="min-w-0 select-none">{label}</span> : null}
+    </label>
+  );
+}
+
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  icon,
+  disabled,
+  className,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: ReactNode;
+  description?: ReactNode;
+  icon?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'flex w-full cursor-pointer items-center justify-between gap-3 rounded-control border px-3 py-2 text-left transition-colors duration-[var(--duration-fast)]',
+        checked ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30',
+        disabled && 'cursor-not-allowed opacity-50',
+        className,
+      )}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        {icon ? <Icon name={icon} size={14} className="shrink-0 text-accent/80" /> : null}
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium text-ink">{label}</span>
+          {description ? <span className="mt-0.5 block text-[12px] leading-snug text-muted">{description}</span> : null}
+        </span>
+      </span>
+      <span className="switch" aria-hidden="true">
+        <span className="switch-thumb" />
+      </span>
+    </button>
+  );
+}
+
+export type SelectOption<T extends string = string> = {
+  value: T;
+  label: string;
+  disabled?: boolean;
+};
+
+/**
+ * Select kustom: trigger + popover listbox, tanpa <select> native.
+ * Fokus tetap di trigger; opsi aktif ditandai aria-activedescendant.
+ */
+export function Select<T extends string = string>({
+  value,
+  onChange,
+  options,
+  id,
+  label,
+  placeholder,
+  disabled,
+  size = 'md',
+  className,
+  triggerClassName,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: ReadonlyArray<SelectOption<T>>;
+  id?: string;
+  label?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  size?: 'sm' | 'md';
+  className?: string;
+  triggerClassName?: string;
+}) {
+  const autoId = useId();
+  const listId = autoId + '-listbox';
+  const triggerId = id ?? autoId + '-trigger';
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const current = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const optionId = (index: number) => listId + '-opt-' + index;
+
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  };
+
+  const choose = (option: SelectOption<T>) => {
+    if (option.disabled) return;
+    onChange(option.value);
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const moveActive = (delta: number) => {
+    const count = options.length;
+    if (!count) return;
+    let index = active;
+    for (let step = 0; step < count; step += 1) {
+      index = (index + delta + count) % count;
+      if (!options[index]?.disabled) {
+        setActive(index);
+        return;
+      }
+    }
+  };
+
+  const openList = () => {
+    if (disabled) return;
+    setActive(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const node = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    node?.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [open]);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveActive(1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveActive(-1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      const first = options.findIndex((option) => !option.disabled);
+      if (first >= 0) setActive(first);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      for (let index = options.length - 1; index >= 0; index -= 1) {
+        if (!options[index]?.disabled) {
+          setActive(index);
+          break;
+        }
+      }
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const option = options[active];
+      if (option) choose(option);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === 'Tab') {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className={cn('relative', className)}>
+      <button
+        ref={triggerRef}
+        id={triggerId}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-activedescendant={open ? optionId(active) : undefined}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => (open ? close() : openList())}
+        onKeyDown={onKeyDown}
+        className={cn(
+          'input flex cursor-pointer items-center gap-2 pr-8 text-left',
+          size === 'sm' && 'min-h-8 py-1 text-[12.5px]',
+          triggerClassName,
+        )}
+      >
+        <span className={cn('min-w-0 flex-1 truncate', !current && 'text-muted/60')}>
+          {current ? current.label : (placeholder ?? '')}
+        </span>
+        <Icon
+          name="chevronDown"
+          size={12}
+          className={cn('shrink-0 text-muted transition-transform duration-[var(--duration-fast)]', open && 'rotate-180')}
+        />
+      </button>
+      {open ? (
+        <div
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label={label}
+          tabIndex={-1}
+          className="popover absolute top-full z-50 mt-1 max-h-64 w-full overflow-y-auto outline-none"
+        >
+          {options.map((option, index) => {
+            const isSelected = option.value === value;
+            const isActive = index === active;
+            return (
+              <div
+                key={option.value + ':' + index}
+                id={optionId(index)}
+                role="option"
+                aria-selected={isSelected}
+                aria-disabled={option.disabled || undefined}
+                data-active={isActive}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActive(index)}
+                onClick={() => choose(option)}
+                className={cn(
+                  'menu-item',
+                  isActive && 'bg-panel2 text-ink',
+                  option.disabled && 'pointer-events-none opacity-40',
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                {isSelected ? <Icon name="check" size={13} className="shrink-0 text-accent" /> : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export type MenuEntry =
+  | {
+      id: string;
+      type?: 'item';
+      label: ReactNode;
+      icon?: string;
+      shortcut?: string;
+      danger?: boolean;
+      disabled?: boolean;
+      onSelect: () => void;
+    }
+  | { id: string; type: 'separator' }
+  | { id: string; type: 'label'; label: string };
+
+export function DropdownMenu({
+  entries,
+  label,
+  triggerIcon,
+  triggerLabel,
+  triggerAriaLabel,
+  triggerTitle,
+  triggerDisabled = false,
+  triggerRef,
+  triggerSize = 'md',
+  align = 'end',
+  menuId,
+  className,
+  menuClassName,
+  triggerClassName,
+}: {
+  entries: MenuEntry[];
+  label: string;
+  triggerIcon?: string;
+  triggerLabel?: string;
+  triggerAriaLabel?: string;
+  triggerTitle?: string;
+  triggerDisabled?: boolean;
+  triggerRef?: RefObject<HTMLButtonElement | null>;
+  triggerSize?: 'sm' | 'md' | 'lg';
+  align?: 'start' | 'end';
+  menuId?: string;
+  className?: string;
+  menuClassName?: string;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const autoId = useId();
+  const id = menuId ?? autoId;
+  const localRef = useRef<HTMLButtonElement>(null);
+  const ref = triggerRef ?? localRef;
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { onTriggerKeyDown } = useMenu(open, setOpen, ref, menuRef);
+
+  const triggerProps = {
+    'aria-haspopup': 'menu' as const,
+    'aria-controls': open ? id : undefined,
+    'aria-expanded': open,
+    onClick: () => setOpen((previous) => !previous),
+    onKeyDown: onTriggerKeyDown,
+    disabled: triggerDisabled,
+  };
+
+  return (
+    <div className={cn('relative', className)}>
+      {triggerLabel ? (
+        <Button
+          ref={ref}
+          size={triggerSize === 'lg' ? 'md' : triggerSize}
+          icon={triggerIcon}
+          title={triggerTitle}
+          className={triggerClassName}
+          {...triggerProps}
+        >
+          {triggerLabel}
+        </Button>
+      ) : (
+        <IconButton
+          ref={ref}
+          icon={triggerIcon}
+          label={triggerAriaLabel ?? label}
+          tooltip={triggerTitle}
+          size={triggerSize}
+          className={triggerClassName}
+          {...triggerProps}
+        />
+      )}
+      {open ? (
+        <div
+          ref={menuRef}
+          id={id}
+          role="menu"
+          aria-label={label}
+          className={cn(
+            'popover absolute top-full z-50 mt-1 max-h-80 w-60 overflow-y-auto',
+            align === 'end' ? 'right-0' : 'left-0',
+            menuClassName,
+          )}
+        >
+          {entries.map((entry) => {
+            if (entry.type === 'separator') {
+              return <div key={entry.id} role="separator" className="menu-sep" />;
+            }
+            if (entry.type === 'label') {
+              return (
+                <div key={entry.id} className="menu-label">
+                  {entry.label}
+                </div>
+              );
+            }
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                role="menuitem"
+                disabled={entry.disabled}
+                className={cn('menu-item', entry.danger && 'menu-item-danger')}
+                onClick={() => {
+                  entry.onSelect();
+                  setOpen(false);
+                  ref.current?.focus();
+                }}
+              >
+                {entry.icon ? <Icon name={entry.icon} size={14} className="shrink-0 text-muted" /> : null}
+                <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                {entry.shortcut ? <span className="menu-shortcut">{entry.shortcut}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const DIALOG_SIZES = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-2xl',
+} as const;
+
+export function Dialog({
+  open,
+  onClose,
+  children,
+  labelledBy,
+  describedBy,
+  role = 'dialog',
+  size = 'md',
+  initialFocusRef,
+  closeOnBackdrop = true,
+  className,
+  backdropClassName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  labelledBy?: string;
+  describedBy?: string;
+  role?: 'dialog' | 'alertdialog';
+  size?: keyof typeof DIALOG_SIZES;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  closeOnBackdrop?: boolean;
+  className?: string;
+  backdropClassName?: string;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panelRef, initialFocusRef);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className={cn('dialog-backdrop', backdropClassName)}
+      role="presentation"
+      onMouseDown={(event) => {
+        if (closeOnBackdrop && event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role={role}
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
+        className={cn('dialog-panel', DIALOG_SIZES[size], className)}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function SegmentedControl<T extends string>({
+  items,
+  value,
+  onChange,
+  label,
+  className,
+  itemClassName,
+}: {
+  items: ReadonlyArray<{ id: T; label: ReactNode; icon?: string }>;
+  value: T;
+  onChange: (value: T) => void;
+  label?: string;
+  className?: string;
+  itemClassName?: string;
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const index = items.findIndex((item) => item.id === value);
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const nextIndex = (index + delta + items.length) % items.length;
+    const next = items[nextIndex];
+    if (!next) return;
+    onChange(next.id);
+    refs.current[nextIndex]?.focus();
+  };
+
+  return (
+    <div role="group" aria-label={label} className={cn('seg', className)} onKeyDown={onKeyDown}>
+      {items.map((item, index) => (
+        <button
+          key={item.id}
+          ref={(node) => {
+            refs.current[index] = node;
+          }}
+          type="button"
+          aria-pressed={item.id === value}
+          onClick={() => onChange(item.id)}
+          className={cn('seg-item', itemClassName)}
+        >
+          {item.icon ? <Icon name={item.icon} size={13} /> : null}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Toolbar({
+  label,
+  className,
+  children,
+}: {
+  label?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div role="toolbar" aria-label={label} className={cn('flex flex-wrap items-center gap-1.5', className)}>
+      {children}
+    </div>
+  );
+}
+
+const BADGE_TONES = {
+  neutral: '',
+  accent: 'border-accent/35 bg-accent/10 text-accent',
+  ok: 'border-ok/35 bg-ok/10 text-ok',
+  warn: 'border-warn/35 bg-warn/10 text-warn',
+  bad: 'border-bad/35 bg-bad/10 text-bad',
+} as const;
+
+export type BadgeTone = keyof typeof BADGE_TONES;
+
+export function Badge({
+  tone = 'neutral',
+  className,
+  children,
+}: {
+  tone?: BadgeTone;
+  className?: string;
+  children: ReactNode;
+}) {
+  return <span className={cn('badge', BADGE_TONES[tone], className)}>{children}</span>;
+}
+
+export function Pill({
+  tone = 'neutral',
+  className,
+  children,
+}: {
+  tone?: BadgeTone;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={cn('badge rounded-pill px-2.5 py-1 text-[11px]', BADGE_TONES[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+export function Card({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('card', className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+export function Panel({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('soft-panel', className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div aria-hidden="true" className={cn('skeleton', className)} />;
 }

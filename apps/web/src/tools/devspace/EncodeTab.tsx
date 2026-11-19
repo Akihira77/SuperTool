@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CopyButton, Icon, Spinner, cn } from '../../components/ui';
+import { Button, Card, Checkbox, CopyButton, Field, IconButton, Input, SegmentedControl, Select, Spinner, Textarea } from '../../components/ui';
 import { api, ApiError } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 
@@ -19,6 +19,9 @@ const ENCS: Array<{ id: Enc; label: string }> = [
   { id: 'base64url', label: 'Base64 URL-safe' },
   { id: 'hex', label: 'Hex' },
 ];
+
+const ENC_OPTIONS = ENCS.map((item) => ({ value: item.id, label: item.label }));
+const ALGO_OPTIONS = ['md5', 'sha1', 'sha256', 'sha512', 'sha3-256'].map((item) => ({ value: item, label: item.toUpperCase() }));
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -106,125 +109,96 @@ export default function EncodeTab() {
   return (
     <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 lg:grid-cols-2">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {MODES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setMode(item.id);
-                setOutput('');
-                setError('');
-              }}
-              className={cn('chip cursor-pointer', mode === item.id && 'border-accent/60 bg-accent/15 text-accent')}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Mode"
+          value={mode}
+          onChange={(next) => {
+            setMode(next);
+            setOutput('');
+            setError('');
+          }}
+          items={MODES}
+          className="self-start"
+        />
 
         {mode === 'konversi' ? (
           <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-[12px] tracking-wide text-muted uppercase">Dari</span>
-              <select value={from} onChange={(event) => setFrom(event.target.value as Enc)} className="input w-auto cursor-pointer py-1">
-                {ENCS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="btn cursor-pointer px-2"
-              title="Tukar arah"
+            <Field id="encode-from" label="Dari" className="w-40">
+              <Select id="encode-from" value={from} onChange={setFrom} options={ENC_OPTIONS} size="sm" />
+            </Field>
+            <IconButton
+              icon="refresh"
+              label="Tukar arah"
+              size="md"
               onClick={() => {
                 setFrom(to);
                 setTo(from);
                 setInput(output);
                 setOutput('');
               }}
-            >
-              <Icon name="refresh" size={13} />
-            </button>
-            <label className="flex flex-col gap-1">
-              <span className="text-[12px] tracking-wide text-muted uppercase">Ke</span>
-              <select value={to} onChange={(event) => setTo(event.target.value as Enc)} className="input w-auto cursor-pointer py-1">
-                {ENCS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            />
+            <Field id="encode-to" label="Ke" className="w-40">
+              <Select id="encode-to" value={to} onChange={setTo} options={ENC_OPTIONS} size="sm" />
+            </Field>
           </div>
         ) : null}
 
-        <label className="flex min-h-0 flex-1 flex-col gap-1">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Input</span>
-          <textarea
+        <Field id="encode-input" label="Input" className="min-h-0 flex-1">
+          <Textarea
+            id="encode-input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
             spellCheck={false}
             placeholder={mode === 'jwt' ? 'eyJhbGciOi...' : mode === 'konversi' ? 'teks / base64 / hex' : 'teks di sini'}
-            className="input mono min-h-[200px] flex-1 resize-none"
+            className="mono min-h-[200px] flex-1 resize-none"
           />
-        </label>
+        </Field>
 
         <div className="flex flex-wrap items-center gap-2">
           {mode === 'url' || mode === 'html' ? (
-            <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted">
-              <input type="checkbox" checked={decode} onChange={(event) => setDecode(event.target.checked)} />
-              Mode decode
-            </label>
+            <Checkbox label="Mode decode" checked={decode} onChange={(event) => setDecode(event.target.checked)} />
           ) : null}
-          <button type="button" className="btn btn-primary cursor-pointer" onClick={run}>
-            <Icon name="play" /> {t('common.run')}
-          </button>
+          <Button variant="primary" icon="play" onClick={run}>
+            {t('common.run')}
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex min-h-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-1">
-            <span className="text-[12px] tracking-wide text-muted uppercase">Hasil</span>
+            <span className="field-label">Hasil</span>
             {output ? <CopyButton text={output} label="Salin hasil" /> : null}
           </div>
-          <pre className="input mono min-h-[200px] flex-1 overflow-auto whitespace-pre-wrap">{output}</pre>
+          <pre className="input mono min-h-[200px] flex-1 overflow-auto leading-relaxed whitespace-pre-wrap">{output}</pre>
           {error ? <span className="text-[12.5px] text-bad">{error}</span> : null}
         </div>
 
-        <div className="card flex flex-col gap-2 p-3">
+        <Card className="flex flex-col gap-2 p-3">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] tracking-wide text-muted uppercase">Hash dari input</span>
+            <span className="field-label">Hash dari input</span>
             {busy ? <Spinner /> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select value={algo} onChange={(event) => setAlgo(event.target.value)} className="input w-auto cursor-pointer py-1">
-              {['md5', 'sha1', 'sha256', 'sha512', 'sha3-256'].map((item) => (
-                <option key={item} value={item}>
-                  {item.toUpperCase()}
-                </option>
-              ))}
-            </select>
-            <input
+            <Select value={algo} onChange={setAlgo} options={ALGO_OPTIONS} size="sm" className="w-32" label="Algoritma hash" />
+            <Input
               value={hmacKey}
               onChange={(event) => setHmacKey(event.target.value)}
               placeholder="kunci HMAC (opsional)"
-              className="input mono w-auto flex-1 py-1"
+              aria-label="Kunci HMAC"
+              className="mono min-w-0 flex-1 py-1"
             />
-            <button type="button" className="btn cursor-pointer" onClick={() => void runHash()} disabled={!input}>
-              <Icon name="check" /> Hitung
-            </button>
+            <Button icon="check" onClick={() => void runHash()} disabled={!input}>
+              Hitung
+            </Button>
           </div>
           {hash ? (
             <div className="flex items-center gap-2">
-              <code className="mono flex-1 break-all rounded bg-panel2 px-2 py-1 text-[12.5px] text-ink/90">{hash}</code>
+              <code className="mono min-w-0 flex-1 break-all rounded bg-panel2 px-2 py-1 text-[12.5px] text-ink/90">{hash}</code>
               <CopyButton text={hash} label="Hash" />
             </div>
           ) : null}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ temp/
 *.db
 *.db-wal
 *.db-shm
+*.db.bak
 .env
 *.log
 .shots-*.html

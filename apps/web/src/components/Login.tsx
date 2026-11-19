@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
-import { Icon, PasswordInput, Spinner } from './ui';
+import { Button, Field, Icon, PasswordInput } from './ui';
 
 export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) => void }) {
   const { t } = useI18n();
@@ -26,7 +26,7 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
   return (
     <div className="relative flex h-full items-center justify-center overflow-hidden p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_50%_0%,rgba(107,150,255,0.16),transparent_70%)]" />
-      <form onSubmit={submit} className="card relative w-full max-w-[380px] rounded-2xl p-7 shadow-[0_30px_100px_-30px_rgb(0_0_0/0.9)]">
+      <form onSubmit={submit} className="card relative w-full max-w-[380px] rounded-panel p-7 shadow-elev-3">
         <div className="mb-7 flex items-center gap-3.5">
           <div className="flex size-11 items-center justify-center rounded-[13px] border border-accent/30 bg-gradient-to-br from-accent to-accent2 text-white shadow-[0_12px_30px_-16px_rgb(107_150_255/0.9)]">
             <Icon name="lock" size={20} />
@@ -37,15 +37,34 @@ export default function Login({ onSuccess }: { onSuccess: (mustChange: boolean) 
           </div>
         </div>
 
-        <label className="label mb-1.5 block">Password</label>
-        <PasswordInput autoFocus value={password} onChange={setPassword} placeholder="••••••••" label="Password" />
+        <Field id="login-password" label="Password" className="mb-1.5">
+          <PasswordInput
+            id="login-password"
+            autoFocus
+            value={password}
+            onChange={setPassword}
+            placeholder="••••••••"
+            label="Password"
+            autoComplete="current-password"
+          />
+        </Field>
 
-        {error ? <p className="mt-3 rounded-lg border border-bad/25 bg-bad/10 px-2.5 py-2 text-[12.5px] text-bad">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="mt-3 rounded-control border border-bad/25 bg-bad/10 px-2.5 py-2 text-[12.5px] text-bad">
+            {error}
+          </p>
+        ) : null}
 
-        <button type="submit" disabled={busy || !password} className="btn btn-primary mt-5 w-full justify-center py-2.5">
-          {busy ? <Spinner /> : <Icon name="lock" />}
+        <Button
+          type="submit"
+          variant="primary"
+          icon="lock"
+          loading={busy}
+          disabled={!password}
+          className="mt-5 w-full justify-center py-2.5"
+        >
           {t('login.submit')}
-        </button>
+        </Button>
 
         <p className="mt-4 text-center text-[12px] leading-relaxed text-muted">
           {t('login.firstTime')} <span className="mono text-ink/80">password</span>, {t('login.changeHint')}

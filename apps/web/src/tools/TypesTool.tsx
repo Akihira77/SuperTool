@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, Empty, Icon, PageHeader } from '../components/ui';
+import { Button, CopyButton, Empty, IconButton, Input, PageHeader } from '../components/ui';
 import { jsonToTs } from '../lib/json2ts';
 import { useI18n } from '../lib/i18n';
 
@@ -60,17 +60,15 @@ export default function TypesTool() {
         icon="types"
         subtitle={result.ok ? result.count + ' ' + t('types.generated') : t('types.subtitle')}
       >
-        <input
+        <Input
           value={root}
           onChange={(e) => setRoot(e.target.value.replace(/[^A-Za-z0-9_$]/g, ''))}
           placeholder={t('types.rootName')}
-          className="input w-36 py-1.5 text-[13.5px]"
+          className="w-36 min-h-8 py-1.5 text-[13.5px]"
           aria-label={t('types.rootName')}
         />
         <CopyButton text={result.output} label={t('common.copy') + ' TS'} />
-        <button type="button" className="btn btn-icon" data-action="types:download" onClick={download} disabled={!result.ok} title={t('types.download')} aria-label={t('types.download')}>
-          <Icon name="download" />
-        </button>
+        <IconButton icon="download" size="md" data-action="types:download" onClick={download} disabled={!result.ok} label={t('types.download')} />
       </PageHeader>
 
       <div className="flex min-h-0 flex-1 flex-col divide-y divide-line overflow-y-auto lg:flex-row lg:divide-x lg:divide-y-0 lg:overflow-hidden">
@@ -89,13 +87,13 @@ export default function TypesTool() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-1.5 text-[12px] text-muted">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setText(SAMPLE)}>
+        <Button variant="ghost" size="sm" onClick={() => setText(SAMPLE)}>
           {t('common.sample')}
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setText('')}>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setText('')}>
           {t('common.clear')}
-        </button>
-        <span className="ml-auto">{t('types.hint')}</span>
+        </Button>
+        <span className="ml-auto tabular-nums">{t('types.hint')}</span>
       </div>
     </div>
   );

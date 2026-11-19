@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Button, Empty, Icon, IconButton, Input, PageHeader, Panel, Skeleton, Spinner, cn } from '../components/ui';
+import { useMenu } from '../lib/useMenu';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useConfirm } from '../components/confirm';
@@ -60,6 +61,9 @@ export default function NginxTool() {
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState(() => localStorage.getItem('st:llm:model') ?? '');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('st:llm:key') ?? '');
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLElement | null>(null);
+  useMenu(Boolean(menu), (open) => { if (!open) setMenu(null); }, menuTriggerRef, menuRef);
 
   const loadModels = async (key = apiKey) => {
     try {
@@ -119,17 +123,6 @@ export default function NginxTool() {
     void loadModels(localStorage.getItem('st:llm:key') ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    window.addEventListener('click', close);
-    window.addEventListener('keydown', close);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('keydown', close);
-    };
-  }, [menu]);
 
   const save = async () => {
     if (!activePath) return;
@@ -226,32 +219,41 @@ export default function NginxTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Nginx" subtitle={dir ? dir + ' · ' + files.length + ' file' : 'Konfigurasi nginx'} icon="nginx">
-        <button type="button" className="btn" onClick={togglePanel} title={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}>
-          <Icon name="panel" />
-        </button>
-        <button type="button" className="btn" onClick={test} disabled={busy} title="nginx -t">
-          <Icon name="play" /> Test
-        </button>
-        <button type="button" className="btn btn-primary" data-action="nginx:save" onClick={save} disabled={!dirty || busy} title="Ctrl+S">
-          {busy ? <Spinner /> : <Icon name="save" />} {t("common.save")}
-        </button>
+        <IconButton
+          icon="panel"
+          label={panelOpen ? 'Sembunyikan daftar' : 'Tampilkan daftar'}
+          aria-pressed={panelOpen}
+          onClick={togglePanel}
+        />
+        <Button icon="play" onClick={test} disabled={busy} title="nginx -t">
+          Test
+        </Button>
+        <Button variant="primary" icon="save" data-action="nginx:save" onClick={save} disabled={!dirty} loading={busy} title="Ctrl+S">
+          {t("common.save")}
+        </Button>
       </PageHeader>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-panel/20 px-3 py-2">
-        <button type="button" className="btn px-2 py-1 text-[13px]" data-action="nginx:new" onClick={create}>
-          <Icon name="plus" /> {t('nginx.new')}
-        </button>
-        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={remove} disabled={!activePath}>
-          <Icon name="trash" /> {t("common.delete")}
-        </button>
-        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={revert} disabled={!activeFile?.hasBackup} title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}>
-          <Icon name="refresh" /> Kembalikan asli
-        </button>
-        <button type="button" className="btn px-2 py-1 text-[13px]" onClick={() => activePath && open(activePath)} disabled={!dirty}>
+        <Button size="sm" icon="plus" data-action="nginx:new" onClick={create}>
+          {t('nginx.new')}
+        </Button>
+        <Button size="sm" icon="trash" onClick={remove} disabled={!activePath}>
+          {t("common.delete")}
+        </Button>
+        <Button
+          size="sm"
+          icon="refresh"
+          onClick={revert}
+          disabled={!activeFile?.hasBackup}
+          title={activeFile?.hasBackup ? 'Kembalikan isi cadangan .bak' : 'Belum ada cadangan'}
+        >
+          Kembalikan asli
+        </Button>
+        <Button size="sm" onClick={() => activePath && open(activePath)} disabled={!dirty}>
           {t('common.cancel')}
-        </button>
+        </Button>
         <div className="ml-auto flex items-center gap-1.5">
-          <input
+          <Input
             type="password"
             value={apiKey}
             onChange={(e) => {
@@ -260,10 +262,10 @@ export default function NginxTool() {
             }}
             onBlur={() => void loadModels()}
             placeholder="API key (opsional)"
-            className="input w-36 py-1 text-[13px]"
+            className="w-36 py-1 text-[13px]"
             aria-label="API key LLM"
           />
-          <input
+          <Input
             list="st-llm-models"
             value={model}
             onChange={(e) => {
@@ -271,7 +273,7 @@ export default function NginxTool() {
               localStorage.setItem('st:llm:model', e.target.value);
             }}
             placeholder="model LLM"
-            className="input w-44 py-1 text-[13px]"
+            className="w-44 py-1 text-[13px]"
             aria-label="Model LLM"
           />
           <datalist id="st-llm-models">
@@ -287,15 +289,15 @@ export default function NginxTool() {
         {panelOpen ? (
           <div className="flex w-64 shrink-0 flex-col border-r border-line bg-panel/25">
             {recents.length ? (
-              <div className="mb-1 border-b border-line pb-1">
-                <div className="px-1 pb-1 text-[12.5px] tracking-wide text-muted uppercase">{t('files.recent')}</div>
+              <div className="mb-1 border-b border-line px-2 pt-2 pb-1">
+                <div className="menu-label px-0 pb-1.5">{t('files.recent')}</div>
                 {recents.slice(0, 5).map((item) => (
                   <button
                     key={item.path}
                     type="button"
                     onClick={() => void open(item.path)}
                     title={item.path}
-                    className="block min-h-8 w-full truncate rounded px-1 py-0.5 text-left text-[12.5px] text-muted transition-colors hover:bg-panel2 hover:text-ink"
+                    className="block min-h-8 w-full truncate rounded-control px-1.5 py-1 text-left text-[12.5px] text-muted transition-colors duration-[var(--duration-fast)] hover:bg-panel2 hover:text-ink focus-visible:bg-panel2 focus-visible:text-ink"
                   >
                     {item.path.split('/').pop()}
                   </button>
@@ -304,8 +306,10 @@ export default function NginxTool() {
             ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {loading ? (
-                <div className="flex justify-center p-6">
-                  <Spinner />
+                <div className="flex flex-col gap-1.5 p-1">
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <Skeleton key={index} className="h-9 w-full" />
+                  ))}
                 </div>
               ) : files.length === 0 ? (
                 <Empty icon="nginx" text={t('nginx.empty')} />
@@ -315,14 +319,19 @@ export default function NginxTool() {
                     key={file.path}
                     type="button"
                     onClick={() => open(file.path)}
+                    aria-current={activePath === file.path ? 'true' : undefined}
                     className={cn(
-                      'mb-0.5 block w-full rounded-lg px-2.5 py-2 text-left transition-colors',
-                      activePath === file.path ? 'bg-accent/12' : 'hover:bg-panel2',
+                      'mb-0.5 block w-full rounded-control px-2.5 py-2 text-left transition-colors duration-[var(--duration-fast)]',
+                      activePath === file.path
+                        ? 'bg-accent/12 ring-1 ring-inset ring-accent/25'
+                        : 'hover:bg-panel2 focus-visible:bg-panel2',
                     )}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[13.5px] font-medium">{file.name}</span>
-                      {file.hasBackup ? <span className="chip">bak</span> : null}
+                      <span className={cn('truncate text-[13.5px] font-medium', activePath === file.path ? 'text-ink' : 'text-ink/90')}>
+                        {file.name}
+                      </span>
+                      {file.hasBackup ? <span className="chip px-1.5 py-0.5">bak</span> : null}
                     </div>
                     <div className="text-[12px] text-muted">
                       {bytes(file.size)} · {timeAgo(file.mtime)}
@@ -332,9 +341,14 @@ export default function NginxTool() {
               )}
             </div>
             {notice ? (
-              <div className={cn('mono max-h-40 shrink-0 overflow-auto border-t border-line p-2 text-[12px] whitespace-pre-wrap', notice.ok ? 'text-ok' : 'text-bad')}>
+              <Panel
+                className={cn(
+                  'mono max-h-40 shrink-0 overflow-auto rounded-none border-x-0 border-b-0 border-t p-2 text-[12px] whitespace-pre-wrap',
+                  notice.ok ? 'border-ok/30 text-ok' : 'border-bad/30 text-bad',
+                )}
+              >
                 {notice.message}
-              </div>
+              </Panel>
             ) : null}
           </div>
         ) : null}
@@ -368,9 +382,7 @@ export default function NginxTool() {
             <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/30 px-3 py-2 text-[12px] text-muted">
               <Icon name="eye" size={13} />
               <span className="min-w-0 flex-1 truncate">Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
-              <button type="button" className="btn btn-ghost px-1.5 py-0.5" onClick={() => setExplain(null)} title="Tutup">
-                <Icon name="x" size={13} />
-              </button>
+              <IconButton icon="x" label="Tutup" onClick={() => setExplain(null)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {explain.loading ? (
@@ -389,30 +401,38 @@ export default function NginxTool() {
 
       {menu ? (
         <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Aksi teks"
           style={{ top: menu.y, left: menu.x }}
-          className="fixed z-50 w-56 overflow-hidden rounded-xl border border-line bg-panel shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]"
-          onClick={(event) => event.stopPropagation()}
+          className="popover fixed z-50 w-56"
         >
-          <div className="mono max-h-16 overflow-hidden border-b border-line px-2.5 py-1.5 text-[12px] text-muted">{menu.text.slice(0, 120)}</div>
+          <div className="mono mb-1 max-h-16 overflow-hidden rounded-control border-b border-line-soft px-1.5 pb-1.5 text-[12px] text-muted">
+            {menu.text.slice(0, 120)}
+          </div>
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[13.5px] hover:bg-panel2"
+            role="menuitem"
+            className="menu-item"
             onClick={() => {
               setMenu(null);
               void explainText(menu.text);
             }}
           >
-            <Icon name="eye" size={14} /> Jelaskan ke LLM
+            <Icon name="eye" size={14} className="shrink-0 text-muted" />
+            <span className="min-w-0 flex-1 truncate">Jelaskan ke LLM</span>
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[13.5px] hover:bg-panel2"
+            role="menuitem"
+            className="menu-item"
             onClick={() => {
               void navigator.clipboard.writeText(menu.text);
               setMenu(null);
             }}
           >
-            <Icon name="copy" size={14} /> Salin teks
+            <Icon name="copy" size={14} className="shrink-0 text-muted" />
+            <span className="min-w-0 flex-1 truncate">Salin teks</span>
           </button>
         </div>
       ) : null}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Badge, Button, Empty, Icon, IconButton, Input, PageHeader, Select, Spinner, cn } from '../components/ui';
 import { api } from '../lib/api';
 import { timeAgo } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -7,7 +7,6 @@ import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useSidebar } from '../lib/useSidebar';
 import { usePaletteIntent } from '../lib/palette';
-import { useMenu } from '../lib/useMenu';
 import TextCompare from './TextCompare';
 
 type NoteMeta = { id: string; title: string; createdAt: number; updatedAt: number; snippet?: string; matches?: number };
@@ -89,16 +88,12 @@ export default function NotesTool() {
   const [status, setStatus] = useState<Status>('idle');
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<SearchScope>('all');
-  const [scopeOpen, setScopeOpen] = useState(false);
   const [matchIndex, setMatchIndex] = useState(0);
   const [jumpTick, setJumpTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const timer = useRef<number | undefined>(undefined);
   const openSeq = useRef(0);
   const searchStarted = useRef(false);
-  const scopeTriggerRef = useRef<HTMLButtonElement>(null);
-  const scopeMenuRef = useRef<HTMLDivElement>(null);
-  const { onTriggerKeyDown: onScopeKeyDown } = useMenu(scopeOpen, setScopeOpen, scopeTriggerRef, scopeMenuRef);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const tabNotesRef = useRef<HTMLButtonElement>(null);
@@ -336,17 +331,21 @@ export default function NotesTool() {
       >
         {tab === 'notes' ? (
           <>
-            <button type="button" className="btn" data-action="notes:list" onClick={togglePanel} title={panelOpen ? t('notes.hideList') : t('notes.showList')}>
-              <Icon name="panel" />
-            </button>
-            <button type="button" className="btn btn-primary" data-action="notes:new" onClick={create}>
-              <Icon name="plus" /> {t('notes.new')}
-            </button>
+            <IconButton
+              icon="panel"
+              size="md"
+              onClick={togglePanel}
+              data-action="notes:list"
+              label={panelOpen ? t('notes.hideList') : t('notes.showList')}
+            />
+            <Button variant="primary" icon="plus" data-action="notes:new" onClick={create}>
+              {t('notes.new')}
+            </Button>
           </>
         ) : null}
       </PageHeader>
 
-      <div role="tablist" aria-label={t('notes.tabs')} className="flex shrink-0 items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
+      <div role="tablist" aria-label={t('notes.tabs')} className="tabbar">
         <button
           ref={tabNotesRef}
           type="button"
@@ -356,7 +355,7 @@ export default function NotesTool() {
           aria-controls="notes-panel-notes"
           tabIndex={tab === 'notes' ? 0 : -1}
           data-action="notes:tab-notes"
-          className={cn('btn px-2 py-1 text-[12px]', tab === 'notes' ? 'border-accent/40 text-accent' : '')}
+          className={cn('tab', tab === 'notes' && 'tab-active')}
           onClick={() => selectTab('notes')}
           onKeyDown={onTabKeyDown}
         >
@@ -371,7 +370,7 @@ export default function NotesTool() {
           aria-controls="notes-panel-compare"
           tabIndex={tab === 'compare' ? 0 : -1}
           data-action="notes:tab-compare"
-          className={cn('btn px-2 py-1 text-[12px]', tab === 'compare' ? 'border-accent/40 text-accent' : '')}
+          className={cn('tab', tab === 'compare' && 'tab-active')}
           onClick={() => selectTab('compare')}
           onKeyDown={onTabKeyDown}
         >
@@ -389,53 +388,23 @@ export default function NotesTool() {
         <div className="flex max-md:absolute max-md:inset-0 max-md:z-30 max-md:w-full max-md:bg-panel max-md:border-r-0 flex-col border-r border-line bg-panel/25 md:w-64 md:shrink-0">
           <div className="flex flex-col gap-1.5 p-2.5">
             <div className="relative">
-              <Icon name="search" className="absolute top-2.5 left-2.5 text-muted" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("notes.search")} aria-label={t("notes.search")} data-action="notes:search" className="input py-1.5 pl-8 text-[13.5px]" />
+              <Icon name="search" size={13} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("notes.search")}
+                aria-label={t("notes.search")}
+                data-action="notes:search"
+                className="min-h-8 py-1.5 pl-8 text-[13.5px]"
+              />
             </div>
-            <div className="relative">
-              <button
-                ref={scopeTriggerRef}
-                type="button"
-                onClick={() => setScopeOpen((prev) => !prev)}
-                onKeyDown={onScopeKeyDown}
-                aria-haspopup="listbox"
-                aria-controls={scopeOpen ? 'notes-scope-menu' : undefined}
-                aria-expanded={scopeOpen}
-                aria-label={t('notes.searchScope')}
-                className="input flex cursor-pointer items-center gap-1.5 py-1 text-left text-[12.5px]"
-              >
-                <Icon name="filter" size={12} className="shrink-0 text-muted" />
-                <span className="min-w-0 flex-1 truncate">{t(SCOPE_OPTIONS.find((item) => item.value === scope)?.label ?? 'notes.searchAll')}</span>
-                <Icon name="chevronDown" size={11} className={cn('shrink-0 text-muted transition-transform', scopeOpen && 'rotate-180')} />
-              </button>
-              {scopeOpen ? (
-                <div ref={scopeMenuRef} id="notes-scope-menu" role="listbox" aria-label={t('notes.searchScope')} className="absolute top-full right-0 left-0 z-30 mt-1 rounded-lg border border-line bg-panel p-1 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)]">
-                  {SCOPE_OPTIONS.map((item) => {
-                    const selected = scope === item.value;
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        onClick={() => {
-                          setScope(item.value);
-                          setScopeOpen(false);
-                          scopeTriggerRef.current?.focus();
-                        }}
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[12.5px] transition-colors',
-                          selected ? 'bg-accent/12 text-ink' : 'text-muted hover:bg-panel2 hover:text-ink',
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
-                        {selected ? <Icon name="check" size={12} className="shrink-0 text-accent" /> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
+            <Select
+              size="sm"
+              value={scope}
+              onChange={(next) => setScope(next)}
+              label={t('notes.searchScope')}
+              options={SCOPE_OPTIONS.map((item) => ({ value: item.value, label: t(item.label) }))}
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
             {loading ? (
@@ -450,9 +419,12 @@ export default function NotesTool() {
                   key={note.id}
                   type="button"
                   onClick={() => void selectNote(note.id)}
+                  aria-current={active?.id === note.id ? 'true' : undefined}
                   className={cn(
-                    'mb-0.5 block w-full rounded-lg px-2.5 py-2 text-left transition-colors',
-                    active?.id === note.id ? 'bg-accent/12' : 'hover:bg-panel2',
+                    'mb-0.5 block w-full rounded-panel px-2.5 py-2 text-left transition-colors duration-[var(--duration-fast)]',
+                    active?.id === note.id
+                      ? 'bg-accent/12 ring-1 ring-accent/25'
+                      : 'hover:bg-panel2 focus-visible:bg-panel2',
                   )}
                 >
                   <div className="truncate text-[13.5px] font-medium" title={note.title || t('notes.untitled')}>{note.title || t('notes.untitled')}</div>
@@ -462,11 +434,9 @@ export default function NotesTool() {
                     </div>
                   ) : null}
                   <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className="text-[12px] text-muted">{timeAgo(note.updatedAt)}</span>
+                    <span className="text-[12px] text-muted tabular-nums">{timeAgo(note.updatedAt)}</span>
                     {typeof note.matches === 'number' && note.matches > 0 ? (
-                      <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[12.5px] font-medium text-accent">
-                        {note.matches} {t('notes.matches')}
-                      </span>
+                      <Badge tone="accent" className="shrink-0">{note.matches} {t('notes.matches')}</Badge>
                     ) : null}
                   </div>
                 </button>
@@ -491,42 +461,48 @@ export default function NotesTool() {
                 <span
                   role="status"
                   aria-live="polite"
-                  className={cn(
-                    'flex shrink-0 items-center gap-1 text-[12.5px]',
-                    status === 'error' ? 'text-bad' : status === 'saving' ? 'text-warn' : 'text-ok/80',
-                  )}
+                  className="flex shrink-0 items-center"
                   title={status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
                 >
-                  {status === 'saving' ? <Spinner /> : <Icon name={status === 'error' ? 'bell' : 'check'} size={11} />}
-                  <span className="hidden sm:inline">
-                    {status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
-                  </span>
+                  <Badge tone={status === 'error' ? 'bad' : status === 'saving' ? 'warn' : 'ok'}>
+                    {status === 'saving' ? <Spinner /> : <Icon name={status === 'error' ? 'bell' : 'check'} size={11} />}
+                    <span className="hidden sm:inline">
+                      {status === 'saving' ? t('notes.saving') : status === 'error' ? t('err.save') : t('notes.autoSaved')}
+                    </span>
+                  </Badge>
                 </span>
                 <span aria-hidden="true" className="text-muted/35">·</span>
-                <span className="hidden text-[12px] text-muted sm:inline">{active.body.length} {t('notes.characters')}</span>
+                <span className="hidden text-[12px] text-muted tabular-nums sm:inline">{active.body.length} {t('notes.characters')}</span>
                 {bodyMatchCount ? (
-                  <div className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-panel2/50 px-1.5 py-0.5">
+                  <div className="flex shrink-0 items-center gap-1 rounded-control border border-line bg-panel2/50 px-1.5 py-0.5">
                     <span className="mono text-[12.5px] tabular-nums text-muted">
                       {activeMatch + 1}/{bodyMatchCount}
                     </span>
-                    <button
-                      type="button"
+                    <IconButton
+                      icon="chevronDown"
+                      size="xs"
                       data-action="notes:jump"
                       onClick={jumpNext}
-                      className="grid size-5 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-panel2 hover:text-ink"
-                      title={t('notes.jumpNext')}
-                      aria-label={t('notes.jumpNext')}
-                    >
-                      <Icon name="chevronDown" size={11} />
-                    </button>
+                      label={t('notes.jumpNext')}
+                    />
                   </div>
                 ) : null}
-                <button type="button" className="btn" data-action="notes:download" onClick={download} title={t('notes.download')} aria-label={t('notes.download')}>
-                  <Icon name="download" />
-                </button>
-                <button type="button" className="btn btn-danger ml-0.5" data-action="notes:delete" onClick={() => remove(active.id)} title={t("common.delete")}>
-                  <Icon name="trash" />
-                </button>
+                <IconButton
+                  icon="download"
+                  size="md"
+                  data-action="notes:download"
+                  onClick={download}
+                  label={t('notes.download')}
+                />
+                <IconButton
+                  icon="trash"
+                  size="md"
+                  tone="danger"
+                  className="ml-0.5"
+                  data-action="notes:delete"
+                  onClick={() => remove(active.id)}
+                  label={t('common.delete')}
+                />
               </div>
               <div className="relative flex min-h-0 flex-1">
                 <div

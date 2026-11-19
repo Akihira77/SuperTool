@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon, cn } from './ui';
+import { DropdownMenu, Icon, cn } from './ui';
 import { useI18n } from '../lib/i18n';
-import { useMenu } from '../lib/useMenu';
 import type { ToolSession } from '../lib/sessions';
 
 type SessionTool = { id: string; key: string; label: string; icon: string };
@@ -33,15 +32,12 @@ export function SessionTabs({
   const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const [addOpen, setAddOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
   const addTriggerRef = useRef<HTMLButtonElement>(null);
-  const addMenuRef = useRef<HTMLDivElement>(null);
-  const { onTriggerKeyDown } = useMenu(addOpen, setAddOpen, addTriggerRef, addMenuRef);
 
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -248,51 +244,27 @@ export function SessionTabs({
         })}
       </div>
       <div className="relative shrink-0">
-        <button
-          ref={addTriggerRef}
-          type="button"
-          className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-panel2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
-          onClick={() => setAddOpen((open) => !open)}
-          onKeyDown={onTriggerKeyDown}
-          disabled={sessions.length >= max}
-          aria-label={t('session.add')}
-          aria-haspopup="menu"
-          aria-controls={addOpen ? 'session-add-menu' : undefined}
-          aria-expanded={addOpen}
-          title={sessions.length >= max ? t('session.max') : t('session.add')}
-        >
-          <Icon name="plus" size={15} />
-        </button>
-        {addOpen ? (
-          <div
-            ref={addMenuRef}
-            id="session-add-menu"
-            role="menu"
-            aria-label={t('session.addTool')}
-            className="absolute top-full right-0 z-50 mt-1 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-panel p-1 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]"
-          >
-            <div className="px-2 py-1.5 text-[12.5px] font-semibold tracking-wide text-muted uppercase">
-              {t('session.addTool')}
-            </div>
-            {tools.map((tool) => (
-              <button
-                key={tool.id}
-                type="button"
-                role="menuitem"
-                className="flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-ink/85 transition-colors hover:bg-panel2 hover:text-ink"
-                onClick={() => {
-                  onAdd(tool.id);
-                  setAddOpen(false);
-                  addTriggerRef.current?.focus();
-                }}
-              >
-                <Icon name={tool.icon} size={13} className="shrink-0 text-muted" />
-                <span className="min-w-0 flex-1 truncate">{labelFor(tool, tool.label)}</span>
-                <span className="text-[12.5px] text-muted/50">{tool.id}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <DropdownMenu
+          menuId="session-add-menu"
+          label={t('session.addTool')}
+          triggerIcon="plus"
+          triggerAriaLabel={t('session.add')}
+          triggerTitle={sessions.length >= max ? t('session.max') : t('session.add')}
+          triggerDisabled={sessions.length >= max}
+          triggerRef={addTriggerRef}
+          triggerSize="lg"
+          entries={[
+            { id: 'session-add-label', type: 'label', label: t('session.addTool') },
+            ...tools.map((tool) => ({
+              id: tool.id,
+              type: 'item' as const,
+              label: labelFor(tool, tool.label),
+              icon: tool.icon,
+              shortcut: tool.id,
+              onSelect: () => onAdd(tool.id),
+            })),
+          ]}
+        />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon, Spinner, cn } from '../../components/ui';
+import { Badge, Button, CopyButton, Input, Select } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { bytes } from '../../lib/format';
@@ -120,34 +120,41 @@ export default function LogsTab() {
   };
 
   const counts = LEVELS.map((item) => ({ item, n: lines.filter((line) => levelOf(line) === item).length }));
+  const levelOptions = [
+    { value: '', label: t('logs.allLevels') + ' (' + lines.length + ')' },
+    ...counts.map((entry) => ({ value: entry.item, label: entry.item + ' (' + entry.n + ')' })),
+  ];
   const needle = filter.trim().toLowerCase();
   const shown = lines.filter((line) => {
     if (level && levelOf(line) !== level) return false;
     return !needle || line.toLowerCase().includes(needle);
   });
+  const visibleText = shown.length ? shown.join(String.fromCharCode(10)) : t('logs.emptyFiltered');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           value={path}
           onChange={(event) => setPath(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && void load(path)}
           placeholder="/var/log/nginx/error.log"
-          className="input mono flex-1 py-1.5"
+          aria-label="Berkas log"
+          className="mono min-w-0 flex-1 py-1.5"
           spellCheck={false}
         />
-        <button type="button" className="btn" onClick={() => void load(path)} disabled={busy}>
-          {busy ? <Spinner /> : <Icon name="refresh" />} {t('common.reload')}
-        </button>
-        <button
-          type="button"
-          className={cn('btn cursor-pointer', live && 'btn-primary')}
+        <Button icon="refresh" loading={busy} onClick={() => void load(path)} disabled={busy}>
+          {t('common.reload')}
+        </Button>
+        <Button
+          variant={live ? 'primary' : 'default'}
+          icon={live ? 'x' : 'play'}
+          aria-pressed={live}
           onClick={() => (live ? stopLive() : void startLive())}
           disabled={!path.trim()}
         >
-          <Icon name={live ? 'x' : 'play'} /> {live ? 'Stop' : 'Live'}
-        </button>
+          {live ? 'Stop' : 'Live'}
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-1">
@@ -159,7 +166,7 @@ export default function LogsTab() {
               setPath(preset);
               void load(preset);
             }}
-            className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
+            className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted transition-colors hover:border-accent/50 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
             title={preset}
           >
             {preset.replace('/var/log/', '')}
@@ -174,7 +181,7 @@ export default function LogsTab() {
               key={item.path}
               type="button"
               onClick={() => { setPath(item.path); void load(item.path); }}
-              className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted hover:border-accent/50 hover:text-ink"
+              className="max-w-full cursor-pointer truncate rounded border border-line px-2 py-0.5 text-[12px] text-muted transition-colors hover:border-accent/50 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
               title={item.path}
             >
               {item.path.split('/').pop()}
@@ -184,27 +191,26 @@ export default function LogsTab() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
-        <input
+        <Input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder={t('logs.searchHint')}
-          className="input mono w-56 py-1"
+          aria-label={t('logs.searchHint')}
+          className="mono w-56 py-1"
         />
-        <select value={level} onChange={(event) => setLevel(event.target.value as Level)} className="input w-32 py-1 text-[12.5px]" aria-label={t('logs.level')}>
-          <option value="">{t('logs.allLevels')} ({lines.length})</option>
-          {counts.map((entry) => <option key={entry.item} value={entry.item}>{entry.item} ({entry.n})</option>)}
-        </select>
-        <span>{shown.length} {t('logs.rows')}</span>
-        {info ? <span>· {bytes(info.size)} · {info.path}</span> : null}
-        {live ? <span className="text-ok">● live</span> : null}
+        <Select value={level} onChange={(next) => setLevel(next as Level)} options={levelOptions} size="sm" label={t('logs.level')} className="w-40" />
+        <span className="tabular-nums">{shown.length} {t('logs.rows')}</span>
+        {info ? <span className="tabular-nums">· {bytes(info.size)} · {info.path}</span> : null}
+        {live ? <Badge tone="ok">● live</Badge> : null}
         {error ? <span className="text-bad">{error}</span> : null}
+        {shown.length ? <CopyButton text={visibleText} size="sm" /> : null}
       </div>
 
       <pre
         ref={boxRef}
         className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[13px] leading-relaxed whitespace-pre-wrap"
       >
-        {shown.length ? shown.join(String.fromCharCode(10)) : t('logs.emptyFiltered')}
+        {visibleText}
       </pre>
     </div>
   );

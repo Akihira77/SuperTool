@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, cn } from './ui';
+import { Button, Icon, Input, Select, Switch } from './ui';
 import { useToast } from './toast';
 import { useI18n } from '../lib/i18n';
 import {
@@ -82,8 +82,8 @@ export function PrayerSettings() {
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.cityName')}</span>
-          <input
-            className="input py-1.5 text-[13px]"
+          <Input
+            className="py-1.5 text-[13px]"
             type="text"
             maxLength={80}
             placeholder="Jakarta"
@@ -91,24 +91,27 @@ export function PrayerSettings() {
             onChange={(event) => setLabelText(event.target.value)}
           />
         </label>
-        <label className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.city')}</span>
-          <select className="input py-1.5 text-[13px]" value="" onChange={(event) => pickCity(event.target.value)}>
-            <option value="">{t('prayer.settings.cityPlaceholder')}</option>
-            {PRAYER_CITIES.map((city) => (
-              <option key={city.name} value={city.name}>
-                {city.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            size="sm"
+            value=""
+            onChange={pickCity}
+            label={t('prayer.settings.city')}
+            placeholder={t('prayer.settings.cityPlaceholder')}
+            options={[
+              { value: '', label: t('prayer.settings.cityPlaceholder') },
+              ...PRAYER_CITIES.map((city) => ({ value: city.name, label: city.name })),
+            ]}
+          />
+        </div>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.latitude')}</span>
-          <input
-            className="input py-1.5 text-[13px]"
+          <Input
+            className="py-1.5 text-[13px]"
             type="number"
             step="any"
             inputMode="decimal"
@@ -119,8 +122,8 @@ export function PrayerSettings() {
         </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="label">{t('prayer.settings.longitude')}</span>
-          <input
-            className="input py-1.5 text-[13px]"
+          <Input
+            className="py-1.5 text-[13px]"
             type="number"
             step="any"
             inputMode="decimal"
@@ -130,53 +133,42 @@ export function PrayerSettings() {
           />
         </label>
         <div className="flex items-end">
-          <button type="button" className="btn cursor-pointer" onClick={saveLocation}>
-            <Icon name="check" size={13} /> {t('prayer.settings.saveLocation')}
-          </button>
+          <Button icon="check" onClick={saveLocation}>
+            {t('prayer.settings.saveLocation')}
+          </Button>
         </div>
       </div>
-      {error ? <div className="text-[12.5px] text-bad">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="field-error">
+          {error}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
         <span className="text-[12.5px] text-muted">{t('prayer.settings.soundHint')}</span>
-        <button type="button" className="btn cursor-pointer px-2 py-1 text-[12px]" onClick={playChime}>
-          <Icon name="volume" size={12} /> {t('prayer.settings.testSound')}
-        </button>
+        <Button size="sm" icon="volume" onClick={playChime}>
+          {t('prayer.settings.testSound')}
+        </Button>
       </div>
 
       <div className="grid gap-2 border-t border-line pt-3 sm:grid-cols-2">
-        <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.sound ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
-          <span className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-              <Icon name="volume" size={13} className="text-accent/80" /> {t('prayer.settings.sound')}
-            </span>
-            <span className="text-[12px] text-muted">{t('prayer.settings.soundDesc')}</span>
-          </span>
-          <input
-            type="checkbox"
-            className="size-4 shrink-0 accent-accent"
-            checked={settings.sound}
-            onChange={(event) => {
-              const enabled = event.target.checked;
-              apply({ sound: enabled });
-              if (enabled) playChime();
-            }}
-          />
-        </label>
-        <label className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2', settings.popup ? 'border-accent/40 bg-accent/5' : 'border-line bg-panel2/30')}>
-          <span className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-              <Icon name="bell" size={13} className="text-accent/80" /> {t('prayer.settings.popup')}
-            </span>
-            <span className="text-[12px] text-muted">{t('prayer.settings.popupDesc')}</span>
-          </span>
-          <input
-            type="checkbox"
-            className="size-4 shrink-0 accent-accent"
-            checked={settings.popup}
-            onChange={(event) => apply({ popup: event.target.checked })}
-          />
-        </label>
+        <Switch
+          checked={settings.sound}
+          onChange={(enabled) => {
+            apply({ sound: enabled });
+            if (enabled) playChime();
+          }}
+          icon="volume"
+          label={t('prayer.settings.sound')}
+          description={t('prayer.settings.soundDesc')}
+        />
+        <Switch
+          checked={settings.popup}
+          onChange={(enabled) => apply({ popup: enabled })}
+          icon="bell"
+          label={t('prayer.settings.popup')}
+          description={t('prayer.settings.popupDesc')}
+        />
       </div>
     </div>
   );

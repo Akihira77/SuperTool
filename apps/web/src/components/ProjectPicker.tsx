@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { useFocusTrap } from '../lib/useFocusTrap';
 import { useMenu } from '../lib/useMenu';
-import { Icon, Spinner, cn } from './ui';
+import { Dialog, Icon, Spinner, cn } from './ui';
 import { api, ApiError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { cleanPath, projectName, useProject } from '../lib/project';
@@ -24,12 +23,10 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const requestRef = useRef(0);
   const dialogOpen = Boolean(picker || busy || error);
   const { onTriggerKeyDown } = useMenu(open, setOpen, triggerRef, menuRef);
-  useFocusTrap(dialogOpen, dialogRef, closeRef);
 
   const browse = useCallback(async (path: string) => {
     const request = ++requestRef.current;
@@ -124,7 +121,7 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} />
           </button>
           {open ? (
-            <div ref={menuRef} id="project-menu" aria-label={t('project.choose')} className="absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1 rounded-lg border border-line bg-panel p-1.5 shadow-2xl" role="menu">
+            <div ref={menuRef} id="project-menu" aria-label={t('project.choose')} className="popover absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1" role="menu">
               <div className="px-1.5 pt-1 pb-0.5 label">{t('project.choose')}</div>
               <button type="button" role="menuitem" className="nav-item w-full" onClick={() => void openPicker()}>
                 <Icon name="folderPlus" size={14} /> {t('project.pick')}
@@ -152,23 +149,15 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
         {right}
       </div>
 
-      {dialogOpen ? (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/55 p-3 sm:p-4" onMouseDown={closePicker}>
-          <div
-            ref={dialogRef}
-            tabIndex={-1}
-            className="flex max-h-[min(80vh,42rem)] w-full max-w-lg flex-col gap-2 rounded-xl border border-line bg-panel p-3 shadow-2xl outline-none sm:p-4"
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation();
-                closePicker();
-              }
-            }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="project-picker-title"
-          >
+      <Dialog
+        open={dialogOpen}
+        onClose={closePicker}
+        size="lg"
+        initialFocusRef={closeRef}
+        labelledBy="project-picker-title"
+        backdropClassName="z-[65] p-3 sm:p-4"
+        className="max-h-[min(80vh,42rem)] gap-2 p-3 sm:p-4"
+      >
             <div className="flex items-center gap-2">
               <Icon name="files" size={15} className="text-accent" />
               <span id="project-picker-title" className="text-[14px] font-medium">{t('project.pickTitle')}</span>
@@ -219,9 +208,7 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
                 <Icon name="check" size={13} /> {t('project.use')}
               </button>
             </div>
-          </div>
-        </div>
-      ) : null}
+      </Dialog>
     </>
   );
 }

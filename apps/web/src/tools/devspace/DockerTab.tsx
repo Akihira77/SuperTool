@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Spinner, cn } from '../../components/ui';
+import { Badge, Button, Card, Empty, Icon, IconButton, Input, Panel, SegmentedControl, Spinner, cn } from '../../components/ui';
 import { api, ApiError, qs } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { useConfirm } from '../../components/confirm';
@@ -72,7 +72,7 @@ function SortTh<K extends string>({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={cn('inline-flex items-center gap-1 hover:text-ink', active ? 'text-ink' : 'text-muted')}
+        className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus', active ? 'text-ink' : 'text-muted')}
       >
         {label}
         <span className="text-[12.5px] opacity-70">{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
@@ -262,35 +262,33 @@ export default function DockerTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1">
-          {(['containers', 'images', 'compose'] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => { setView(item); if (item === 'compose') void loadCompose(); else void load(item); }}
-              className={cn('chip cursor-pointer', view === item && 'border-accent/60 bg-accent/15 text-accent')}
-            >
-              {t(item === 'containers' ? 'docker.tabContainers' : item === 'images' ? 'docker.tabImages' : 'docker.tabCompose')}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Tampilan"
+          value={view}
+          onChange={(next) => { setView(next); if (next === 'compose') void loadCompose(); else void load(next); }}
+          items={[
+            { id: 'containers', label: t('docker.tabContainers') },
+            { id: 'images', label: t('docker.tabImages') },
+            { id: 'compose', label: t('docker.tabCompose') },
+          ]}
+        />
         {view !== 'compose' ? (
           <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
             <Icon name="search" size={14} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-muted" />
-            <input
+            <Input
               value={view === 'containers' ? containerQuery : imageQuery}
               onChange={(event) =>
                 view === 'containers' ? setContainerQuery(event.target.value) : setImageQuery(event.target.value)
               }
               placeholder={t(view === 'containers' ? 'docker.searchContainers' : 'docker.searchImages')}
               aria-label={t(view === 'containers' ? 'docker.searchContainers' : 'docker.searchImages')}
-              className="input w-full py-1.5 pl-8 text-[13px]"
+              className="py-1.5 pl-8 text-[13px]"
             />
           </div>
         ) : <div className="flex-1" />}
-        <button type="button" className="btn" onClick={() => void (view === 'compose' ? loadCompose() : load(view))} disabled={busy || composeBusy}>
-          {busy ? <Spinner /> : <Icon name="refresh" />} {t('common.reload')}
-        </button>
+        <Button icon="refresh" loading={busy} onClick={() => void (view === 'compose' ? loadCompose() : load(view))} disabled={busy || composeBusy}>
+          {t('common.reload')}
+        </Button>
         <span className="hidden text-[12px] text-muted md:inline">{t('docker.controlHint')}</span>
       </div>
 
@@ -298,16 +296,17 @@ export default function DockerTab() {
 
       {view === 'compose' ? (
         <div className="flex min-h-0 flex-1 gap-3">
-          <div className="w-56 shrink-0 overflow-auto rounded-lg border border-line">
-            <div className="border-b border-line px-3 py-2 text-[12px] font-medium tracking-wide text-muted uppercase">{t('docker.composeProjects')}</div>
+          <Panel className="w-56 shrink-0 overflow-auto">
+            <div className="sticky top-0 z-10 border-b border-line bg-panel px-3 py-2 text-[12px] font-medium tracking-wide text-muted uppercase">{t('docker.composeProjects')}</div>
             {compose.map((item) => (
               <button
                 key={item.name}
                 type="button"
+                aria-pressed={composeDetail?.name === item.name}
                 onClick={() => void openCompose(item.name)}
                 disabled={!item.available}
                 className={cn(
-                  'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left text-[13px] hover:bg-panel2/60 disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex w-full cursor-pointer flex-col gap-0.5 border-b border-line/60 px-3 py-2 text-left text-[13px] transition-colors hover:bg-panel2/60 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50',
                   composeDetail?.name === item.name && 'bg-accent/10 text-accent',
                 )}
               >
@@ -316,25 +315,25 @@ export default function DockerTab() {
               </button>
             ))}
             {!compose.length && !composeBusy ? <div className="p-3 text-[13px] text-muted">{t('docker.composeEmpty')}</div> : null}
-          </div>
+          </Panel>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {composeDetail ? (
-              <div className="card flex flex-col gap-3 p-3">
+              <Card className="flex flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mono text-[13.5px] text-ink">{composeDetail.name}</span>
-                  <span className="chip">{composeDetail.status}</span>
+                  <Badge>{composeDetail.status}</Badge>
                   <div className="ml-auto flex flex-wrap items-center gap-1">
-                    <button type="button" className="btn px-2 py-1 text-[12px]" disabled={composeBusy} onClick={() => void runComposeAction('up')}>{t('docker.composeUp')}</button>
-                    <button type="button" className="btn px-2 py-1 text-[12px]" disabled={composeBusy} onClick={() => void runComposeAction('restart')}>{t('docker.composeRestartAll')}</button>
-                    <button type="button" className="btn px-2 py-1 text-[12px] text-bad" disabled={composeBusy} onClick={() => void runComposeAction('down')}>{t('docker.composeDown')}</button>
+                    <Button size="sm" disabled={composeBusy} onClick={() => void runComposeAction('up')}>{t('docker.composeUp')}</Button>
+                    <Button size="sm" disabled={composeBusy} onClick={() => void runComposeAction('restart')}>{t('docker.composeRestartAll')}</Button>
+                    <Button size="sm" variant="danger" disabled={composeBusy} onClick={() => void runComposeAction('down')}>{t('docker.composeDown')}</Button>
                     {composeBusy ? <Spinner /> : null}
                   </div>
                 </div>
                 <div className="mono truncate text-[12.5px] text-muted" title={composeDetail.configFiles.join('\n')}>{composeDetail.configFiles.join(' · ')}</div>
                 <div className="overflow-auto rounded-lg border border-line">
                   <table className="w-full border-collapse text-[13px]">
-                    <thead className="bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
+                    <thead className="sticky top-0 z-10 bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
                       <tr>
                         <th className="border-b border-line px-3 py-2 font-medium">{t('docker.composeService')}</th>
                         <th className="border-b border-line px-3 py-2 font-medium">{t('docker.colStatus')}</th>
@@ -345,18 +344,18 @@ export default function DockerTab() {
                     </thead>
                     <tbody>
                       {composeDetail.services.map((service) => (
-                        <tr key={service.service} className="cursor-pointer border-b border-line/60 hover:bg-panel2/60" onClick={() => void openComposeLogs(service.service)}>
+                        <tr key={service.service} className="cursor-pointer border-b border-line/60 odd:bg-panel/20 hover:bg-panel2/60" onClick={() => void openComposeLogs(service.service)}>
                           <td className="px-3 py-1.5 text-ink">{service.service}</td>
                           <td className="px-3 py-1.5 text-muted">
-                            <span className={cn('mr-1 inline-block h-1.5 w-1.5 rounded-full', service.state === 'running' ? 'bg-ok' : 'bg-muted/60')} />
+                            <span className={cn('mr-1 inline-block size-1.5 rounded-full', service.state === 'running' ? 'bg-ok' : 'bg-muted/60')} />
                             {service.state}{service.health ? ' · ' + service.health : ''}
                           </td>
                           <td className="mono px-3 py-1.5 text-muted">{service.image}</td>
-                          <td className="mono px-3 py-1.5 text-muted">{service.ports}</td>
+                          <td className="mono px-3 py-1.5 tabular-nums text-muted">{service.ports}</td>
                           <td className="px-3 py-1.5" onClick={(event) => event.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
-                              <button type="button" className="btn btn-ghost px-1.5 py-0.5" title={t('docker.restart')} aria-label={t('docker.restart')} disabled={composeBusy} onClick={() => void runComposeAction('restart', service.service)}><Icon name="restart" size={13} /></button>
-                              <button type="button" className="btn btn-ghost px-1.5 py-0.5" title={t('docker.stop')} aria-label={t('docker.stop')} disabled={composeBusy} onClick={() => void runComposeAction('stop', service.service)}><Icon name="stop" size={13} /></button>
+                              <IconButton icon="restart" label={t('docker.restart')} size="sm" disabled={composeBusy} onClick={() => void runComposeAction('restart', service.service)} />
+                              <IconButton icon="stop" label={t('docker.stop')} size="sm" disabled={composeBusy} onClick={() => void runComposeAction('stop', service.service)} />
                             </div>
                           </td>
                         </tr>
@@ -365,20 +364,22 @@ export default function DockerTab() {
                   </table>
                   {!composeDetail.services.length ? <div className="p-3 text-[13px] text-muted">{t('docker.composeNoServices')}</div> : null}
                 </div>
-              </div>
+              </Card>
             ) : (
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-line text-[13px] text-muted">{t('docker.composePick')}</div>
+              <Card className="flex flex-1 flex-col overflow-hidden">
+                <Empty icon="dev" text={t('docker.composePick')} />
+              </Card>
             )}
 
             {composeLogs ? (
-              <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-line">
+              <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[13px]">
                   <Icon name="dev" size={13} className="text-accent" />
                   <span className="mono truncate">{composeDetail?.name}/{composeLogs.service}</span>
-                  <button type="button" className="btn btn-ghost ml-auto px-1.5 py-0.5" onClick={() => setComposeLogs(null)} title={t('common.close')} aria-label={t('common.close')}><Icon name="x" size={13} /></button>
+                  <IconButton className="ml-auto" icon="x" label={t('common.close')} size="sm" onClick={() => setComposeLogs(null)} />
                 </div>
                 <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[12.5px] leading-relaxed whitespace-pre-wrap">{composeLogs.text || t('docker.logsEmpty')}</pre>
-              </div>
+              </Card>
             ) : null}
           </div>
         </div>
@@ -386,7 +387,7 @@ export default function DockerTab() {
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line">
           <table className="w-full border-collapse text-[13px]">
-            <thead className="sticky top-0 bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
+            <thead className="sticky top-0 z-10 bg-panel text-left text-[12px] tracking-wide text-muted uppercase">
               {view === 'containers' ? (
                 <tr>
                   <SortTh
@@ -435,17 +436,17 @@ export default function DockerTab() {
                     <tr
                       key={item.id}
                       onClick={() => void openLogs(item)}
-                      className="cursor-pointer border-b border-line/60 hover:bg-panel2/60"
+                      className="cursor-pointer border-b border-line/60 odd:bg-panel/20 hover:bg-panel2/60"
                     >
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          <span className={cn('h-1.5 w-1.5 rounded-full', item.running ? 'bg-ok' : 'bg-muted/60')} />
+                          <span className={cn('size-1.5 rounded-full', item.running ? 'bg-ok' : 'bg-muted/60')} />
                           <span className="truncate text-ink">{item.name}</span>
                         </div>
                       </td>
                       <td className="mono px-3 py-1.5 text-muted">{item.image}</td>
                       <td className="px-3 py-1.5 text-muted">{item.status}</td>
-                      <td className="mono px-3 py-1.5 text-muted">{item.ports}</td>
+                      <td className="mono px-3 py-1.5 tabular-nums text-muted">{item.ports}</td>
                       <td className="px-3 py-1.5" onClick={(event) => event.stopPropagation()}>
                         {acting?.id === item.id ? (
                           <div className="flex justify-end"><Spinner /></div>
@@ -453,95 +454,73 @@ export default function DockerTab() {
                           <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                             {item.running ? (
                               <>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost px-1.5 py-0.5"
+                                <IconButton
+                                  icon="stop"
+                                  label={t('docker.stop')}
+                                  size="sm"
                                   onClick={() => void runAction(item, 'stop')}
                                   disabled={Boolean(acting) || busy}
-                                  title={t('docker.stop')}
-                                  aria-label={t('docker.stop')}
-                                >
-                                  <Icon name="stop" size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost px-1.5 py-0.5"
+                                />
+                                <IconButton
+                                  icon="restart"
+                                  label={t('docker.restart')}
+                                  size="sm"
                                   onClick={() => void runAction(item, 'restart')}
                                   disabled={Boolean(acting) || busy}
-                                  title={t('docker.restart')}
-                                  aria-label={t('docker.restart')}
-                                >
-                                  <Icon name="restart" size={13} />
-                                </button>
+                                />
                               </>
                             ) : (
-                              <button
-                                type="button"
-                                className="btn btn-ghost px-1.5 py-0.5 text-ok"
+                              <IconButton
+                                icon="play"
+                                label={t('docker.start')}
+                                size="sm"
+                                className="text-ok"
                                 onClick={() => void runAction(item, 'start')}
                                 disabled={Boolean(acting) || busy}
-                                title={t('docker.start')}
-                                aria-label={t('docker.start')}
-                              >
-                                <Icon name="play" size={13} />
-                              </button>
+                              />
                             )}
-                            <button
-                              type="button"
-                              className="btn btn-ghost px-1.5 py-0.5 hover:text-bad"
+                            <IconButton
+                              icon="trash"
+                              label={t('docker.remove')}
+                              tone="danger"
+                              size="sm"
                               onClick={() => void runAction(item, 'remove')}
                               disabled={Boolean(acting) || busy}
-                              title={t('docker.remove')}
-                              aria-label={t('docker.remove')}
-                            >
-                              <Icon name="trash" size={13} />
-                            </button>
+                            />
                           </div>
                         )}
                       </td>
                     </tr>
                   ))
                 : visibleImages.map((item, index) => (
-                    <tr key={item.repo + item.tag + index} className="border-b border-line/60">
+                    <tr key={item.repo + item.tag + index} className="border-b border-line/60 odd:bg-panel/20 hover:bg-panel2/50">
                       <td className="px-3 py-1.5 text-ink">{item.repo}</td>
                       <td className="mono px-3 py-1.5 text-muted">{item.tag}</td>
-                      <td className="px-3 py-1.5 text-muted">{item.size}</td>
-                      <td className="px-3 py-1.5 text-muted">{item.created}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-muted">{item.size}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-muted">{item.created}</td>
                     </tr>
                   ))}
             </tbody>
           </table>
           {!busy && view === 'containers' && !visibleContainers.length ? (
-            <div className="p-4 text-[13px] text-muted">
-              {containers.length ? t('docker.noResults') : t('docker.empty')}
-            </div>
+            <Empty icon="dev" text={containers.length ? t('docker.noResults') : t('docker.empty')} />
           ) : null}
           {!busy && view === 'images' && !visibleImages.length ? (
-            <div className="p-4 text-[13px] text-muted">
-              {images.length ? t('docker.noResults') : t('docker.emptyImages')}
-            </div>
+            <Empty icon="dev" text={images.length ? t('docker.noResults') : t('docker.emptyImages')} />
           ) : null}
         </div>
 
         {logs ? (
-          <div className="flex w-1/2 min-w-0 flex-col rounded-lg border border-line">
+          <Card className="flex w-1/2 min-w-0 flex-col overflow-hidden">
             <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[13px]">
               <Icon name="dev" size={13} className="text-accent" />
               <span className="mono truncate">{logs.id}</span>
-              <button
-                type="button"
-                className="btn btn-ghost ml-auto px-1.5 py-0.5"
-                onClick={() => setLogs(null)}
-                title={t('common.close')}
-                aria-label={t('common.close')}
-              >
-                <Icon name="x" size={13} />
-              </button>
+              <IconButton className="ml-auto" icon="x" label={t('common.close')} size="sm" onClick={() => setLogs(null)} />
             </div>
             <pre className="mono min-h-0 flex-1 overflow-auto bg-[#070d14] p-3 text-[12.5px] leading-relaxed whitespace-pre-wrap">
               {logs.text || t('docker.logsEmpty')}
             </pre>
-          </div>
+          </Card>
         ) : null}
       </div>
       )}

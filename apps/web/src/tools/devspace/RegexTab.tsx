@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { cn } from '../../components/ui';
+import { Field, Input, Textarea, cn } from '../../components/ui';
 import { useI18n } from '../../lib/i18n';
 
 const FLAGS = ['g', 'i', 'm', 's', 'u'] as const;
@@ -48,41 +48,40 @@ export default function RegexTab() {
   return (
     <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 lg:grid-cols-2">
       <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Pattern</span>
-          <input value={pattern} onChange={(event) => setPattern(event.target.value)} className="input mono" spellCheck={false} />
-        </label>
+        <Field id="regex-pattern" label="Pattern">
+          <Input id="regex-pattern" value={pattern} onChange={(event) => setPattern(event.target.value)} className="mono" spellCheck={false} />
+        </Field>
 
         <div className="flex flex-wrap items-center gap-2">
           {FLAGS.map((flag) => (
             <button
               key={flag}
               type="button"
+              aria-pressed={flags.includes(flag)}
               onClick={() => setFlags(flags.includes(flag) ? flags.filter((item) => item !== flag) : [...flags, flag])}
-              className={cn('chip cursor-pointer', flags.includes(flag) && 'border-accent/60 bg-accent/15 text-accent')}
+              className={cn('chip cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus', flags.includes(flag) && 'border-accent/60 bg-accent/15 text-accent')}
             >
               {flag}
             </button>
           ))}
-          <span className={cn('text-[12.5px]', result.error ? 'text-bad' : 'text-muted')}>
+          <span className={cn('tabular-nums text-[12.5px]', result.error ? 'text-bad' : 'text-muted')}>
             {result.error || result.hits.length + ' kecocokan'}
           </span>
         </div>
 
-        <label className="flex min-h-0 flex-1 flex-col gap-1">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Teks uji</span>
-          <textarea
+        <Field id="regex-text" label="Teks uji" className="min-h-0 flex-1">
+          <Textarea
+            id="regex-text"
             value={text}
             onChange={(event) => setText(event.target.value)}
             spellCheck={false}
-            className="input mono min-h-[220px] flex-1 resize-none"
+            className="mono min-h-[220px] flex-1 resize-none"
           />
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-[12px] tracking-wide text-muted uppercase">Ganti dengan</span>
-          <input value={replacement} onChange={(event) => setReplacement(event.target.value)} className="input mono" spellCheck={false} />
-        </label>
+        <Field id="regex-replacement" label="Ganti dengan">
+          <Input id="regex-replacement" value={replacement} onChange={(event) => setReplacement(event.target.value)} className="mono" spellCheck={false} />
+        </Field>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -107,8 +106,8 @@ export default function RegexTab() {
             <table className="w-full border-collapse text-[13px]">
               <tbody>
                 {result.hits.map((hit, index) => (
-                  <tr key={index} className="border-b border-line/60 last:border-0">
-                    <td className="mono px-2 py-1 text-muted">#{index + 1}</td>
+                  <tr key={index} className="border-b border-line/60 odd:bg-panel/20 last:border-0 hover:bg-panel2/50">
+                    <td className="mono px-2 py-1 tabular-nums text-muted">#{index + 1}</td>
                     <td className="mono px-2 py-1 text-ink">{hit.text}</td>
                     <td className="mono px-2 py-1 text-muted">{hit.groups.join(' · ')}</td>
                   </tr>

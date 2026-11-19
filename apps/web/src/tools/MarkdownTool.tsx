@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { CopyButton, Icon, PageHeader, cn } from '../components/ui';
+import { Button, CopyButton, IconButton, PageHeader, SegmentedControl, Toolbar, cn } from '../components/ui';
 import { useI18n } from '../lib/i18n';
 import { renderMarkdown } from '../lib/markdown';
 
@@ -134,28 +134,32 @@ export default function MarkdownTool() {
         }
         icon="markdown"
       >
-        <div className="flex items-center gap-0.5 rounded-[10px] border border-line bg-panel2/55 p-0.5">
-          {(['split', 'edit', 'preview'] as View[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setView(mode)}
-              className={cn(
-                'min-h-8 rounded-md px-2.5 py-1 text-[12.5px] font-medium capitalize transition-colors',
-                view === mode ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
-              )}
-            >
-              {mode === 'split' ? t('markdown.modeSplit') : mode === 'edit' ? t('markdown.modeEdit') : t('markdown.modePreview')}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          items={[
+            { id: 'split', label: t('markdown.modeSplit') },
+            { id: 'edit', label: t('markdown.modeEdit') },
+            { id: 'preview', label: t('markdown.modePreview') },
+          ]}
+          value={view}
+          onChange={setView}
+          label="Mode tampilan"
+          className="capitalize"
+        />
         <CopyButton text={html} label="HTML" />
-        <button type="button" className="btn" data-action="markdown:upload" onClick={() => fileRef.current?.click()} title={t('common.upload')} aria-label={t('common.upload')}>
-          <Icon name="folderPlus" size={13} />
-        </button>
-        <button type="button" className="btn" data-action="markdown:export" onClick={download} title={t('palette.act.export')} aria-label={t('palette.act.export')}>
-          <Icon name="download" size={13} />
-        </button>
+        <IconButton
+          icon="folderPlus"
+          size="md"
+          data-action="markdown:upload"
+          onClick={() => fileRef.current?.click()}
+          label={t('common.upload')}
+        />
+        <IconButton
+          icon="download"
+          size="md"
+          data-action="markdown:export"
+          onClick={download}
+          label={t('palette.act.export')}
+        />
         <input
           ref={fileRef}
           type="file"
@@ -167,18 +171,20 @@ export default function MarkdownTool() {
 
       {view !== 'preview' ? (
         <div className="flex shrink-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-line bg-panel/20 px-3 py-1.5">
-          {buttons.map((button) => (
-            <button key={button.label} type="button" title={button.title} onClick={button.run} className="btn btn-ghost min-h-8 shrink-0 px-2 py-1 text-[12.5px]">
-              {button.label}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-1">
-            <button type="button" className="btn btn-ghost btn-sm" data-action="markdown:sample" onClick={() => setText(SAMPLE)}>
+          <Toolbar label="Format" className="shrink-0 flex-nowrap">
+            {buttons.map((button) => (
+              <Button key={button.label} variant="ghost" size="sm" title={button.title} onClick={button.run}>
+                {button.label}
+              </Button>
+            ))}
+          </Toolbar>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" data-action="markdown:sample" onClick={() => setText(SAMPLE)}>
               {t('common.sample')}
-            </button>
-            <button type="button" className="btn btn-ghost btn-sm" data-action="markdown:clear" onClick={() => setText('')}>
+            </Button>
+            <Button variant="ghost" size="sm" data-action="markdown:clear" onClick={() => setText('')}>
               {t('common.clear')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

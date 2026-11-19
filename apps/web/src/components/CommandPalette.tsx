@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap';
 import { fuzzyMatch, splitHighlight } from '../lib/fuzzy';
-import { Icon, Spinner, cn } from './ui';
+import { Button, Icon, IconButton, SegmentedControl, Spinner, cn } from './ui';
 import { useI18n } from '../lib/i18n';
 import type { FilesSearchPayload } from '../lib/palette';
 
@@ -232,9 +232,7 @@ export default function CommandPalette({
       >
         <div className="flex items-center gap-2.5 border-b border-line bg-panel/80 px-4 py-3">
           {form ? (
-            <button type="button" className="cursor-pointer text-muted hover:text-ink" onClick={back} aria-label={t('palette.back')}>
-              <Icon name="back" size={14} />
-            </button>
+            <IconButton icon="back" label={t('palette.back')} size="sm" onClick={back} />
           ) : (
             <Icon name="search" size={15} className="text-muted" />
           )}
@@ -288,18 +286,17 @@ export default function CommandPalette({
               submitForm();
             }}
           >
-            <div className="flex items-center gap-1 rounded-lg border border-line p-0.5">
-              {(['name', 'content'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setForm({ ...form, mode })}
-                  className={cn('flex-1 cursor-pointer rounded-md px-2 py-1 text-[13px]', form.mode === mode ? 'bg-accent/15 text-accent' : 'text-muted hover:text-ink')}
-                >
-                  {mode === 'name' ? t('palette.modeName') : t('palette.modeContent')}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={form.mode}
+              onChange={(mode) => setForm({ ...form, mode })}
+              label={t('palette.searchFiles')}
+              className="w-full"
+              itemClassName="flex-1"
+              items={[
+                { id: 'name', label: t('palette.modeName') },
+                { id: 'content', label: t('palette.modeContent') },
+              ]}
+            />
             {formFields.map((item) => (
               <label key={item.key} className="flex flex-col gap-0.5">
                 <span className="text-[12.5px] tracking-wide text-muted uppercase">{item.label}</span>
@@ -327,9 +324,9 @@ export default function CommandPalette({
             ))}
             <div className="flex items-center gap-2 pt-0.5">
               <span className="text-[12.5px] text-muted">{t('palette.formHint')}</span>
-              <button type="button" className="btn btn-primary ml-auto cursor-pointer" onClick={submitForm}>
-                <Icon name="search" size={13} /> {t('palette.runSearch')}
-              </button>
+              <Button variant="primary" icon="search" className="ml-auto" onClick={submitForm}>
+                {t('palette.runSearch')}
+              </Button>
             </div>
           </div>
         ) : (

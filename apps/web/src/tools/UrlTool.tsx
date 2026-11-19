@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Empty, Icon, PageHeader, Spinner, cn } from '../components/ui';
+import { Badge, Button, Empty, Icon, IconButton, Input, PageHeader, Spinner, cn } from '../components/ui';
 import { api, ApiError, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent } from '../lib/palette';
@@ -291,29 +291,29 @@ export default function UrlTool() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="URL Viewer" subtitle={active ? active.url : t('viewer.subtitle')} icon="url">
-        <button type="button" className="btn" onClick={() => active && bump(active.id)} disabled={!active} title={t('common.reload')}>
-          <Icon name="refresh" /> {t('common.reload')}
-        </button>
-        <button type="button" className="btn" onClick={() => active && void probe(active)} disabled={!active || checking} title="Cek koneksi">
-          {checking ? <Spinner /> : <Icon name="play" />} Cek
-        </button>
+        <Button icon="refresh" onClick={() => active && bump(active.id)} disabled={!active} title={t('common.reload')}>
+          {t('common.reload')}
+        </Button>
+        <Button icon="play" loading={checking} onClick={() => active && void probe(active)} disabled={!active} title="Cek koneksi">
+          Cek
+        </Button>
         {active && opened.includes(active.id) ? (
-          <button type="button" className="btn" onClick={unload} title={t('viewer.unloadHint')}>
-            <Icon name="x" /> {t('viewer.unload')}
-          </button>
+          <Button icon="x" variant="subtle" onClick={unload} title={t('viewer.unloadHint')}>
+            {t('viewer.unload')}
+          </Button>
         ) : null}
         {active ? (
-          <button
-            type="button"
-            className={cn('btn cursor-pointer', active.proxy && 'btn-primary')}
+          <Button
+            variant={active.proxy ? 'primary' : 'subtle'}
+            aria-pressed={active.proxy}
             onClick={() => void toggleProxy(active)}
             title="Lewat server ini: melepas X-Frame-Options/CSP dan mem-proxy aset + WebSocket"
           >
             Proxy
-          </button>
+          </Button>
         ) : null}
         {active?.proxy ? (
-          <div className="flex items-center gap-0.5 rounded-[10px] border border-line bg-panel2/55 p-0.5">
+          <div role="group" aria-label="Mode proxy" className="seg">
             {([
               ['sub', 'Subdomain', 'Tiap target dapat origin sendiri: cookie, localStorage, dan /api/... bekerja normal'],
               ['path', 'Path', 'Satu origin, URL ditulis ulang. Cukup untuk halaman statis'],
@@ -326,10 +326,8 @@ export default function UrlTool() {
                   active && bump(active.id);
                 }}
                 title={hint}
-                className={cn(
-                  'cursor-pointer rounded-md px-2 py-1 text-[12.5px] transition-colors',
-                  mode === id ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink',
-                )}
+                aria-pressed={mode === id}
+                className="seg-item"
               >
                 {label}
               </button>
@@ -337,13 +335,13 @@ export default function UrlTool() {
           </div>
         ) : null}
         {active && openUrl ? (
-          <a className="btn" href={openUrl} target="_blank" rel="noreferrer" title={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'}>
+          <a className="btn" href={openUrl} target="_blank" rel="noreferrer" title={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'} aria-label={active.proxy ? 'Buka lewat proxy di tab baru' : 'Buka tab baru'}>
             <Icon name="external" />
           </a>
         ) : null}
       </PageHeader>
 
-      {error ? <div className="shrink-0 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">{error}</div> : null}
+      {error ? <div role="alert" className="shrink-0 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">{error}</div> : null}
 
       {active && !active.proxy ? (
         <div className="shrink-0 border-b border-line bg-accent/5 px-3 py-1.5 text-[12.5px] text-muted">
@@ -352,28 +350,28 @@ export default function UrlTool() {
       ) : null}
 
       {active?.proxy && mode === 'sub' && !subSrc ? (
-        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
+        <div role="status" className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
           Target terlalu panjang untuk mode subdomain, memakai mode path.
         </div>
       ) : null}
 
       {active?.proxy && mode === 'path' ? (
-        <div className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
+        <div role="status" className="shrink-0 border-b border-line bg-warn/10 px-3 py-1.5 text-[13px] text-warn">
           Mode path berjalan di origin aplikasi. Iframe disandbox tanpa akses same-origin;
           aplikasi yang butuh cookie/localStorage penuh sebaiknya pakai mode Subdomain.
         </div>
       ) : null}
 
       {active && status && !status.ok ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">
-          <Icon name="x" size={13} />
+        <div role="alert" className="flex shrink-0 items-center gap-2 border-b border-line bg-bad/10 px-3 py-1.5 text-[13px] text-bad">
+          <Icon name="x" size={13} className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">
             {t('viewer.cannotConnect')} {active.url}. {status.error ?? t('viewer.status') + ' ' + status.status}
           </span>
           {!active.proxy ? (
-            <button type="button" className="btn btn-ghost px-2 py-0.5 text-[12px]" onClick={() => void toggleProxy(active)}>
+            <Button size="sm" variant="ghost" onClick={() => void toggleProxy(active)}>
               Coba mode proxy
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}
@@ -387,26 +385,49 @@ export default function UrlTool() {
               </div>
             ) : (
               views.map((view) => (
-                <div key={view.id} className={cn('group mb-0.5 flex items-center rounded-lg pr-1 transition-colors', activeId === view.id ? 'bg-accent/12' : 'hover:bg-panel2/80')}>
-                  <button type="button" onClick={() => setActiveId(view.id)} className="min-w-0 flex-1 px-2.5 py-2 text-left">
+                <div
+                  key={view.id}
+                  className={cn(
+                    'group mb-0.5 flex items-center rounded-panel pr-1 transition-colors duration-[var(--duration-fast)]',
+                    activeId === view.id ? 'bg-accent/12 ring-1 ring-accent/25' : 'hover:bg-panel2/80 focus-within:bg-panel2/80',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(view.id)}
+                    aria-current={activeId === view.id ? 'true' : undefined}
+                    className="min-w-0 flex-1 rounded-panel px-2.5 py-2 text-left"
+                  >
                     <div className="flex items-center gap-1.5">
                       <span
+                        aria-hidden="true"
                         className={cn(
                           'h-1.5 w-1.5 shrink-0 rounded-full',
                           activeId !== view.id ? 'bg-muted/40' : !status ? 'bg-muted/40' : status.ok ? 'bg-ok' : 'bg-bad',
                         )}
                       />
                       <span className="truncate text-[13.5px] font-medium">{view.name}</span>
-                      {view.proxy ? <span className="rounded bg-accent/15 px-1 text-[12.5px] text-accent">proxy</span> : null}
+                      {view.proxy ? <Badge tone="accent" className="px-1.5 py-0 text-[11.5px]">proxy</Badge> : null}
                     </div>
                     <div className="truncate text-[12px] text-muted">{view.url}</div>
                   </button>
-                  <button type="button" onClick={() => startEdit(view)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Ubah">
-                    <Icon name="edit" size={13} />
-                  </button>
-                  <button type="button" onClick={() => void remove(view.id)} className="btn btn-ghost shrink-0 px-1 opacity-0 group-hover:opacity-100" title="Hapus">
-                    <Icon name="x" size={13} />
-                  </button>
+                  <IconButton
+                    icon="edit"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => startEdit(view)}
+                    label={'Ubah ' + view.name}
+                    tooltip="Ubah"
+                  />
+                  <IconButton
+                    icon="x"
+                    size="sm"
+                    tone="danger"
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => void remove(view.id)}
+                    label={'Hapus ' + view.name}
+                    tooltip="Hapus"
+                  />
                 </div>
               ))
             )}
@@ -422,27 +443,29 @@ export default function UrlTool() {
             {editingId ? (
               <div className="flex items-center justify-between text-[12px] text-accent">
                 <span>Ubah URL</span>
-                <button type="button" className="btn btn-ghost px-1 py-0 text-[12px]" data-action="viewer:add" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
+                <Button variant="ghost" size="sm" data-action="viewer:add" onClick={() => { setEditingId(''); setDraft({ name: '', url: '' }); }}>
                   batal
-                </button>
+                </Button>
               </div>
             ) : null}
-            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" aria-label={t("viewer.name")} className="input py-1.5 text-[13px]" />
-            <input
+            <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nama (opsional)" aria-label={t("viewer.name")} className="min-h-8 py-1.5 text-[13px]" />
+            <Input
               value={draft.url}
               onChange={(e) => setDraft({ ...draft, url: e.target.value })}
               placeholder="http://127.0.0.1:3000" aria-label={t("viewer.url")}
-              aria-invalid={draftInvalid}
-              className={cn('input py-1.5 text-[13px]', draftInvalid && 'border-bad')}
+              invalid={draftInvalid}
+              className="min-h-8 py-1.5 text-[13px]"
             />
             {draftInvalid ? <span className="text-[12.5px] text-bad">URL tidak valid</span> : null}
-            <button
+            <Button
               type="submit"
-              className="btn btn-primary w-full justify-center py-1.5 text-[13px]"
+              variant="primary"
+              icon={editingId ? 'check' : 'plus'}
+              className="w-full justify-center"
               disabled={!draftUrl}
             >
-              <Icon name={editingId ? 'check' : 'plus'} /> {editingId ? t('common.save') : t('viewer.addUrl')}
-            </button>
+              {editingId ? t('common.save') : t('viewer.addUrl')}
+            </Button>
           </form>
         </div>
 

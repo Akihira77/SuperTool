@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon, cn } from './ui';
+import { Button, Icon, IconButton, cn } from './ui';
 import { useI18n } from '../lib/i18n';
 import {
   PRAYER_LABEL_KEYS,
@@ -149,11 +149,11 @@ export function PrayerWidget() {
           throbTone === 'before' && 'prayer-throbber prayer-throbber-before',
         )}
       >
-      <button
+      <Button
         ref={triggerRef}
-        type="button"
+        size="sm"
         onClick={() => setOpen((prev) => !prev)}
-        className="btn min-h-7 cursor-pointer gap-1.5 px-2 py-1"
+        className="min-h-7 gap-1.5 px-2 py-1"
         title={dateText + ' · ' + clockText}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -175,11 +175,11 @@ export function PrayerWidget() {
           </span>
         ) : null}
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} className="shrink-0 text-muted" />
-      </button>
+      </Button>
       </div>
 
       {open ? (
-        <div id="prayer-popover" className="absolute top-full right-0 z-50 mt-1.5 w-72 rounded-xl border border-line bg-panel p-2 shadow-[0_24px_70px_-24px_rgb(0_0_0/0.9)]" role="dialog" aria-label={t('prayer.title')}>
+        <div id="prayer-popover" className="popover absolute top-full right-0 z-50 mt-1.5 w-72 p-2" role="dialog" aria-label={t('prayer.title')}>
           <div className="flex items-start gap-2 rounded-lg bg-panel2/45 px-2 py-2">
             <Icon name="bell" size={14} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
@@ -214,13 +214,9 @@ export function PrayerWidget() {
             </div>
           ) : (
             <div className="px-1.5 py-2">
-              <button
-                type="button"
-                className="btn btn-primary mt-2 w-full cursor-pointer justify-center"
-                onClick={openSettings}
-              >
-                <Icon name="pin" size={13} /> {t('prayer.setLocation')}
-              </button>
+              <Button variant="primary" icon="pin" className="mt-2 w-full justify-center" onClick={openSettings}>
+                {t('prayer.setLocation')}
+              </Button>
             </div>
           )}
 
@@ -250,14 +246,13 @@ export function PrayerWidget() {
               <div className="mono mt-0.5 text-[12px] text-muted">{formatClock(alert.at)}</div>
               <div className="mt-1 text-[12px] leading-snug text-muted">{t('prayer.reminderBody')}</div>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost shrink-0 cursor-pointer px-1 py-0.5"
+            <IconButton
+              icon="x"
+              label={t('common.close')}
+              size="sm"
+              className="shrink-0"
               onClick={() => setAlert(null)}
-              title={t('common.close')}
-            >
-              <Icon name="x" size={12} />
-            </button>
+            />
           </div>
         </div>
       ) : null}

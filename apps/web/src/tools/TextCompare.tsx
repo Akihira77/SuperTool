@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Icon, cn } from '../components/ui';
+import { Badge, Button, Card, Icon, IconButton, cn } from '../components/ui';
 import { useConfirm } from '../components/confirm';
 import { api, qs } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -68,7 +68,7 @@ function DiffSide({
       )}
       onMouseDown={() => onStart(side)}
     >
-      <span className="mono w-8 shrink-0 select-none text-right text-[12.5px] leading-5 text-muted/45">
+      <span className="mono w-8 shrink-0 select-none text-right text-[12.5px] leading-5 text-muted/45 tabular-nums">
         {lineNo ?? ''}
       </span>
       <div className="min-w-0 whitespace-pre-wrap break-words font-mono text-[12.5px] leading-5">
@@ -94,10 +94,10 @@ function InputPane({
   const { t } = useI18n();
   const lines = value ? value.split(/\r\n?|\n/).length : 0;
   return (
-    <div className="card overflow-hidden">
+    <Card className="overflow-hidden">
       <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
         <span className="text-[12.5px] font-medium">{label}</span>
-        <span className="mono text-[12.5px] text-muted">{lines} {t('compare.lines')}</span>
+        <span className="mono text-[12.5px] text-muted tabular-nums">{lines} {t('compare.lines')}</span>
       </div>
       <textarea
         ref={textareaRef}
@@ -108,7 +108,7 @@ function InputPane({
         spellCheck={false}
         className="block h-56 w-full resize-y bg-transparent p-3 font-mono text-[13px] leading-5 outline-none placeholder:text-muted/50"
       />
-    </div>
+    </Card>
   );
 }
 
@@ -147,7 +147,7 @@ function CompareHistory({
 
   return (
     <aside className="min-w-0 xl:sticky xl:top-3 xl:self-start">
-      <div className="card flex max-h-80 flex-col overflow-hidden xl:max-h-[calc(100vh-1.5rem)]">
+      <Card className="flex max-h-80 flex-col overflow-hidden xl:max-h-[calc(100vh-1.5rem)]">
         <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <Icon name="clock" size={13} className="shrink-0 text-muted" />
@@ -159,25 +159,23 @@ function CompareHistory({
               </span>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="shrink-0 rounded p-1 text-muted transition-colors hover:bg-panel2 hover:text-fg disabled:opacity-40"
+          <IconButton
+            icon="refresh"
+            size="sm"
             onClick={onRefresh}
             disabled={loading}
-            aria-label={t('compare.refresh')}
-            title={t('compare.refresh')}
-          >
-            <Icon name="refresh" size={11} className={cn(loading && 'animate-spin')} />
-          </button>
+            label={t('compare.refresh')}
+            children={<Icon name="refresh" size={13} className={cn(loading && 'animate-spin')} />}
+          />
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">
           {error ? (
-            <div className="mb-2 rounded-md border border-bad/30 bg-bad/10 px-2 py-1.5 text-[12.5px] text-bad">
+            <div role="alert" className="mb-2 rounded-control border border-bad/30 bg-bad/10 px-2 py-1.5 text-[12.5px] text-bad">
               <div className="break-words">{error}</div>
-              <button type="button" className="mt-1 underline underline-offset-2" onClick={onRetry}>
+              <Button variant="ghost" size="sm" className="mt-1 min-h-6 px-1 underline underline-offset-2" onClick={onRetry}>
                 {t('compare.retry')}
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -189,7 +187,7 @@ function CompareHistory({
           ) : null}
 
           {!loading && !error && !items.length ? (
-            <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-[12px] leading-5 text-muted">
+            <div className="rounded-panel border border-dashed border-line px-3 py-6 text-center text-[12px] leading-5 text-muted">
               <div>{t('compare.historyEmpty')}</div>
               <div className="mt-1 text-[12.5px] text-muted/60">{t('compare.historyHint')}</div>
             </div>
@@ -203,20 +201,24 @@ function CompareHistory({
               <div
                 key={item.id}
                 className={cn(
-                  'group relative mb-1.5 rounded-lg border transition-colors',
+                  'group relative mb-1.5 rounded-panel border transition-colors duration-[var(--duration-fast)]',
                   active
-                    ? 'border-accent/50 bg-accent/5'
-                    : 'border-line/60 bg-panel/20 hover:border-line hover:bg-panel2/50',
+                    ? 'border-accent/50 bg-accent/5 ring-1 ring-accent/20'
+                    : 'border-line/60 bg-panel/20 hover:border-line hover:bg-panel2/50 focus-within:border-line focus-within:bg-panel2/50',
                 )}
               >
                 <button
                   type="button"
-                  className="block w-full cursor-pointer px-2.5 py-2 pr-7 text-left"
+                  className={cn(
+                    'block w-full cursor-pointer rounded-panel px-2.5 py-2 pr-7 text-left',
+                    active && 'text-ink',
+                  )}
                   onClick={() => onOpen(item)}
+                  aria-current={active ? 'true' : undefined}
                   disabled={itemLoading || deleting}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="mono truncate text-[12.5px] text-muted/70">
+                    <span className="mono truncate text-[12.5px] text-muted/70 tabular-nums">
                       {new Date(item.createdAt).toLocaleString(undefined, {
                         month: 'short',
                         day: 'numeric',
@@ -224,13 +226,13 @@ function CompareHistory({
                         minute: '2-digit',
                       })}
                     </span>
-                    <span className="mono shrink-0 text-[12.5px] text-muted/55">
+                    <span className="mono shrink-0 text-[12.5px] text-muted/55 tabular-nums">
                       L{item.leftLines} / R{item.rightLines}
                     </span>
                   </div>
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[12.5px] leading-4">
                     <div className="min-w-0">
-                      <div className="mb-0.5 text-[12.5px] uppercase tracking-wide text-muted/50">
+                      <div className="mb-0.5 text-[11.5px] font-medium uppercase tracking-wide text-muted/50">
                         {t('compare.leftShort')}
                       </div>
                       <div className={cn('line-clamp-2 break-words text-muted', !item.leftPreview && 'italic text-muted/35')}>
@@ -238,7 +240,7 @@ function CompareHistory({
                       </div>
                     </div>
                     <div className="min-w-0 border-l border-line/40 pl-1.5">
-                      <div className="mb-0.5 text-[12.5px] uppercase tracking-wide text-muted/50">
+                      <div className="mb-0.5 text-[11.5px] font-medium uppercase tracking-wide text-muted/50">
                         {t('compare.rightShort')}
                       </div>
                       <div className={cn('line-clamp-2 break-words text-muted', !item.rightPreview && 'italic text-muted/35')}>
@@ -247,21 +249,22 @@ function CompareHistory({
                     </div>
                   </div>
                   {itemLoading ? (
-                    <div className="absolute inset-0 grid place-items-center rounded-lg bg-panel/70">
+                    <div className="absolute inset-0 grid place-items-center rounded-panel bg-panel/70">
                       <Icon name="refresh" size={13} className="animate-spin text-accent" />
                     </div>
                   ) : null}
                 </button>
-                <button
-                  type="button"
-                  className="absolute right-1 top-1 rounded p-1 text-muted/35 opacity-100 transition-colors hover:bg-bad/10 hover:text-bad focus:opacity-100 disabled:opacity-30 sm:opacity-0 sm:group-hover:opacity-100"
-                  aria-label={t('compare.delete')}
-                  title={t('compare.delete')}
+                <IconButton
+                  size="sm"
+                  tone="danger"
+                  className="absolute right-1 top-1 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
+                  label={t('compare.delete')}
+                  tooltip={t('compare.delete')}
                   disabled={deleting}
                   onClick={() => onDelete(item)}
                 >
-                  <Icon name={deleting ? 'refresh' : 'trash'} size={10} className={cn(deleting && 'animate-spin')} />
-                </button>
+                  <Icon name={deleting ? 'refresh' : 'trash'} size={11} className={cn(deleting && 'animate-spin')} />
+                </IconButton>
               </div>
             );
           })}
@@ -279,7 +282,7 @@ function CompareHistory({
 
           <div ref={sentinelRef} className="h-1" />
         </div>
-      </div>
+      </Card>
     </aside>
   );
 }
@@ -531,33 +534,33 @@ export default function TextCompare() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn btn-primary" onClick={run} disabled={empty}>
-            <Icon name="search" size={13} /> {t('compare.compare')}
-          </button>
-          <button type="button" className="btn" onClick={swap} disabled={empty}>
-            <Icon name="refresh" size={13} /> {t('compare.swap')}
-          </button>
-          <button type="button" className="btn" onClick={clear} disabled={empty}>
-            <Icon name="trash" size={13} /> {t('compare.clear')}
-          </button>
+          <Button variant="primary" icon="search" onClick={run} disabled={empty}>
+            {t('compare.compare')}
+          </Button>
+          <Button icon="refresh" onClick={swap} disabled={empty}>
+            {t('compare.swap')}
+          </Button>
+          <Button icon="trash" onClick={clear} disabled={empty}>
+            {t('compare.clear')}
+          </Button>
           {diff ? (
-            <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
-              <span className="rounded bg-panel2 px-1.5 py-0.5">{stats.same} {t('compare.same')}</span>
-              <span className="rounded bg-warn/10 px-1.5 py-0.5 text-warn">{stats.changed} {t('compare.changed')}</span>
-              <span className="rounded bg-ok/10 px-1.5 py-0.5 text-ok">{stats.added} {t('compare.added')}</span>
-              <span className="rounded bg-bad/10 px-1.5 py-0.5 text-bad">{stats.removed} {t('compare.removed')}</span>
+            <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
+              <Badge>{stats.same} {t('compare.same')}</Badge>
+              <Badge tone="warn">{stats.changed} {t('compare.changed')}</Badge>
+              <Badge tone="ok">{stats.added} {t('compare.added')}</Badge>
+              <Badge tone="bad">{stats.removed} {t('compare.removed')}</Badge>
             </div>
           ) : null}
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
+          <div role="alert" className="rounded-panel border border-bad/30 bg-bad/10 px-3 py-2 text-[13px] text-bad">{error}</div>
         ) : !diff ? (
-          <div className="rounded-lg border border-dashed border-line bg-panel/20 px-3 py-8 text-center text-[13px] text-muted">
+          <div className="rounded-panel border border-dashed border-line bg-panel/20 px-3 py-8 text-center text-[13px] text-muted">
             {t('compare.hint')}
           </div>
         ) : (
-          <div className="card overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="max-h-[60vh] overflow-auto">
               <div className="min-w-[560px]">
                 <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-line bg-panel2 text-[12.5px] font-medium text-muted">
@@ -584,7 +587,7 @@ export default function TextCompare() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
         )}
         </div>
 
