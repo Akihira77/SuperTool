@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, open, readdir, lstat, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readdir, lstat, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { ZipArchive } from 'archiver';
 import type { Response } from 'express';
 import { cfg } from '../../config';
-import { db, replaceDatabase, validateDatabaseFile } from '../../common/db';
+import { db, replaceDatabase, type ReplaceOptions } from '../../common/db';
 
 const exec = promisify(execFile);
 
@@ -71,17 +71,18 @@ export class BackupService {
     res.on('close', () => void rm(temp, { recursive: true, force: true }));
   }
 
-  async restore(file?: Uploaded) {
+  /** `deps` hanya dipakai test untuk injeksi kegagalan; produksi memakai default. */
+  async restore(file?: Uploaded, deps?: ReplaceOptions) {
     if (this.restoring) throw new BadRequestException('Restore lain sedang berjalan');
     this.restoring = true;
     try {
-      return await this.restoreNow(file);
+      return await this.restoreNow(file, deps);
     } finally {
       this.restoring = false;
     }
   }
 
-  private async restoreNow(file?: Uploaded) {
+  private async restoreNow(file?: Uploaded, deps?: ReplaceOptions) {
     if (!file || (!file.path && !file.buffer?.length)) throw new BadRequestException('File .zip tidak ditemukan');
 
     // Multer sudah menulis upload ke disk; buffer hanya dipakai pemanggil lama.
@@ -120,26 +121,13 @@ export class BackupService {
       if (!info?.isFile() || info.size < 512) throw new BadRequestException('File database di dalam backup tidak valid');
       if (info.size > MAX_DB) throw new BadRequestException('Database backup terlalu besar');
       await this.assertSqliteHeader(dbFile);
-      validateDatabaseFile(dbFile);
 
       const stagedUploads = join(out, UPLOADS);
       const hasUploads = existsSync(stagedUploads);
 
-      // Tukar uploads dulu; DB lama baru disentuh setelah arsip lolos validasi.
-      const swap = await this.swapUploads(hasUploads ? stagedUploads : null);
-      try {
-        replaceDatabase(dbFile);
-        // Hanya setelah penggantian sukses: sesi lama tidak boleh tetap valid.
-        try {
-          db.exec('UPDATE account SET pv = pv + 1');
-        } catch {
-          process.stderr.write('restore: database berhasil diganti tetapi pencabutan sesi gagal\n');
-        }
-        await swap.commit();
-      } catch (err) {
-        await swap.rollback();
-        throw err;
-      }
+      // Database, uploads, dan pencabutan sesi ditukar dalam satu transaksi:
+      // replaceDatabase memvalidasi dulu, baru menyentuh state aktif.
+      replaceDatabase(dbFile, { ...deps, uploads: hasUploads ? stagedUploads : null });
 
       return { ok: true, size: info.size, uploads: hasUploads, revoked: true, at: Date.now() };
     } catch (err) {
@@ -153,6 +141,7 @@ export class BackupService {
       const safe =
         message.startsWith('Gagal ') ||
         message.startsWith('Checkpoint database gagal') ||
+        message.startsWith('Checkpoint database baru gagal') ||
         message.startsWith('Database restore tidak valid') ||
         message.startsWith('Database backup') ||
         message.startsWith('Integritas database backup') ||
@@ -315,34 +304,5 @@ export class BackupService {
     } finally {
       await handle.close();
     }
-  }
-
-  /**
-   * Tukar folder uploads secara atomik. Bila arsip tidak membawa uploads, folder
-   * lama sengaja dibiarkan; database baru tetap memakai berkas yang sudah ada.
-   */
-  private async swapUploads(staged: string | null) {
-    const target = this.uploadsDir();
-    const old = target + '.restore-old';
-    await rm(old, { recursive: true, force: true });
-    if (!staged) return { commit: async () => {}, rollback: async () => {} };
-
-    const had = existsSync(target);
-    if (had) await rename(target, old);
-    try {
-      await rename(staged, target);
-    } catch (err) {
-      if (had) await rename(old, target);
-      throw err;
-    }
-    return {
-      commit: async () => {
-        await rm(old, { recursive: true, force: true }).catch(() => {});
-      },
-      rollback: async () => {
-        await rm(target, { recursive: true, force: true });
-        if (had) await rename(old, target);
-      },
-    };
   }
 }

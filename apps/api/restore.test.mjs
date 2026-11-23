@@ -116,6 +116,39 @@ const snapshotPath = join(dir, 'snapshot.db');
 const noteIds = () => live().prepare('SELECT id FROM notes ORDER BY id').all().map((row) => row.id);
 const artifacts = () => [oldPath, incomingPath, journalPath].filter((path) => existsSync(path));
 
+const pvOf = () => Number(live().prepare('SELECT pv FROM account').get().pv);
+const uploadNames = async () => (await readdir(join(dir, 'uploads'))).sort();
+
+test('restore: kegagalan saat memasang database mengembalikan database dan uploads', async () => {
+  const beforeNotes = noteIds();
+  const beforePv = pvOf();
+  const beforeUploads = await uploadNames();
+  const archive = await zip({
+    'super-tool.db': snapshot,
+    'uploads/baru.txt': 'baru',
+    'backup.json': '{}',
+  });
+
+  await assert.rejects(
+    () =>
+      service.restore(
+        { originalname: 'gagal.zip', buffer: archive, size: archive.length },
+        {
+          configure: () => {
+            throw new Error('injected configure');
+          },
+        },
+      ),
+    /Gagal mengonfigurasi database baru/,
+  );
+
+  assert.deepEqual(noteIds(), beforeNotes, 'database lama tetap aktif');
+  assert.equal(pvOf(), beforePv, 'pv database lama tidak berubah');
+  assert.deepEqual(await uploadNames(), beforeUploads, 'uploads kembali ke generasi lama');
+  assert.deepEqual(artifacts(), []);
+  assert.equal(existsSync(join(dir, 'uploads.restore-old')), false);
+});
+
 test('restore: salinan gagal saat WAL belum checkpoint tidak menghapus data', () => {
   live().exec('PRAGMA wal_autocheckpoint = 0');
   live().exec("INSERT INTO notes (id,title,body,created_at,updated_at) VALUES ('wal-keep','penting','b',3,3)");
@@ -236,7 +269,7 @@ test('restore: incoming tidak valid tidak menyentuh database aktif', () => {
   assert.deepEqual(artifacts(), []);
 });
 
-test('restore: pembersihan artefak gagal tetap dianggap sukses setelah commit', () => {
+test('restore: pembersihan artefak gagal setelah commit tidak membalik restore', () => {
   let oldRemovals = 0;
   const result = dbModule.replaceDatabase(snapshotPath, {
     remove: (path) => {
@@ -249,10 +282,14 @@ test('restore: pembersihan artefak gagal tetap dianggap sukses setelah commit', 
   });
   assert.equal(result.ok, true);
   assert.deepEqual(noteIds(), ['n1'], 'database baru sudah aktif');
-  assert.equal(existsSync(journalPath), false, 'journal commit harus hilang');
   assert.equal(existsSync(oldPath), true, 'artefak lama boleh tersisa saat cleanup gagal');
-  rmSync(oldPath, { force: true });
+  assert.equal(existsSync(journalPath), true, 'journal committed dipertahankan agar startup mengulang cleanup');
+
+  // Startup berikutnya menyelesaikan pembersihan tanpa mengubah generasi aktif.
+  dbModule.recoverInterruptedRestore();
+  assert.equal(existsSync(journalPath), false, 'journal hilang setelah cleanup berhasil');
   assert.deepEqual(artifacts(), []);
+  assert.deepEqual(noteIds(), ['n1'], 'recovery pasca-commit tidak mengubah data');
 });
 
 test('restore: dua restore bersamaan ditolak, satu tetap berhasil', async () => {
@@ -326,4 +363,236 @@ test('restore: crash di setiap tahap dipulihkan ke database yang konsisten', asy
     }
     await rm(crashDir, { recursive: true, force: true });
   }
+});
+
+const backupModulePath = require.resolve('./dist/modules/backup/backup.service.js');
+
+/** Database sumber restore yang valid tapi berbeda generasi dari data aktif. */
+function makeSourceDb(path, pv) {
+  const source = new DatabaseSync(path);
+  try {
+    source.exec(
+      'CREATE TABLE account (id INTEGER PRIMARY KEY CHECK (id = 1), salt TEXT NOT NULL, hash TEXT NOT NULL, ' +
+        'pv INTEGER NOT NULL DEFAULT 1, must_change INTEGER NOT NULL DEFAULT 1, secret TEXT NOT NULL, ' +
+        'created_at INTEGER NOT NULL);' +
+        "CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', " +
+        'created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);' +
+        'CREATE TABLE urls (id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, ' +
+        'proxy INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);' +
+        'PRAGMA user_version = 1;',
+    );
+    source
+      .prepare('INSERT INTO account (id,salt,hash,pv,must_change,secret,created_at) VALUES (1,?,?,?,0,?,1)')
+      .run('s', 'h', pv, 'x');
+    source
+      .prepare('INSERT INTO notes (id,title,body,created_at,updated_at) VALUES (?,?,?,?,?)')
+      .run('n1', 'baru', 'b', 1, 1);
+  } finally {
+    source.close();
+  }
+}
+
+const restoreChildScript = join(dir, 'orch-restore.cjs');
+const readChildScript = join(dir, 'orch-read.cjs');
+
+/** Anak proses: siapkan generasi lama, lalu jalankan restore penuh (opsional crash/fault). */
+async function writeChildren() {
+  await writeFile(
+    restoreChildScript,
+    [
+      'const m = require(process.env.DB_MODULE);',
+      'const { BackupService } = require(process.env.BACKUP_MODULE);',
+      "const { mkdirSync, writeFileSync, rmSync, renameSync } = require('node:fs');",
+      "const { join } = require('node:path');",
+      'const dir = process.env.ST_DATA_DIR;',
+      '// Generasi lama: akun pv=5 dan catatan keep.',
+      `m.db.exec("INSERT INTO account (id,salt,hash,pv,must_change,secret,created_at) VALUES (1,'s','h',5,0,'x',1)");`,
+      `m.db.exec("INSERT INTO notes (id,title,body,created_at,updated_at) VALUES ('keep','lama','b',1,1)");`,
+      "mkdirSync(join(dir, 'uploads'), { recursive: true });",
+      "writeFileSync(join(dir, 'uploads', 'lama.txt'), 'lama');",
+      'const deps = {};',
+      'let oldUploadRemovals = 0;',
+      "if (process.env.FAULT === 'cleanupUploads') {",
+      '  deps.removeDir = (p) => {',
+      "    if (p.endsWith('uploads.restore-old')) {",
+      '      oldUploadRemovals += 1;',
+      "      if (oldUploadRemovals >= 2) throw new Error('injected cleanup');",
+      '    }',
+      '    rmSync(p, { recursive: true, force: true });',
+      '  };',
+      '}',
+      "if (process.env.FAULT === 'rollback') {",
+      "  deps.configure = () => { throw new Error('injected configure'); };",
+      '  deps.rename = (from, to) => {',
+      "    if (from.endsWith('.restore-old')) throw new Error('injected rollback rename');",
+      '    renameSync(from, to);',
+      '  };',
+      '}',
+      'if (process.env.CRASH_AT) {',
+      '  deps.onPhase = (phase) => {',
+      '    if (phase === process.env.CRASH_AT) process.exit(97);',
+      '  };',
+      '}',
+      'new BackupService()',
+      "  .restore({ originalname: 'orch.zip', path: process.env.ZIP, size: 1 }, deps)",
+      "  .then(() => { console.log('OK'); })",
+      "  .catch((err) => { console.log('THREW ' + (err && err.message)); process.exitCode = 3; });",
+    ].join('\n'),
+  );
+  await writeFile(
+    readChildScript,
+    [
+      'const m = require(process.env.DB_MODULE);',
+      "const fs = require('node:fs');",
+      "const { join } = require('node:path');",
+      'const dir = process.env.ST_DATA_DIR;',
+      "const notes = m.db.prepare('SELECT id FROM notes ORDER BY id').all().map((row) => row.id);",
+      "const account = m.db.prepare('SELECT pv FROM account').get();",
+      "const integrity = String(m.db.prepare('PRAGMA integrity_check').get().integrity_check);",
+      "const ups = join(dir, 'uploads');",
+      'const uploads = fs.existsSync(ups)',
+      "  ? fs.readdirSync(ups).sort().map((name) => [name, fs.readFileSync(join(ups, name), 'utf8')])",
+      '  : [];',
+      'console.log(JSON.stringify({ notes, pv: account ? account.pv : null, integrity, uploads, files: fs.readdirSync(dir).sort() }));',
+    ].join('\n'),
+  );
+}
+
+function readState(dataDir) {
+  const run = runNode(readChildScript, {
+    ST_DATA_DIR: dataDir,
+    DB_MODULE: dbModulePath,
+    BACKUP_MODULE: backupModulePath,
+  });
+  assert.equal(run.status, 0, run.stderr);
+  return JSON.parse(run.stdout.trim().split('\n').filter(Boolean).at(-1));
+}
+
+function assertGeneration(state, expect, label) {
+  assert.deepEqual(state.notes, expect.notes, label + ': catatan');
+  assert.equal(state.pv, expect.pv, label + ': pv akun');
+  assert.deepEqual(state.uploads, expect.uploads, label + ': isi uploads');
+  assert.equal(state.integrity, 'ok', label + ': integritas database');
+  assert.deepEqual(
+    state.files.filter((name) => name.includes('.restore-')),
+    [],
+    label + ': artefak restore tersisa',
+  );
+}
+
+async function orchestrations(name) {
+  await writeChildren();
+  const source = join(dir, 'orch-source-' + name + '.db');
+  makeSourceDb(source, 1);
+  const archive = await zip({
+    'super-tool.db': await readFile(source),
+    'uploads/new.txt': 'baru',
+    'backup.json': '{}',
+  });
+  return archive;
+}
+
+test('restore: crash di setiap tahap menghasilkan database dan uploads dari generasi yang sama', async () => {
+  const archive = await orchestrations('matrix');
+  const oldGeneration = { notes: ['keep'], pv: 5, uploads: [['lama.txt', 'lama']] };
+  const newGeneration = { notes: ['n1'], pv: 2, uploads: [['new.txt', 'baru']] };
+
+  const scenarios = [
+    // Journal dibuat, belum ada yang dipindah.
+    { name: 'replacing', crashAt: 'replacing', expect: oldGeneration },
+    // Uploads lama sudah dipindah, uploads baru belum terpasang.
+    { name: 'uploads-moved', crashAt: 'uploads-moved', expect: oldGeneration },
+    // Uploads baru aktif, database masih generasi lama.
+    { name: 'uploads-installed', crashAt: 'uploads-installed', expect: oldGeneration },
+    { name: 'old-moved', crashAt: 'old-moved', expect: oldGeneration },
+    { name: 'installed', crashAt: 'installed', expect: oldGeneration },
+    // Database baru lengkap termasuk pencabutan sesi, tetapi belum commit.
+    { name: 'prepared', crashAt: 'prepared', expect: oldGeneration },
+    // Commit durable; generasi baru harus dipertahankan.
+    { name: 'committed', crashAt: 'committed', expect: newGeneration },
+  ];
+
+  for (const scenario of scenarios) {
+    const work = await mkdtemp(join(tmpdir(), 'st-orch-' + scenario.name + '-'));
+    const data = join(work, 'data');
+    const zipPath = join(work, 'restore.zip');
+    await writeFile(zipPath, archive);
+
+    const crashed = runNode(restoreChildScript, {
+      ST_DATA_DIR: data,
+      DB_MODULE: dbModulePath,
+      BACKUP_MODULE: backupModulePath,
+      ZIP: zipPath,
+      CRASH_AT: scenario.crashAt,
+    });
+    assert.equal(crashed.status, 97, 'anak harus berhenti di ' + scenario.name + ': ' + crashed.stderr);
+
+    // Sebelum recovery, generasi lama harus masih tersedia di artefak.
+    if (scenario.crashAt !== 'replacing') {
+      const staleArtifacts = [join(data, 'super-tool.db.restore-old'), join(data, 'uploads.restore-old')].filter(
+        (artifact) => existsSync(artifact),
+      );
+      assert.ok(staleArtifacts.length > 0, scenario.name + ': generasi lama harus tersimpan sebelum recovery');
+    }
+
+    // Dua kali recovery membuktikan hasilnya idempoten.
+    assertGeneration(readState(data), scenario.expect, scenario.name + ' recovery #1');
+    assertGeneration(readState(data), scenario.expect, scenario.name + ' recovery #2');
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('restore: kegagalan cleanup uploads pasca-commit dituntaskan startup', async () => {
+  const archive = await orchestrations('cleanup');
+  const work = await mkdtemp(join(tmpdir(), 'st-orch-cleanup-'));
+  const data = join(work, 'data');
+  const zipPath = join(work, 'restore.zip');
+  await writeFile(zipPath, archive);
+
+  const done = runNode(restoreChildScript, {
+    ST_DATA_DIR: data,
+    DB_MODULE: dbModulePath,
+    BACKUP_MODULE: backupModulePath,
+    ZIP: zipPath,
+    FAULT: 'cleanupUploads',
+  });
+  assert.equal(done.status, 0, done.stderr);
+  assert.match(done.stdout, /OK/);
+
+  // Restore tetap commit; artefak dan journal dipertahankan untuk startup.
+  assert.ok(existsSync(join(data, 'uploads.restore-old')), 'salinan uploads lama disimpan');
+  assert.ok(existsSync(join(data, 'super-tool.db.restore-journal')), 'journal committed disimpan');
+
+  const expected = { notes: ['n1'], pv: 2, uploads: [['new.txt', 'baru']] };
+  assertGeneration(readState(data), expected, 'cleanup recovery #1');
+  assertGeneration(readState(data), expected, 'cleanup recovery #2');
+  assert.equal(existsSync(join(data, 'uploads.restore-old')), false, 'startup membersihkan salinan lama');
+  await rm(work, { recursive: true, force: true });
+});
+
+test('restore: rollback yang gagal tidak menyembunyikan state dan dipulihkan startup', async () => {
+  const archive = await orchestrations('rollback');
+  const work = await mkdtemp(join(tmpdir(), 'st-orch-rollback-'));
+  const data = join(work, 'data');
+  const zipPath = join(work, 'restore.zip');
+  await writeFile(zipPath, archive);
+
+  const failed = runNode(restoreChildScript, {
+    ST_DATA_DIR: data,
+    DB_MODULE: dbModulePath,
+    BACKUP_MODULE: backupModulePath,
+    ZIP: zipPath,
+    FAULT: 'rollback',
+  });
+  assert.equal(failed.status, 3, failed.stderr);
+  assert.match(failed.stdout, /THREW/);
+  assert.ok(
+    existsSync(join(data, 'super-tool.db.restore-journal')),
+    'journal dibiarkan supaya startup memulihkan generasi lama',
+  );
+
+  const expected = { notes: ['keep'], pv: 5, uploads: [['lama.txt', 'lama']] };
+  assertGeneration(readState(data), expected, 'rollback recovery #1');
+  assertGeneration(readState(data), expected, 'rollback recovery #2');
+  await rm(work, { recursive: true, force: true });
 });

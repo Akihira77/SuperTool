@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cfg } from '../config';
 import { notifyDatabaseReplaced } from './db-events';
@@ -78,44 +78,108 @@ const HTTP_SCHEMA = `
 const restoreOld = file + '.restore-old';
 const restoreIncoming = file + '.restore-new';
 const restoreJournal = file + '.restore-journal';
+const uploadsDir = join(cfg.dataDir, 'uploads');
+const uploadsOld = uploadsDir + '.restore-old';
 
-type RestoreJournal = { phase: 'replacing' | 'committed' };
+/**
+ * Journal restore. Satu journal mengikat database dan folder uploads ke satu
+ * transaksi. `uploads` mencatat apakah arsip membawa folder uploads, dan
+ * `hadUploads` apakah folder lama ada saat transaksi dimulai. Recovery butuh
+ * keduanya untuk membedakan "swap belum jalan" dari "swap selesai".
+ */
+type RestoreJournal = {
+  phase: 'replacing' | 'committed';
+  uploads?: boolean;
+  hadUploads?: boolean;
+};
 
 function removeQuiet(path: string): void {
   try {
     rmSync(path, { force: true });
   } catch {
-    // pembersihan bersifat best-effort; jangan menutupi error utama
+    // best-effort: journal akan memaksa percobaan ulang saat startup
+  }
+}
+
+function removeDirQuiet(path: string): void {
+  try {
+    rmSync(path, { recursive: true, force: true });
+  } catch {
+    // sama seperti removeQuiet; state transaksi tetap ditentukan journal
+  }
+}
+
+/**
+ * Buang folder staging `.restore-*` milik restore yang mati di tengah jalan.
+ * Hanya dipanggil setelah recovery selesai, saat tidak ada restore aktif.
+ */
+function removeStaleStages(): void {
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(cfg.dataDir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (name.startsWith('.restore-')) removeDirQuiet(join(cfg.dataDir, name));
   }
 }
 
 function readRestoreJournal(): RestoreJournal | null {
   if (!existsSync(restoreJournal)) return null;
   try {
-    const parsed = JSON.parse(readFileSync(restoreJournal, 'utf8')) as { phase?: string };
-    return { phase: parsed.phase === 'committed' ? 'committed' : 'replacing' };
+    const parsed = JSON.parse(readFileSync(restoreJournal, 'utf8')) as {
+      phase?: unknown;
+      uploads?: unknown;
+      hadUploads?: unknown;
+    };
+    return {
+      phase: parsed.phase === 'committed' ? 'committed' : 'replacing',
+      uploads: typeof parsed.uploads === 'boolean' ? parsed.uploads : undefined,
+      hadUploads: typeof parsed.hadUploads === 'boolean' ? parsed.hadUploads : undefined,
+    };
   } catch {
     // Journal rusak: perlakukan sebagai penggantian yang belum commit.
     return { phase: 'replacing' };
   }
 }
 
+/** Errcode "filesystem tidak mendukung fsync direktori", bukan kegagalan I/O. */
+const FSYNC_DIR_UNSUPPORTED = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP', 'EISDIR']);
+let fsyncDirWarned = false;
+
+/**
+ * Sinkronkan metadata direktori setelah rename. Linux mendukung fsync direktori;
+ * platform lain (umumnya Windows) menolak dengan EINVAL/EISDIR, dan untuk itu
+ * durability metadata bergantung pada filesystem. Kegagalan I/O nyata (EIO,
+ * ENOSPC, ...) dilempar supaya restore tidak mengklaim commit yang tidak durable.
+ */
 function fsyncDir(path: string): void {
+  let fd: number;
   try {
-    const fd = openSync(path, 'r');
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
+    fd = openSync(path, 'r');
+  } catch (err) {
+    if (FSYNC_DIR_UNSUPPORTED.has((err as NodeJS.ErrnoException).code ?? '')) {
+      if (!fsyncDirWarned) {
+        fsyncDirWarned = true;
+        process.stderr.write('restore: fsync direktori tidak didukung; durability metadata mengikuti filesystem\n');
+      }
+      return;
     }
-  } catch {
-    // fsync direktori tidak didukung di semua filesystem; rename tetap atomik.
+    throw err;
+  }
+  try {
+    fsyncSync(fd);
+  } catch (err) {
+    if (!FSYNC_DIR_UNSUPPORTED.has((err as NodeJS.ErrnoException).code ?? '')) throw err;
+  } finally {
+    closeSync(fd);
   }
 }
 
-function writeRestoreJournal(phase: RestoreJournal['phase']): void {
+function writeRestoreJournal(entry: RestoreJournal): void {
   const tmp = restoreJournal + '.tmp';
-  writeFileSync(tmp, JSON.stringify({ phase, at: Date.now() }), { encoding: 'utf8', mode: 0o600 });
+  writeFileSync(tmp, JSON.stringify({ ...entry, at: Date.now() }), { encoding: 'utf8', mode: 0o600 });
   const fd = openSync(tmp, 'r+');
   try {
     fsyncSync(fd);
@@ -133,32 +197,47 @@ function removeRestoreJournal(): void {
 }
 
 /**
- * Pulihkan sisa penggantian database yang terputus (crash/SIGKILL).
- * Journal menentukan apakah penggantian sudah commit:
- * - committed: file aktif adalah database baru; artefak lama dibuang.
- * - replacing: salinan lama dipulihkan bila ada; kalau tidak, file aktif
- *   dipertahankan karena incoming sudah divalidasi sebelum journal ditulis.
+ * Pulihkan database + uploads yang terputus (crash/SIGKILL) ke satu generasi.
+ * - committed: database dan uploads baru sudah otoritatif; artefak lama dibuang.
+ * - replacing: keduanya dikembalikan ke generasi lama.
+ * Journal versi lama tidak menyimpan status uploads; untuk itu swap uploads
+ * dianggap selesai bila salinan lama ada (urutan versi lama: swap dulu, journal
+ * kemudian), sehingga salinan lama dipulihkan.
  */
 export function recoverInterruptedRestore(): void {
   const journal = readRestoreJournal();
 
   if (!journal) {
-    // Kompatibilitas dengan proses versi lama yang belum memakai journal.
+    // Kompatibilitas proses versi lama yang belum memakai journal.
     if (!existsSync(file) && existsSync(restoreOld)) renameSync(restoreOld, file);
     // Journal dihapus paling akhir; tanpa journal, salinan lama hanya sisa
     // pembersihan pasca-commit dan aman dibuang selama file aktif ada.
     else if (existsSync(file)) removeQuiet(restoreOld);
     removeQuiet(restoreIncoming);
+    // Swap uploads versi lama berjalan sebelum journal; folder yang hilang
+    // berarti restore terputus dan salinan lamanya harus dipasang kembali.
+    if (!existsSync(uploadsDir) && existsSync(uploadsOld)) renameSync(uploadsOld, uploadsDir);
+    removeStaleStages();
     return;
   }
 
   if (journal.phase === 'committed') {
     removeQuiet(restoreOld);
     removeQuiet(restoreIncoming);
+    if (journal.uploads !== false) {
+      if (!existsSync(uploadsDir) && existsSync(uploadsOld)) {
+        renameSync(uploadsOld, uploadsDir);
+        process.stderr.write('restore: uploads dipulihkan dari salinan lama setelah commit tidak lengkap\n');
+      } else {
+        removeDirQuiet(uploadsOld);
+      }
+    }
     removeRestoreJournal();
+    removeStaleStages();
     return;
   }
 
+  // Belum commit: database lama yang otoritatif.
   if (existsSync(restoreOld)) {
     removeQuiet(file);
     removeQuiet(file + '-wal');
@@ -169,16 +248,28 @@ export function recoverInterruptedRestore(): void {
     else throw new Error('Restore database terputus dan tidak ada salinan database yang bisa dipulihkan');
   }
   removeQuiet(restoreIncoming);
+
+  if (journal.uploads === true) {
+    if (journal.hadUploads === false) {
+      // Tidak ada folder sebelumnya, jadi folder yang ada pasti hasil restore
+      // yang gagal dan harus dibuang agar cocok dengan database lama.
+      if (existsSync(uploadsDir)) rmSync(uploadsDir, { recursive: true, force: true });
+    } else if (existsSync(uploadsOld)) {
+      // Swap sempat berjalan: buang uploads baru, pasang kembali yang lama.
+      rmSync(uploadsDir, { recursive: true, force: true });
+      renameSync(uploadsOld, uploadsDir);
+    }
+  } else if (journal.uploads === undefined && existsSync(uploadsOld)) {
+    // Journal versi lama: swap selalu selesai sebelum journal ditulis.
+    rmSync(uploadsDir, { recursive: true, force: true });
+    renameSync(uploadsOld, uploadsDir);
+  }
+
   removeRestoreJournal();
+  removeStaleStages();
 }
 
 recoverInterruptedRestore();
-
-// Restore menukar folder uploads dengan rename; bila proses mati di antaranya,
-// kembalikan salinan lama alih-alih membiarkan folder hilang.
-const uploadsDir = join(cfg.dataDir, 'uploads');
-const uploadsOld = uploadsDir + '.restore-old';
-if (!existsSync(uploadsDir) && existsSync(uploadsOld)) renameSync(uploadsOld, uploadsDir);
 
 export let db = new DatabaseSync(file);
 
@@ -429,7 +520,14 @@ function fsyncPath(path: string): void {
   }
 }
 
-export type RestorePhase = 'replacing' | 'old-moved' | 'installed' | 'committed';
+export type RestorePhase =
+  | 'replacing'
+  | 'uploads-moved'
+  | 'uploads-installed'
+  | 'old-moved'
+  | 'installed'
+  | 'prepared'
+  | 'committed';
 
 /**
  * Titik injeksi untuk test fault. Produksi memakai default di bawah.
@@ -440,45 +538,94 @@ export type RestoreDeps = Partial<{
   fsyncFile: (path: string) => void;
   rename: (from: string, to: string) => void;
   remove: (path: string) => void;
+  removeDir: (path: string) => void;
+  fsyncDir: (path: string) => void;
   checkpoint: () => void;
+  checkpointPrepared: (target: DatabaseSync) => void;
   open: (path: string) => DatabaseSync;
   configure: (target: DatabaseSync) => void;
   migrate: (target: DatabaseSync) => void;
+  revoke: (target: DatabaseSync) => void;
   validate: (path: string) => void;
+  validatePrepared: (target: DatabaseSync) => void;
   onPhase: (phase: RestorePhase) => void;
 }>;
+
+/** `uploads` = folder uploads staging yang ikut ditukar; null = biarkan apa adanya. */
+export type ReplaceOptions = RestoreDeps & { uploads?: string | null };
+
+/**
+ * Cabut sesi lama di dalam database staging: pv naik tepat satu dan nilainya
+ * diverifikasi, jadi `revoked` hanya dilaporkan kalau perubahan benar-benar
+ * terjadi pada database yang akan di-commit.
+ */
+function revokeSessions(target: DatabaseSync): void {
+  const before = target.prepare('SELECT pv FROM account').get() as { pv?: number } | undefined;
+  const pv = Number(before?.pv);
+  if (!Number.isInteger(pv)) throw new Error('database restore tidak memuat akun');
+  target.exec('UPDATE account SET pv = pv + 1');
+  const after = target.prepare('SELECT pv FROM account').get() as { pv?: number } | undefined;
+  if (Number(after?.pv) !== pv + 1) throw new Error('gagal mencabut sesi pada database restore');
+}
+
+/** Validasi keadaan akhir database staging: integritas + tepat satu akun. */
+function validatePrepared(target: DatabaseSync): void {
+  const integrity = target.prepare('PRAGMA integrity_check').all() as Array<Record<string, unknown>>;
+  const bad = integrity.filter((row) => String(Object.values(row)[0] ?? '').toLowerCase() !== 'ok');
+  if (!integrity.length || bad.length) throw new Error('integritas database hasil restore rusak');
+  const account = target.prepare('SELECT COUNT(*) AS n FROM account').get() as { n?: number } | undefined;
+  if (Number(account?.n ?? 0) !== 1) throw new Error('database hasil restore tidak memuat satu akun');
+}
+
+function checkpointPrepared(target: DatabaseSync): void {
+  const row = target.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as { busy?: number } | undefined;
+  if (Number(row?.busy ?? 0) !== 0) throw new Error('checkpoint database baru busy');
+}
 
 let restoreInProgress = false;
 
 /**
- * Ganti database secara atomik dengan urutan:
+ * Ganti database (dan opsional folder uploads) sebagai satu transaksi:
  * 1. Salin + fsync + validasi incoming; database aktif belum disentuh.
  * 2. Checkpoint WAL lalu tutup koneksi aktif.
- * 3. Tulis journal `replacing`, pindahkan DB lama ke `.restore-old`, pasang
- *    DB baru lewat rename.
- * 4. Buka, konfigurasi, dan lengkapi skema DB baru.
- * 5. Tulis journal `committed` sebagai titik commit, baru bersihkan artefak.
- * Kegagalan sebelum commit mengembalikan DB lama; kegagalan setelah commit
- * hanya menjadi peringatan pembersihan dan tidak membatalkan restore.
+ * 3. Tulis journal `replacing` yang mencatat status uploads.
+ * 4. Tukar uploads, lalu pindahkan DB lama ke `.restore-old` dan pasang DB baru
+ *    lewat rename. Semua rename disusul fsync direktori.
+ * 5. Buka DB baru, konfigurasi, lengkapi skema, cabut sesi (pv+1), checkpoint
+ *    dan fsync supaya pencabutan ikut durable sebelum titik commit.
+ * 6. Tulis journal `committed`; setelah itu kegagalan pembersihan hanya
+ *    peringatan dan journal dipertahankan agar startup mengulang pembersihan.
+ * Kegagalan sebelum commit mengembalikan database dan uploads lama.
  */
-export function replaceDatabase(source: string, deps: RestoreDeps = {}): { ok: true; path: string } {
+export function replaceDatabase(source: string, deps: ReplaceOptions = {}): { ok: true; path: string } {
   if (restoreInProgress) throw new Error('Restore database lain sedang berjalan');
   restoreInProgress = true;
+
+  const installUploads = typeof deps.uploads === 'string';
+  const stagedUploads = installUploads ? (deps.uploads as string) : null;
+  const hadUploads = installUploads ? existsSync(uploadsDir) : false;
 
   const io = {
     copyFile: deps.copyFile ?? copyFileSync,
     fsyncFile: deps.fsyncFile ?? fsyncPath,
     rename: deps.rename ?? renameSync,
     remove: deps.remove ?? ((path: string) => rmSync(path, { force: true })),
+    removeDir: deps.removeDir ?? ((path: string) => rmSync(path, { recursive: true, force: true })),
+    fsyncDir: deps.fsyncDir ?? fsyncDir,
     checkpoint: deps.checkpoint ?? checkpointLive,
+    checkpointPrepared: deps.checkpointPrepared ?? checkpointPrepared,
     open: deps.open ?? ((path: string) => new DatabaseSync(path)),
     configure: deps.configure ?? configureDb,
     migrate: deps.migrate ?? ensureExtraSchema,
+    revoke: deps.revoke ?? revokeSessions,
     validate: deps.validate ?? validateDatabaseFile,
+    validatePrepared: deps.validatePrepared ?? validatePrepared,
     onPhase: deps.onPhase ?? (() => {}),
   };
 
   let closedLive = false;
+  let uploadsMoved = false;
+  let uploadsInstalled = false;
   let oldMoved = false;
   let installed = false;
   let committed = false;
@@ -513,9 +660,32 @@ export function replaceDatabase(source: string, deps: RestoreDeps = {}): { ok: t
     db.close();
     closedLive = true;
 
+    // Artefak sisa transaksi sebelumnya tidak boleh dianggap bagian transaksi ini.
     io.remove(restoreOld);
-    writeRestoreJournal('replacing');
+    if (installUploads) io.removeDir(uploadsOld);
+    writeRestoreJournal({ phase: 'replacing', uploads: installUploads, hadUploads });
     io.onPhase('replacing');
+
+    if (installUploads && stagedUploads) {
+      try {
+        if (hadUploads) {
+          io.rename(uploadsDir, uploadsOld);
+          uploadsMoved = true;
+        }
+        io.fsyncDir(cfg.dataDir);
+      } catch {
+        throw new Error('Gagal memindahkan folder uploads lama');
+      }
+      io.onPhase('uploads-moved');
+      try {
+        io.rename(stagedUploads, uploadsDir);
+        uploadsInstalled = true;
+        io.fsyncDir(cfg.dataDir);
+      } catch {
+        throw new Error('Gagal memasang folder uploads baru');
+      }
+      io.onPhase('uploads-installed');
+    }
 
     if (existsSync(file)) {
       try {
@@ -556,28 +726,74 @@ export function replaceDatabase(source: string, deps: RestoreDeps = {}): { ok: t
     } catch {
       throw new Error('Gagal menyiapkan skema database baru');
     }
+    // Pencabutan sesi terjadi di database staging, bukan setelah commit: kalau
+    // restore commit, pencabutan pasti ikut commit; kalau gagal, DB lama utuh.
+    try {
+      io.revoke(next);
+    } catch (err) {
+      throw new Error('Gagal mencabut sesi database restore: ' + (err as Error).message);
+    }
+    try {
+      io.checkpointPrepared(next);
+    } catch {
+      throw new Error('Checkpoint database baru gagal');
+    }
+    try {
+      io.validatePrepared(next);
+    } catch (err) {
+      throw new Error('Database restore tidak valid: ' + (err as Error).message);
+    }
+    try {
+      io.fsyncFile(file);
+      io.fsyncDir(cfg.dataDir);
+    } catch {
+      throw new Error('Gagal menyinkronkan database baru ke disk');
+    }
+    io.onPhase('prepared');
 
-    writeRestoreJournal('committed');
+    writeRestoreJournal({ phase: 'committed', uploads: installUploads, hadUploads });
     committed = true;
     io.onPhase('committed');
     db = next;
     next = null;
 
-    // Setelah commit, kegagalan pembersihan tidak boleh membatalkan restore.
+    // Pasca-commit: kegagalan pembersihan tidak membatalkan restore, tetapi
+    // journal dipertahankan supaya startup mengulang pembersihan.
+    let cleanupOk = true;
     try {
       io.remove(restoreOld);
     } catch {
-      process.stderr.write('restore: database aktif, gagal menghapus salinan lama\n');
+      cleanupOk = false;
+      process.stderr.write('restore: database aktif, gagal menghapus salinan database lama\n');
     }
     try {
       io.remove(restoreIncoming);
     } catch {
+      cleanupOk = false;
       process.stderr.write('restore: database aktif, gagal menghapus file staging\n');
     }
+    if (installUploads) {
+      try {
+        io.removeDir(uploadsOld);
+      } catch {
+        cleanupOk = false;
+        process.stderr.write('restore: database aktif, gagal menghapus salinan uploads lama\n');
+      }
+    }
     try {
-      removeRestoreJournal();
+      io.fsyncDir(cfg.dataDir);
     } catch {
-      process.stderr.write('restore: database aktif, journal gagal dihapus\n');
+      cleanupOk = false;
+      process.stderr.write('restore: database aktif, fsync direktori gagal\n');
+    }
+    if (cleanupOk) {
+      try {
+        removeRestoreJournal();
+      } catch {
+        process.stderr.write('restore: database aktif, journal gagal dihapus\n');
+      }
+    } else {
+      process.stderr.write('restore: database aktif, artefak sisa dibersihkan saat startup\n');
     }
 
     notifyDatabaseReplaced();
@@ -598,15 +814,23 @@ export function replaceDatabase(source: string, deps: RestoreDeps = {}): { ok: t
             io.remove(file + '-wal');
             io.remove(file + '-shm');
           }
+          if (uploadsInstalled) io.removeDir(uploadsDir);
+          if (uploadsMoved && existsSync(uploadsOld)) io.rename(uploadsOld, uploadsDir);
           if (oldMoved && existsSync(restoreOld)) io.rename(restoreOld, file);
           if (existsSync(file)) {
             db = new DatabaseSync(file);
             configureDb(db);
           }
           io.remove(restoreIncoming);
+          io.fsyncDir(cfg.dataDir);
           removeRestoreJournal();
-        } catch {
-          // Journal dibiarkan; startup berikutnya akan memulihkan secara idempoten.
+        } catch (rollbackErr) {
+          // Journal sengaja dibiarkan; startup berikutnya memulihkan generasi
+          // lama secara idempoten. Handle DB yang tertutup membuat setiap query
+          // gagal keras alih-alih diam-diam memakai database yang salah.
+          process.stderr.write(
+            'restore: rollback gagal, restart diperlukan (' + (rollbackErr as Error).message + ')\n',
+          );
           try {
             if (existsSync(file)) {
               db = new DatabaseSync(file);
