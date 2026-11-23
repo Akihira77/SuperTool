@@ -201,8 +201,8 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Batas memori/CPU per operasi; timeout konsisten (proxy 120 dtk, HTTP client 1–60 dtk, Docker 20–120 dtk, body/respons dibatasi).
 - [x] Aksesibilitas dasar: tab sesi punya `role=tab`, `aria-selected`, fokus keyboard, Enter/Space; tombol ikon memakai label.
 - [x] Tidak ada telemetri keluar; diagnostik hanya lokal dan tidak dikirim otomatis.
-- [x] Audit aksesibilitas otomatis (axe, WCAG 2.1 A/AA + 2.2 AA) pada login, ganti password, shell, Catatan, URL Viewer, Command Palette; tidak ada pelanggaran critical/serious.
-- [ ] Uji responsif layar kecil (belum; butuh viewport 360 px).
+- [x] Audit aksesibilitas otomatis (axe, WCAG 2.1 A/AA + 2.2 AA) pada login, ganti password, shell, Catatan, URL Viewer, Command Palette, JSON ke TS, Webhook Receiver, dan Setelan; tidak ada pelanggaran critical/serious. Panel scrollable (output TypeScript, log diagnostik, daftar webhook) memakai `role=region` + `tabindex=0` dengan nama dari i18n.
+- [x] Uji responsif layar kecil: 15 tool + 10 tab Dev Space pada 360, 390, 768, 1280, dan 1440 px; tidak ada overflow horizontal dokumen. Temuan dan sisa backlog di `docs/roadmap/POST_E2E_UI_AUDIT.md`.
 - Acceptance:
   - Audit aksesibilitas otomatis tidak menemukan pelanggaran kritis (selesai; lihat §7 hasil verifikasi).
   - Tidak ada operasi tanpa timeout.
@@ -332,9 +332,10 @@ Hasil verifikasi aktual:
 - `pnpm audit --audit-level high` lulus; tersisa 1 low + 2 moderate (bukan high).
 - Uji manual: proxy tiket 401/302/200, WS 401/101, metadata 400, restore traversal/symlink/SQLite rusak/versi skema ditolak, Compose lifecycle, Git commit/branch/stash.
 - CI workflow ditambahkan tetapi belum dijalankan di GitHub (belum ada push remote).
-- `pnpm e2e` lulus 13 test (Chromium, build produksi, data sementara): E2E-01…E2E-05 + 6 audit axe + cek keyboard + semantik checkbox task-list Markdown.
-- axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 6 state yang diaudit, tanpa pengecualian rule. Tablist sesi hanya berisi `role=tab`; tombol tutup pindah ke toolbar dan `Delete` pada tab fokus juga menutup sesi.
+- `pnpm e2e` lulus 31 test (Chromium, build produksi, data sementara): 14 E2E browser (E2E-01…E2E-05, 5 test aksesibilitas, cek keyboard, semantik checkbox task-list Markdown) + 15 test pembersihan direktori sementara + 2 test layout 360 px.
+- axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 9 state yang diaudit (login, ganti password, shell, Catatan, URL Viewer, Command Palette, JSON ke TS, Webhook Receiver, Setelan), tanpa pengecualian rule. Tablist sesi hanya berisi `role=tab`; tombol tutup pindah ke toolbar dan `Delete` pada tab fokus juga menutup sesi.
 - Perbaikan aksesibilitas dari audit: `aria-controls` tab sesi selalu menunjuk panel nyata (panel dirender lebih dulu, konten tetap lazy), kontrol tutup dipindah keluar tablist, checkbox task-list Markdown tetap terbaca screen reader dengan label status, kontras nomor baris editor dinaikkan ke `muted/80`.
+- Audit pasca-E2E (23 Nov 2026, baseline `7c7913a`): sweep 15 tool + 10 tab Dev Space × 5 viewport (360–1440 px) dan axe pada seluruh tool menemukan 3 pelanggaran `scrollable-region-focusable` (JSON ke TS, Setelan, Webhook) di luar cakupan suite lama, plus menu proyek keluar viewport kiri pada 360/390 px dan empty state webhook ganda. Semua diperbaiki dan dikunci test. Detail: `docs/roadmap/POST_E2E_UI_AUDIT.md`.
 - Negative control dijalankan lokal: mematikan autosave, menghapus aksi download, menghapus atribut `sandbox` proxy, dan melepas gate ganti password masing-masing membuat test terkait gagal (perubahan dikembalikan).
 
 Backlog berprioritas yang tersisa:
@@ -347,6 +348,7 @@ Backlog berprioritas yang tersisa:
 | P2 | AI kontekstual opt-in | Sedang | L | Config provider + consent | `apps/api`, UI baru | Default mati, redaksi rahasia, tidak ada kiriman otomatis |
 | P2 | Metadata palette lengkap (shortcut/handler/guard) | Sedang | S | — | `lib/actions.ts`, `App.tsx` | Setiap aksi punya shortcut dan guard yang teruji |
 | P2 | Pembersihan `uploads.restore-old` saat crash | Sedang | S | — | `db.ts`, backup | Restart selalu menyelesaikan atau membatalkan swap |
-| P3 | Audit responsif layar kecil | Rendah | S | — | `apps/web` | Layout tetap usable di 360 px |
+| ~~P3~~ | ~~Audit responsif layar kecil~~ (selesai 23 Nov 2026; lihat `POST_E2E_UI_AUDIT.md`) | Rendah | S | — | `apps/web` | 15 tool × 5 viewport tanpa overflow dokumen; menu proyek 360 px diperbaiki |
+| P2 | Audit layout dengan data panjang pada 360 px | Sedang | S | — | `apps/web`, `e2e` | Tabel Files, preview file besar, dan riwayat webhook penuh tetap usable |
 
-Rekomendasi milestone berikut: **E2E browser + audit aksesibilitas** lebih dulu karena menutup risiko regresi UI yang saat ini hanya diuji manual; setelah itu **migrasi skema berversi** sebelum menambah tabel/fitur baru. AI kontekstual ditunda sampai ada kebutuhan eksplisit dan mekanisme consent provider.
+Rekomendasi milestone berikut: milestone **E2E browser + audit aksesibilitas** sudah selesai (`pnpm e2e`, 31 test). Berikutnya perluas audit ke state berisi data pada 360 px dan uji screen reader manual; setelah itu **migrasi skema berversi** sebelum menambah tabel/fitur baru. AI kontekstual ditunda sampai ada kebutuhan eksplisit dan mekanisme consent provider.

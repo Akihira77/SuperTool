@@ -108,3 +108,28 @@ test('D markdown: checkbox task-list menyimpan status dan tidak fokusable', asyn
   expect(await boxes.nth(0).getAttribute('tabindex')).toBe('-1');
   expect(await boxes.nth(1).getAttribute('tabindex')).toBe('-1');
 });
+
+test('D a11y: panel scrollable tetap dapat dijangkau keyboard', async ({ page, app }) => {
+  await signIn(page, app);
+  // Navigasi sidebar hanya tersedia >=md; buka tool dulu, lalu uji di lebar sempit.
+  const openAt = async (tool: string, width: number, height: number) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openTool(page, tool);
+    await page.setViewportSize({ width, height });
+  };
+
+  // 390: webhook menampilkan dua panel yang bisa di-scroll walau riwayat kosong.
+  await openAt('Webhook Receiver', 390, 844);
+  await audit(page, 'webhook-390');
+
+  // Output TypeScript dan log diagnostik bisa di-scroll di mobile maupun desktop.
+  for (const width of [390, 1440]) {
+    await openAt('JSON ke TS', width, width === 390 ? 844 : 900);
+    await expect(page.getByRole('region', { name: 'Hasil TypeScript' })).toBeVisible();
+    await audit(page, `types-${width}`);
+
+    await openAt('Setelan', width, width === 390 ? 844 : 900);
+    await expect(page.getByRole('region', { name: 'Log terakhir' })).toBeVisible();
+    await audit(page, `settings-${width}`);
+  }
+});

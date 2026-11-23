@@ -749,6 +749,7 @@ export const EN: Partial<Record<Key, string>> = {
   'types.download': 'Download .ts',
   'types.paste': 'Paste a JSON object here',
   'types.hint': 'Object arrays are merged into one interface',
+  'types.output': 'TypeScript output',
   'files.name': 'Name',
   'files.size': 'Size',
   'files.modified': 'Modified',

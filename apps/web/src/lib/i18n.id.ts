@@ -748,6 +748,7 @@ export const ID = {
   'types.download': 'Unduh .ts',
   'types.paste': 'Tempel objek JSON di sini',
   'types.hint': 'Array objek digabung jadi satu interface',
+  'types.output': 'Hasil TypeScript',
   'files.name': 'Nama',
   'files.size': 'Ukuran',
   'files.modified': 'Diubah',

@@ -331,6 +331,23 @@
   }
 }
 
+/*
+ * Menu proyek berada di header sebelum jam (PrayerWidget), jadi jangkar
+ * `right` tombolnya bukan tepi kanan layar. Di bawah 440px menu selebar 20rem
+ * akan keluar viewport kiri (di 360px: x=-72). Di rentang itu posisikan menu
+ * terhadap viewport, tepat di bawah header 44px + border 1px.
+ * Ditulis di luar layer agar menang atas utility posisi dari elemen.
+ */
+@media (max-width: 27.5rem) {
+  .popover-mobile-end {
+    position: fixed;
+    top: calc(2.75rem + 1px);
+    left: auto;
+    right: 0.5rem;
+    margin-top: 0.25rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

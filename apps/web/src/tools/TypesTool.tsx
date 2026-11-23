@@ -77,7 +77,12 @@ export default function TypesTool() {
         </div>
         <div className="flex min-h-[45vh] min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4 lg:min-h-0">
           {result.ok ? (
-            <pre className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[13.5px] leading-[1.55rem] text-ink/90">
+            <pre
+              tabIndex={0}
+              role="region"
+              aria-label={t('types.output')}
+              className="mono min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-[#070d14] p-3 text-[13.5px] leading-[1.55rem] text-ink/90"
+            >
               {result.output}
             </pre>
           ) : (

@@ -121,7 +121,7 @@ export function ProjectPicker({ right, onMenu, menuOpen = false }: { right?: Rea
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} />
           </button>
           {open ? (
-            <div ref={menuRef} id="project-menu" aria-label={t('project.choose')} className="popover absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1" role="menu">
+            <div ref={menuRef} id="project-menu" aria-label={t('project.choose')} className="popover popover-mobile-end absolute top-full right-0 z-50 mt-1 flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1" role="menu">
               <div className="px-1.5 pt-1 pb-0.5 label">{t('project.choose')}</div>
               <button type="button" role="menuitem" className="nav-item w-full" onClick={() => void openPicker()}>
                 <Icon name="folderPlus" size={14} /> {t('project.pick')}

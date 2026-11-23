@@ -275,7 +275,12 @@ export default function SettingsTool() {
                     {new Date(diag.lastError.ts).toLocaleTimeString()} [{diag.lastError.context}] {diag.lastError.message}
                   </div>
                 ) : <div className="mb-1.5 text-[12px] text-muted">{t('settings.diagNoError')}</div>}
-                <div className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[12.5px] leading-relaxed text-muted">
+                <div
+                  tabIndex={0}
+                  role="region"
+                  aria-label={t('settings.diagLogs')}
+                  className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-[12.5px] leading-relaxed text-muted"
+                >
                   {diag.logs.slice(-30).map((entry, index) => (
                     <div key={entry.ts + ':' + index} className={cn('truncate', entry.level === 'error' && 'text-bad', entry.level === 'warn' && 'text-warn')} title={entry.message}>
                       {new Date(entry.ts).toLocaleTimeString()} [{entry.context}] {entry.message}

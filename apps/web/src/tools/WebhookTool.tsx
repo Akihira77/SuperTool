@@ -273,7 +273,7 @@ export default function WebhookTool() {
               <span className="rounded bg-panel2 px-1 tabular-nums text-ink">{items.length}</span>
               {active ? <span className="ml-auto truncate text-[12.5px]">{active.name}</span> : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div tabIndex={0} role="region" aria-label={t('webhook.requests')} className="min-h-0 flex-1 overflow-y-auto">
               {items.map((item) => (
                 <button
                   key={item.id}
@@ -323,7 +323,12 @@ export default function WebhookTool() {
                     {current.body ? <CopyButton text={pretty(current.body, current.contentType)} label={t('webhook.copy')} /> : null}
                   </div>
                   {current.body ? (
-                    <pre className="mono max-h-[45vh] overflow-auto rounded-panel border border-line bg-[#070d14] p-3 text-[12.5px] whitespace-pre-wrap text-ink/85">
+                    <pre
+                      tabIndex={0}
+                      role="region"
+                      aria-label={t('webhook.body')}
+                      className="mono max-h-[45vh] overflow-auto rounded-panel border border-line bg-[#070d14] p-3 text-[12.5px] whitespace-pre-wrap text-ink/85"
+                    >
                       {pretty(current.body, current.contentType)}
                     </pre>
                   ) : (
@@ -331,9 +336,11 @@ export default function WebhookTool() {
                   )}
                 </div>
               </div>
-            ) : (
+            ) : items.length ? (
+              // Daftar sudah punya empty state sendiri; jangan minta memilih
+              // request yang belum ada.
               <Empty icon="webhook" text={t('webhook.select')} />
-            )}
+            ) : null}
           </Card>
         </div>
       </div>
