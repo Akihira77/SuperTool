@@ -5,9 +5,9 @@ import type { ReadableStream } from 'node:stream/web';
 import type { AuthService } from '../auth/auth.service';
 import { assertLocalUrl, resolveLocalAddress } from '../../common/net-guard';
 import { streamLocal, type LocalStreamResponse } from '../../common/http-client';
+import { SANDBOX_CSP, upstreamHttpHeaders, upstreamUpgradeHeaders } from './proxy-headers';
 
 export const PROXY_PREFIX = '/api/proxy/b/';
-const DROP_REQUEST_HEADERS = new Set(['host', 'connection', 'content-length', 'accept-encoding', 'origin', 'referer', 'sec-fetch-site']);
 const DROP_RESPONSE_HEADERS = new Set([
   'x-frame-options',
   'content-security-policy',
@@ -310,10 +310,13 @@ export async function handleProxyRequest(
       return true;
     }
   } else {
-    const session = await auth.session(req.headers.cookie);
-    if (!session) {
-      res.writeHead(401, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ message: 'Belum login' }));
+    const access = await auth.proxyAccess(req.headers.cookie);
+    if (access !== 'ok') {
+      const denied = access === 'unauthenticated'
+        ? { status: 401, body: { message: 'Belum login' } }
+        : { status: 403, body: { code: 'PASSWORD_CHANGE_REQUIRED', message: 'Ganti password dulu' } };
+      res.writeHead(denied.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(denied.body));
       return true;
     }
   }
@@ -326,11 +329,7 @@ export async function handleProxyRequest(
     return true;
   }
 
-  const headers: Record<string, string> = {};
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (!value || DROP_REQUEST_HEADERS.has(key)) continue;
-    headers[key] = Array.isArray(value) ? value.join(', ') : value;
-  }
+  const headers = upstreamHttpHeaders(req.headers);
   headers.origin = origin;
   headers.referer = origin + '/';
 
@@ -375,6 +374,11 @@ export async function handleProxyRequest(
   });
   if (upstream.setCookies.length) outHeaders['set-cookie'] = rewriteCookiesFor(upstream.setCookies, targetInfo);
 
+  // Path mode berbagi origin dengan aplikasi. Semua respons (termasuk SVG/XML
+  // yang bisa menjalankan skrip saat dibuka langsung) dipaksa jadi origin opak.
+  // Header CSP dari upstream sudah dibuang di atas, jadi tidak bisa menimpanya.
+  if (!subMode) outHeaders['content-security-policy'] = SANDBOX_CSP;
+
   const type = (upstream.headers.get('content-type') ?? '').toLowerCase();
   const rewrite =
     type.includes('text/html') ||
@@ -410,12 +414,6 @@ export async function handleProxyRequest(
 
   if (type.includes('text/html')) {
     outHeaders['content-type'] = 'text/html; charset=utf-8';
-    if (!subMode) {
-      // Path mode tetap satu origin dengan aplikasi; CSP sandbox memaksa dokumen
-      // pihak ketiga jadi origin opaque walau dibuka langsung di tab baru.
-      outHeaders['content-security-policy'] =
-        "sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals";
-    }
     res.writeHead(upstream.status, outHeaders);
     res.end(rewriteHtmlFor(buffer.toString('utf8'), origin, targetInfo.publicOrigin, subMode));
     return true;
@@ -442,7 +440,8 @@ export function handleProxyUpgrade(
   const { origin, target } = targetInfo;
 
   const refuse = (status: number, message: string) => {
-    socket.end('HTTP/1.1 ' + status + ' Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n' + message);
+    const reason = status === 401 ? 'Unauthorized' : 'Forbidden';
+    socket.end('HTTP/1.1 ' + status + ' ' + reason + '\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n' + message);
   };
 
   const connectUpstream = async () => {
@@ -456,19 +455,11 @@ export function handleProxyUpgrade(
     }
     const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
     const upstream = connect({ host: resolved.address, family: resolved.family, port }, () => {
+      const headers = upstreamUpgradeHeaders(req.headers);
+      headers.host = target.host;
+      headers.origin = origin;
       const lines = ['GET ' + target.pathname + target.search + ' HTTP/1.1'];
-      for (const [key, value] of Object.entries(req.headers)) {
-        if (!value) continue;
-        if (key === 'host') {
-          lines.push('host: ' + target.host);
-          continue;
-        }
-        if (key === 'origin') {
-          lines.push('origin: ' + origin);
-          continue;
-        }
-        lines.push(key + ': ' + (Array.isArray(value) ? value.join(', ') : value));
-      }
+      for (const [key, value] of Object.entries(headers)) lines.push(key + ': ' + value);
       upstream.write(lines.join('\r\n') + '\r\n\r\n');
       if (head?.length) upstream.write(head);
       upstream.pipe(socket);
@@ -496,10 +487,14 @@ export function handleProxyUpgrade(
   }
 
   auth
-    .session(req.headers.cookie)
-    .then((session) => {
-      if (!session) {
+    .proxyAccess(req.headers.cookie)
+    .then((access) => {
+      if (access === 'unauthenticated') {
         socket.destroy();
+        return;
+      }
+      if (access === 'password-change-required') {
+        refuse(403, 'Ganti password dulu');
         return;
       }
       void connectUpstream();

@@ -170,7 +170,7 @@ Hanya file `*.conf`, `*.bak`, `*.disabled` di dalam `ST_NGINX_DIR`. Nama saat me
 |--------|------|-------|-------|
 | GET | `/proxy` | `u` (URL ter-encode) | konten target |
 
-Meneruskan status dan header target, melepas `X-Frame-Options`, `CSP`, dan `Set-Cookie`. Untuk HTML, disuntik `<base href>` agar aset relatif tetap termuat. Hanya host lokal/privat kecuali `ST_PROXY_ALLOW_PUBLIC=1`.
+Meneruskan status dan header target, melepas `X-Frame-Options`, `CSP`, `Set-Cookie`, dan `content-length`. Untuk HTML, disuntik `<base href>` agar aset relatif tetap termuat. Semua respons diberi `Content-Security-Policy: sandbox ...` (tanpa `allow-same-origin`) dan `X-Content-Type-Options: nosniff`, jadi HTML/SVG target tidak bisa menjalankan skrip dengan origin Super Tool. Hanya host lokal/privat kecuali `ST_PROXY_ALLOW_PUBLIC=1`; redirect divalidasi ulang per hop.
 
 ~~~bash
 curl -b cookies.txt "http://127.0.0.1:3001/api/proxy?u=http%3A%2F%2Flocalhost%3A8080%2F"
@@ -207,10 +207,10 @@ GET /api/proxy/b/<token>/<path...>
 `token` = base64url dari origin target, contoh `http://127.0.0.1:8080`. Middleware ini:
 
 - melepas `X-Frame-Options`, CSP, dan menulis ulang `Set-Cookie` (Domain dilepas, Path jadi prefix proxy, Secure dilepas bila target http)
-- menambahkan CSP `sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`) pada respons HTML
+- menambahkan CSP `sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`) pada semua respons (HTML, SVG, XML) supaya konten target selalu berjalan di origin opak
 - membatasi respons yang ditulis ulang maksimal 8 MB; lebih besar → `502`
 - menyuntik `<base href>` dan menulis ulang URL absolut supaya aset relatif tetap termuat
-- meneruskan POST/PUT/DELETE beserta body, cookie, dan upgrade WebSocket (path-mode WS tetap wajib sesi)
+- meneruskan POST/PUT/DELETE beserta body, cookie target, dan upgrade WebSocket (path-mode WS tetap wajib sesi yang sudah lolos kewajiban ganti password); cookie `st_session`/`st_proxy`, `Authorization`, `Proxy-Authorization`, dan `X-ST-CSRF` tidak pernah diteruskan ke upstream
 - membatasi body permintaan dan respons; redirect divalidasi per hop
 - menolak host publik (kecuali `ST_PROXY_ALLOW_PUBLIC=1`)
 

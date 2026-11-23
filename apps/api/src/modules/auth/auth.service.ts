@@ -20,6 +20,9 @@ type Account = { salt: string; hash: string; pv: number; must_change: number; se
 
 export type Session = { mustChange: boolean; exp: number };
 
+/** Hasil policy sesi untuk jalur yang berjalan di luar AuthGuard (proxy HTTP/WS). */
+export type ProxyAccess = 'ok' | 'unauthenticated' | 'password-change-required';
+
 function hashPassword(password: string, salt: string): Promise<string> {
   return new Promise((res, rej) => {
     scrypt(password, salt, 64, (err, key) => {
@@ -84,6 +87,17 @@ export class AuthService {
     const payload = verifyToken(token, state.secret);
     if (!payload || payload.pv !== state.pv) return null;
     return { mustChange: state.must_change === 1, exp: payload.exp };
+  }
+
+  /**
+   * Policy sesi tunggal untuk entry point proxy (HTTP & WebSocket). Proxy
+   * berjalan sebelum AuthGuard, jadi expiry, rotasi password (pv), dan
+   * kewajiban ganti password harus diperiksa di sini juga.
+   */
+  async proxyAccess(cookieHeader: string | undefined): Promise<ProxyAccess> {
+    const session = await this.session(cookieHeader);
+    if (!session) return 'unauthenticated';
+    return session.mustChange ? 'password-change-required' : 'ok';
   }
 
   /** Tiket bearer untuk mode proxy subdomain: terikat origin target, bukan cookie sesi. */

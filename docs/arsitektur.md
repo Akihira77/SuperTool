@@ -56,7 +56,7 @@ Pencarian isi (`grep`) memakai jail yang sama untuk setiap include path, termasu
 ## Isolasi proxy
 
 - **Subdomain** (`<hex-target>.localhost`) adalah mode default: origin terpisah, cookie target tidak bercampur dengan cookie aplikasi. Setiap origin memerlukan tiket bertanda tangan (`{exp, pv, origin}`) yang diterbitkan `POST /api/proxy/ticket` setelah target divalidasi net guard. HTTP tanpa tiket → 401; tiket di query langsung dipindah ke cookie `HttpOnly; SameSite=None; Secure` lewat 302.
-- **Path** (`/api/proxy/b/<token>/`) adalah fallback same-origin. Respons HTML diberi `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`), dan iframe memakai atribut `sandbox` yang sama. Skrip target berjalan di origin opak sehingga tidak bisa membaca API atau cookie aplikasi.
+- **Path** (`/api/proxy/b/<token>/`) adalah fallback same-origin. Semua respons (HTML, SVG, XML) diberi `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-downloads allow-modals` (tanpa `allow-same-origin`), dan iframe memakai atribut `sandbox` yang sama. Skrip target berjalan di origin opak sehingga tidak bisa membaca API atau cookie aplikasi. Endpoint legacy `/api/proxy?u=` memakai CSP sandbox yang sama.
 - **WebSocket** mengikuti aturan mode: subdomain wajib tiket, path wajib sesi; keduanya memanggil `assertLocalUrl` sebelum connect.
 - **Batas tulis-ulang** 8 MB; respons lebih besar dijawab 502 alih-alih ditahan di memori.
 

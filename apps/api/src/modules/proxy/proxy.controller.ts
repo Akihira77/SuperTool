@@ -3,8 +3,17 @@ import type { Response } from 'express';
 import { assertLocalUrl } from '../../common/net-guard';
 import { requestLocal } from '../../common/http-client';
 import { AuthService } from '../auth/auth.service';
+import { SANDBOX_CSP } from './proxy-headers';
 
-const STRIP_HEADERS = ['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'set-cookie'];
+const STRIP_HEADERS = [
+  'x-frame-options',
+  'content-security-policy',
+  'content-security-policy-report-only',
+  'set-cookie',
+  // Body HTML disuntik <base>, jadi panjang dari upstream tidak lagi valid.
+  'content-length',
+  'transfer-encoding',
+];
 
 function parse(raw: string): URL {
   if (!raw) throw new BadRequestException('Parameter u wajib diisi');
@@ -85,6 +94,10 @@ export class ProxyController {
       if (STRIP_HEADERS.includes(lower) || lower === 'content-encoding') continue;
       res.setHeader(key, value);
     }
+    // Konten pihak ketiga dirender dari origin Super Tool: paksa origin opak.
+    // Tanpa ini HTML/SVG upstream bisa menjalankan skrip dengan sesi aplikasi.
+    res.setHeader('content-security-policy', SANDBOX_CSP);
+    res.setHeader('x-content-type-options', 'nosniff');
 
     const type = typeof upstream.headers['content-type'] === 'string' ? upstream.headers['content-type'] : '';
     if (!type.includes('text/html')) {
