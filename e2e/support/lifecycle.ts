@@ -99,7 +99,9 @@ async function removeAll(dirs: string[], removeDir: (dir: string) => Promise<voi
 /**
  * Buat direktori sementara satu per satu. Kalau salah satu gagal, direktori
  * yang sudah terlanjur dibuat ikut dihapus sebelum error asli dilempar.
- * `cleanup()` idempoten: panggilan berikutnya langsung selesai.
+ * `cleanup()` idempoten lewat memoisasi promise: panggilan berikutnya menerima
+ * promise yang sama, termasuk rejection-nya, jadi kegagalan tidak berubah jadi
+ * sukses palsu.
  */
 export async function createTempDirs(
   makeDir: (prefix: string) => Promise<string>,
@@ -117,12 +119,7 @@ export async function createTempDirs(
     throw combineErrors(error, rollbackError);
   }
 
-  let cleaned = false;
-  const cleanup = async () => {
-    if (cleaned) return;
-    cleaned = true;
-    await removeAll(dirs, removeDir);
-  };
+  const cleanup = createIdempotent(() => removeAll(dirs, removeDir));
   return { dirs, cleanup };
 }
 

@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events';
+import type { spawn } from 'node:child_process';
 import { expect, test } from '@playwright/test';
+import { startApp } from './support/app';
 import {
   combineErrors,
   createIdempotent,
@@ -216,4 +218,97 @@ test('cleanup: error startup tetap terbawa saat cleanup juga gagal', () => {
   expect(combined).toBeInstanceOf(AggregateError);
   expect((combined as AggregateError).errors).toEqual([startup, cleanupError]);
   expect((combined as Error).message).toBe('Gagal start API: API berhenti saat start');
+});
+
+const fakeDirs = (removed: string[]) => async (prefix: string) => {
+  const dir = `/tmp/${prefix}`;
+  removed.push(dir);
+  return dir;
+};
+
+const neverSpawn = (counter: { spawns: number }) =>
+  (() => {
+    counter.spawns += 1;
+    throw new Error('spawn tidak boleh dipanggil');
+  }) as unknown as typeof spawn;
+
+test('cleanup: kegagalan freePort membersihkan direktori dan tidak spawn', async () => {
+  const removed: string[] = [];
+  const counter = { spawns: 0 };
+  const portError = new Error('port gagal');
+
+  const error = await startApp({
+    makeTempDir: async (prefix) => {
+      removed.push(`/tmp/${prefix}`);
+      return `/tmp/${prefix}`;
+    },
+    removeDir: async () => undefined,
+    allocatePort: async () => {
+      throw portError;
+    },
+    spawnApp: neverSpawn(counter),
+  }).then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+
+  expect(error).toBe(portError);
+  expect(counter.spawns).toBe(0);
+  expect(removed).toEqual(['/tmp/st-e2e-data-', '/tmp/st-e2e-files-', '/tmp/st-e2e-tmp-']);
+});
+
+test('cleanup: kegagalan freePort + cleanup gagal menyimpan kedua error', async () => {
+  const portError = new Error('port gagal');
+  const removeError = new Error('rm gagal');
+  const counter = { spawns: 0 };
+
+  const error = await startApp({
+    makeTempDir: fakeDirs([]),
+    removeDir: async () => {
+      throw removeError;
+    },
+    allocatePort: async () => {
+      throw portError;
+    },
+    spawnApp: neverSpawn(counter),
+  }).then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+
+  expect(error).toBeInstanceOf(AggregateError);
+  const [primary, secondary] = (error as AggregateError).errors;
+  expect(primary).toBe(portError);
+  expect(secondary).toBeInstanceOf(AggregateError);
+  expect(((secondary as AggregateError).errors as unknown[]).every((entry) => entry === removeError)).toBe(true);
+  expect((secondary as AggregateError).errors).toHaveLength(3);
+  expect((error as Error).message).toBe('port gagal');
+  expect(counter.spawns).toBe(0);
+});
+
+test('cleanup: kegagalan cleanup tidak berubah jadi sukses pada panggilan kedua', async () => {
+  const attempts: string[] = [];
+  const removeError = new Error('rm gagal');
+  const { cleanup } = await createTempDirs(
+    async (prefix) => `/tmp/${prefix}`,
+    ['a-', 'b-', 'c-'],
+    async (dir) => {
+      attempts.push(dir);
+      if (dir === '/tmp/b-') throw removeError;
+    },
+  );
+
+  const first = cleanup().then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+  const second = cleanup().then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+  const [firstError, secondError] = await Promise.all([first, second]);
+
+  expect(firstError).toBe(removeError);
+  expect(secondError).toBe(firstError);
+  expect(attempts).toEqual(['/tmp/a-', '/tmp/b-', '/tmp/c-']);
 });

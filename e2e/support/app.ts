@@ -65,29 +65,61 @@ export async function startMockUpstream(): Promise<Upstream> {
   };
 }
 
+const TEMP_PREFIXES = ['st-e2e-data-', 'st-e2e-files-', 'st-e2e-tmp-'];
+
+/** Seam test deterministik: port, filesystem, dan spawn bisa diganti. */
+export type StartAppDeps = {
+  makeTempDir?: (prefix: string) => Promise<string>;
+  removeDir?: (dir: string) => Promise<void>;
+  allocatePort?: () => Promise<number>;
+  spawnApp?: typeof spawn;
+};
+
 /**
  * Jalankan API produksi (static web + api satu origin) dengan data, files root,
  * dan port sendiri. Tidak pernah menyentuh data pengguna. Semua direktori
  * sementara dibersihkan pada jalur sukses maupun gagal start; kalau proses
  * belum dipastikan berhenti, direktori dipertahankan dan error dilaporkan.
  */
-export async function startApp(): Promise<App> {
+export async function startApp(deps: StartAppDeps = {}): Promise<App> {
   if (!existsSync(join(WEB_DIST, 'index.html'))) {
     throw new Error('Build web belum ada. Jalankan `pnpm build` sebelum E2E.');
   }
 
-  const { dirs, cleanup } = await createTempDirs(
-    (prefix) => mkdtemp(join(tmpdir(), prefix)),
-    ['st-e2e-data-', 'st-e2e-files-', 'st-e2e-tmp-'],
-    (dir) => rm(dir, { recursive: true, force: true }),
-  );
+  const makeTempDir = deps.makeTempDir ?? ((prefix: string) => mkdtemp(join(tmpdir(), prefix)));
+  const removeDir = deps.removeDir ?? ((dir: string) => rm(dir, { recursive: true, force: true }));
+  const allocatePort = deps.allocatePort ?? freePort;
+  const spawnApp = deps.spawnApp ?? spawn;
+
+  const { dirs, cleanup } = await createTempDirs(makeTempDir, TEMP_PREFIXES, removeDir);
   const [dataDir, filesDir, tempDir] = dirs;
-  const port = await freePort();
+
+  /**
+   * Satu jalur pembersihan untuk semua kegagalan setelah direktori dibuat:
+   * sebelum child ada cukup hapus direktori; setelah child ada, `stop` yang
+   * diganti di bawah menangani terminasi + pembersihan. Error asli selalu jadi
+   * pesan utama, kegagalan cleanup masuk `errors` AggregateError.
+   */
+  let stop: () => Promise<void> = createIdempotent(cleanup);
+  const failStartup = async (error: unknown): Promise<never> => {
+    const cleanupError = await stop().then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    throw combineErrors(error, cleanupError);
+  };
+
+  let port: number;
+  try {
+    port = await allocatePort();
+  } catch (error) {
+    return failStartup(error);
+  }
 
   const logs: string[] = [];
   let child: ChildProcess;
   try {
-    child = spawn(process.execPath, ['dist/main.js'], {
+    child = spawnApp(process.execPath, ['dist/main.js'], {
       cwd: API_DIR,
       env: {
         ...process.env,
@@ -107,11 +139,7 @@ export async function startApp(): Promise<App> {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (error) {
-    const cleanupError = await cleanup().then(
-      () => null,
-      (reason: unknown) => reason,
-    );
-    throw combineErrors(error, cleanupError);
+    return failStartup(error);
   }
 
   let spawnError: Error | null = null;
@@ -131,7 +159,7 @@ export async function startApp(): Promise<App> {
    * Idempoten: panggilan kedua menerima promise yang sama, termasuk rejection.
    * Direktori hanya dihapus setelah proses dipastikan berhenti.
    */
-  const stop = createIdempotent(async () => {
+  stop = createIdempotent(async () => {
     const terminateError = await shutdownProcess({
       process: child,
       exited,
@@ -168,12 +196,7 @@ export async function startApp(): Promise<App> {
     }
   } catch (reason) {
     const detail = logs.join('').slice(-4000);
-    const startupError = new Error(`Gagal start API: ${(reason as Error).message}\n${detail}`);
-    const cleanupError = await stop().then(
-      () => null,
-      (cleanupReason: unknown) => cleanupReason,
-    );
-    throw combineErrors(startupError, cleanupError);
+    return failStartup(new Error(`Gagal start API: ${(reason as Error).message}\n${detail}`));
   }
 
   return { baseUrl, stop };
