@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, writeFile, rm, readFile, readdir, copyFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, writeFile, rm, readFile, readdir, copyFile } from 'node:fs/promises';
 import { existsSync, renameSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -412,6 +412,7 @@ async function writeChildren() {
       "writeFileSync(join(dir, 'uploads', 'lama.txt'), 'lama');",
       'const deps = {};',
       'let oldUploadRemovals = 0;',
+      'const dbFile = join(dir, "super-tool.db");',
       "if (process.env.FAULT === 'cleanupUploads') {",
       '  deps.removeDir = (p) => {',
       "    if (p.endsWith('uploads.restore-old')) {",
@@ -421,11 +422,33 @@ async function writeChildren() {
       '    rmSync(p, { recursive: true, force: true });',
       '  };',
       '}',
-      "if (process.env.FAULT === 'rollback') {",
-      "  deps.configure = () => { throw new Error('injected configure'); };",
+      "if (process.env.FAULT === 'rollbackUploads') {",
+      "  deps.open = () => { throw new Error('injected open'); };",
       '  deps.rename = (from, to) => {',
-      "    if (from.endsWith('.restore-old')) throw new Error('injected rollback rename');",
+      "    if (from.endsWith('uploads.restore-old')) throw new Error('injected rollback uploads');",
       '    renameSync(from, to);',
+      '  };',
+      '}',
+      "if (process.env.FAULT === 'rollbackDb') {",
+      "  deps.open = () => { throw new Error('injected open'); };",
+      '  deps.rename = (from, to) => {',
+      "    if (from === dbFile + '.restore-old') throw new Error('injected rollback db');",
+      '    renameSync(from, to);',
+      '  };',
+      '}',
+      "if (process.env.FAULT === 'rollbackRemoveNew') {",
+      "  deps.open = () => { throw new Error('injected open'); };",
+      '  deps.remove = (p) => {',
+      '    if (p === dbFile) throw new Error("injected rollback remove");',
+      '    rmSync(p, { force: true });',
+      '  };',
+      '}',
+      'if (process.env.FSYNC_FAIL_AT) {',
+      '  const at = Number(process.env.FSYNC_FAIL_AT);',
+      '  let calls = 0;',
+      '  deps.fsyncDir = () => {',
+      '    calls += 1;',
+      "    if (calls === at) throw new Error('injected fsyncDir at ' + at);",
       '  };',
       '}',
       'if (process.env.CRASH_AT) {',
@@ -570,29 +593,224 @@ test('restore: kegagalan cleanup uploads pasca-commit dituntaskan startup', asyn
   await rm(work, { recursive: true, force: true });
 });
 
-test('restore: rollback yang gagal tidak menyembunyikan state dan dipulihkan startup', async () => {
+test('restore: kegagalan rollback menghentikan proses dan dipulihkan startup', async () => {
   const archive = await orchestrations('rollback');
-  const work = await mkdtemp(join(tmpdir(), 'st-orch-rollback-'));
+  const expected = { notes: ['keep'], pv: 5, uploads: [['lama.txt', 'lama']] };
+
+  for (const fault of ['rollbackUploads', 'rollbackDb', 'rollbackRemoveNew']) {
+    const work = await mkdtemp(join(tmpdir(), 'st-orch-' + fault + '-'));
+    const data = join(work, 'data');
+    const zipPath = join(work, 'restore.zip');
+    await writeFile(zipPath, archive);
+
+    const failed = runNode(restoreChildScript, {
+      ST_DATA_DIR: data,
+      DB_MODULE: dbModulePath,
+      BACKUP_MODULE: backupModulePath,
+      ZIP: zipPath,
+      FAULT: fault,
+    });
+    assert.equal(failed.status, 1, fault + ' harus menghentikan proses: ' + failed.stderr);
+    assert.match(failed.stderr, /rollback gagal/);
+    assert.match(failed.stderr, /error asli/);
+    assert.doesNotMatch(failed.stdout, /OK/, fault + ': tidak boleh melaporkan sukses');
+    assert.ok(
+      existsSync(join(data, 'super-tool.db.restore-journal')),
+      fault + ': journal dipertahankan untuk startup',
+    );
+
+    // Proses berhenti sebelum request bisa dilanjutkan; startup baru memulihkan.
+    assertGeneration(readState(data), expected, fault + ' recovery #1');
+    assertGeneration(readState(data), expected, fault + ' recovery #2');
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+
+/** Folder data dengan database valid (pv tertentu) untuk menguji recovery journal. */
+async function journalCase(name, pv = 5) {
+  const work = await mkdtemp(join(tmpdir(), 'st-journal-' + name + '-'));
+  const data = join(work, 'data');
+  await mkdir(data, { recursive: true });
+  const dbFile = join(data, 'super-tool.db');
+  makeSourceDb(dbFile, pv);
+  return { work, data, dbFile };
+}
+
+const writeJournal = (data, entry) =>
+  writeFile(join(data, 'super-tool.db.restore-journal'), JSON.stringify(entry));
+
+test('restore: committed dengan uploads baru dan salinan lama mempertahankan generasi baru', async () => {
+  await writeChildren();
+  const { work, data } = await journalCase('committed-ok');
+  await mkdir(join(data, 'uploads'));
+  await writeFile(join(data, 'uploads', 'new.txt'), 'baru');
+  await mkdir(join(data, 'uploads.restore-old'));
+  await writeFile(join(data, 'uploads.restore-old', 'lama.txt'), 'lama');
+  await writeJournal(data, { phase: 'committed', uploads: true, hadUploads: true, at: 1 });
+
+  const expected = { notes: ['n1'], pv: 5, uploads: [['new.txt', 'baru']] };
+  assertGeneration(readState(data), expected, 'committed #1');
+  assertGeneration(readState(data), expected, 'committed #2');
+  assert.equal(existsSync(join(data, 'uploads.restore-old')), false, 'salinan lama dibersihkan');
+  assert.equal(existsSync(join(data, 'super-tool.db.restore-journal')), false, 'journal dibersihkan');
+  await rm(work, { recursive: true, force: true });
+});
+
+test('restore: committed tanpa folder uploads gagal startup dan mempertahankan artefak', async () => {
+  await writeChildren();
+  const { work, data, dbFile } = await journalCase('committed-missing');
+  await mkdir(join(data, 'uploads.restore-old'));
+  await writeFile(join(data, 'uploads.restore-old', 'lama.txt'), 'lama');
+  await writeJournal(data, { phase: 'committed', uploads: true, hadUploads: true, at: 1 });
+  const before = await readFile(dbFile);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const failed = runNode(readChildScript, { ST_DATA_DIR: data, DB_MODULE: dbModulePath });
+    assert.notEqual(failed.status, 0, 'startup harus gagal (percobaan ' + attempt + ')');
+    assert.match(failed.stderr, /Restore commit tidak lengkap: folder uploads hilang/);
+    assert.deepEqual(await readFile(dbFile), before, 'database committed tidak diubah');
+    assert.ok(existsSync(join(data, 'super-tool.db.restore-journal')), 'journal dipertahankan');
+    assert.ok(existsSync(join(data, 'uploads.restore-old')), 'artefak uploads lama dipertahankan');
+  }
+  await rm(work, { recursive: true, force: true });
+});
+
+test(
+  'restore: committed dengan pembersihan uploads gagal menahan journal sampai bersih',
+  { skip: typeof process.getuid === 'function' && process.getuid() === 0 },
+  async () => {
+    await writeChildren();
+    const { work, data } = await journalCase('committed-cleanup');
+    await mkdir(join(data, 'uploads'));
+    await writeFile(join(data, 'uploads', 'new.txt'), 'baru');
+    const blocked = join(data, 'uploads.restore-old', 'blocked');
+    await mkdir(blocked, { recursive: true });
+    await writeFile(join(blocked, 'file.txt'), 'x');
+    await chmod(blocked, 0o500);
+    await writeJournal(data, { phase: 'committed', uploads: true, hadUploads: true, at: 1 });
+
+    const expected = { notes: ['n1'], pv: 5, uploads: [['new.txt', 'baru']] };
+    const first = readState(data);
+    assert.deepEqual(first.notes, expected.notes, 'generasi tidak berubah');
+    assert.deepEqual(first.uploads, expected.uploads, 'uploads baru tetap otoritatif');
+    assert.ok(existsSync(join(data, 'super-tool.db.restore-journal')), 'journal ditahan saat cleanup gagal');
+
+    const second = readState(data);
+    assert.deepEqual(second.uploads, expected.uploads, 'recovery berulang idempoten');
+
+    await chmod(blocked, 0o700);
+    const recovered = readState(data);
+    assert.deepEqual(recovered.uploads, expected.uploads, 'generasi tetap baru setelah cleanup');
+    assert.equal(existsSync(join(data, 'super-tool.db.restore-journal')), false, 'journal hilang setelah bersih');
+    assert.equal(existsSync(join(data, 'uploads.restore-old')), false, 'salinan lama terhapus');
+    await rm(work, { recursive: true, force: true });
+  },
+);
+
+test('restore: journal rusak atau ambigu menggagalkan startup tanpa menghapus artefak', async () => {
+  await writeChildren();
+  const cases = [
+    { name: 'json', content: '{bukan json', match: /bukan JSON yang valid/ },
+    { name: 'phase', content: '{"phase":"entah"}', match: /phase tidak dikenal/ },
+    { name: 'tipe', content: '{"phase":"committed","uploads":"ya","hadUploads":true}', match: /harus boolean/ },
+    { name: 'sepasang', content: '{"phase":"replacing","uploads":true}', match: /harus ada bersamaan/ },
+    {
+      name: 'kontradiksi',
+      content: '{"phase":"replacing","uploads":false,"hadUploads":true}',
+      match: /uploads=false tidak boleh/,
+    },
+    { name: 'at', content: '{"phase":"replacing","at":"x"}', match: /at harus angka/ },
+  ];
+
+  for (const item of cases) {
+    const { work, data, dbFile } = await journalCase('invalid-' + item.name);
+    const journalPath = join(data, 'super-tool.db.restore-journal');
+    await writeFile(journalPath, item.content);
+    const before = await readFile(dbFile);
+
+    const failed = runNode(readChildScript, { ST_DATA_DIR: data, DB_MODULE: dbModulePath });
+    assert.notEqual(failed.status, 0, item.name + ': startup harus gagal');
+    assert.match(failed.stderr, item.match);
+    assert.deepEqual(await readFile(dbFile), before, item.name + ': database tidak diubah');
+    assert.equal(await readFile(journalPath, 'utf8'), item.content, item.name + ': journal dipertahankan');
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('restore: journal versi lama yang valid tetap dipulihkan', async () => {
+  await writeChildren();
+
+  // Replacing lama: swap uploads selesai sebelum journal, salinan lama dipulihkan.
+  const replacing = await journalCase('legacy-replacing', 5);
+  await copyFile(replacing.dbFile, replacing.dbFile + '.restore-old');
+  const old = new DatabaseSync(replacing.dbFile + '.restore-old');
+  old.exec('UPDATE account SET pv = 9');
+  old.close();
+  await writeJournal(replacing.data, { phase: 'replacing', at: 1 });
+  assertGeneration(
+    readState(replacing.data),
+    { notes: ['n1'], pv: 9, uploads: [] },
+    'legacy replacing',
+  );
+  await rm(replacing.work, { recursive: true, force: true });
+
+  // Committed lama: uploads yang ada adalah generasi baru; salinan lama dibuang.
+  const committed = await journalCase('legacy-committed', 5);
+  await mkdir(join(committed.data, 'uploads'));
+  await writeFile(join(committed.data, 'uploads', 'new.txt'), 'baru');
+  await writeJournal(committed.data, { phase: 'committed', at: 1 });
+  assertGeneration(
+    readState(committed.data),
+    { notes: ['n1'], pv: 5, uploads: [['new.txt', 'baru']] },
+    'legacy committed',
+  );
+  await rm(committed.work, { recursive: true, force: true });
+});
+
+test('restore: kegagalan fsync direktori tidak pernah melaporkan sukses sebelum commit', async () => {
+  const archive = await orchestrations('fsync');
+  const oldGeneration = { notes: ['keep'], pv: 5, uploads: [['lama.txt', 'lama']] };
+  const newGeneration = { notes: ['n1'], pv: 2, uploads: [['new.txt', 'baru']] };
+
+  // 1 journal replacing, 2 uploads lama, 3 uploads baru, 4 DB lama,
+  // 5 DB baru, 6 persiapan, 7 journal committed, 8 cleanup pasca-commit.
+  const preCommit = [1, 2, 3, 4, 5, 6, 7];
+  for (const at of preCommit) {
+    const work = await mkdtemp(join(tmpdir(), 'st-fsync-' + at + '-'));
+    const data = join(work, 'data');
+    const zipPath = join(work, 'restore.zip');
+    await writeFile(zipPath, archive);
+
+    const failed = runNode(restoreChildScript, {
+      ST_DATA_DIR: data,
+      DB_MODULE: dbModulePath,
+      BACKUP_MODULE: backupModulePath,
+      ZIP: zipPath,
+      FSYNC_FAIL_AT: String(at),
+    });
+    assert.equal(failed.status, 3, 'fsync #' + at + ' harus gagal: ' + failed.stderr);
+    assert.doesNotMatch(failed.stdout, /OK/, 'fsync #' + at + ' tidak boleh sukses');
+    assertGeneration(readState(data), oldGeneration, 'fsync #' + at + ' recovery');
+    await rm(work, { recursive: true, force: true });
+  }
+
+  const work = await mkdtemp(join(tmpdir(), 'st-fsync-cleanup-'));
   const data = join(work, 'data');
   const zipPath = join(work, 'restore.zip');
   await writeFile(zipPath, archive);
-
-  const failed = runNode(restoreChildScript, {
+  const done = runNode(restoreChildScript, {
     ST_DATA_DIR: data,
     DB_MODULE: dbModulePath,
     BACKUP_MODULE: backupModulePath,
     ZIP: zipPath,
-    FAULT: 'rollback',
+    FSYNC_FAIL_AT: '8',
   });
-  assert.equal(failed.status, 3, failed.stderr);
-  assert.match(failed.stdout, /THREW/);
-  assert.ok(
-    existsSync(join(data, 'super-tool.db.restore-journal')),
-    'journal dibiarkan supaya startup memulihkan generasi lama',
-  );
-
-  const expected = { notes: ['keep'], pv: 5, uploads: [['lama.txt', 'lama']] };
-  assertGeneration(readState(data), expected, 'rollback recovery #1');
-  assertGeneration(readState(data), expected, 'rollback recovery #2');
+  assert.equal(done.status, 0, done.stderr);
+  assert.match(done.stdout, /OK/);
+  assert.ok(existsSync(join(data, 'super-tool.db.restore-journal')), 'journal committed ditahan');
+  assertGeneration(readState(data), newGeneration, 'fsync cleanup recovery #1');
+  assertGeneration(readState(data), newGeneration, 'fsync cleanup recovery #2');
+  assert.equal(existsSync(join(data, 'super-tool.db.restore-journal')), false, 'journal dibersihkan startup');
   await rm(work, { recursive: true, force: true });
 });
