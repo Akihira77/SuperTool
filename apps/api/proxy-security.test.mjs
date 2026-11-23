@@ -15,7 +15,7 @@ import bodyIdle from './dist/common/body-idle.js';
 
 const ROOT = new URL('../..', import.meta.url).pathname;
 const { stripCredentialCookies, upstreamHttpHeaders, upstreamUpgradeHeaders, SANDBOX_CSP } = headersPolicy;
-const { bodyIdleMs } = bodyIdle;
+const { bodyIdleMs, bodyIdleGuard } = bodyIdle;
 
 test('header policy: cookie credential dibuang, cookie target dipertahankan', () => {
   assert.equal(stripCredentialCookies('st_session=abc; target=1; st_proxy=xyz'), 'target=1');
@@ -279,6 +279,124 @@ test('body idle: nilai env tak wajar jatuh ke default, 0 tetap nonaktif', () => 
   assert.equal(bodyIdleMs('-5'), 0);
   assert.equal(bodyIdleMs('250'), 250);
   assert.equal(bodyIdleMs('999999999999'), 60 * 60 * 1000);
+});
+
+/** Baca satu respons HTTP kecil dari socket keep-alive. */
+function httpExchange(socket, payload) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    const cleanup = () => {
+      clearTimeout(timer);
+      socket.removeListener('data', onData);
+      socket.removeListener('close', onClose);
+    };
+    const onData = (chunk) => {
+      data += chunk.toString('utf8');
+      const split = data.indexOf('\r\n\r\n');
+      if (split < 0) return;
+      const head = data.slice(0, split);
+      const match = /content-length:\s*(\d+)/i.exec(head);
+      const need = split + 4 + (match ? Number(match[1]) : 0);
+      if (data.length < need) return;
+      cleanup();
+      resolve(data);
+    };
+    const onClose = () => {
+      cleanup();
+      resolve(data);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('respons HTTP tidak lengkap'));
+    }, 3000);
+    socket.on('data', onData);
+    socket.once('close', onClose);
+    socket.write(payload);
+  });
+}
+
+test('body idle: listener timeout bersih di keep-alive dan semua jalur cleanup', async (t) => {
+  const serverSockets = [];
+  const clients = [];
+  const server = http.createServer((req, res) => {
+    bodyIdleGuard(150)(req, res, () => {
+      if (req.url === '/early') {
+        res.destroy();
+        return;
+      }
+      req.resume();
+      req.on('end', () => res.end('ok'));
+    });
+  });
+  server.on('connection', (socket) => serverSockets.push(socket));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+
+  t.after(async () => {
+    for (const client of clients) client.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  const bodied = (path) =>
+    'POST ' + path + ' HTTP/1.1\r\n' +
+    'Host: 127.0.0.1:' + port + '\r\n' +
+    'Content-Type: application/json\r\n' +
+    'Content-Length: 2\r\n' +
+    'Connection: keep-alive\r\n\r\n' +
+    '{}';
+
+  const socket = await openSocket(port);
+  clients.push(socket);
+  // Node http server sendiri bisa memasang listener 'timeout'; yang penting
+  // jumlahnya tidak bertambah oleh middleware.
+  const baseline = serverSockets[0].listenerCount('timeout');
+
+  // A: beberapa request bodied berurutan tidak menumpuk listener.
+  for (let i = 0; i < 5; i += 1) {
+    const reply = await httpExchange(socket, bodied('/x'));
+    assert.match(reply, /HTTP\/1\.1 200/);
+    assert.equal(serverSockets[0].listenerCount('timeout'), baseline, 'listener tidak menumpuk pada request #' + (i + 1));
+  }
+
+  // C: cleanup berulang (end lalu finish) tidak boleh menyisakan callback yang
+  // memutus koneksi pada request berikutnya setelah idle terlampaui.
+  await sleep(400);
+  const afterIdle = await httpExchange(socket, bodied('/x'));
+  assert.match(afterIdle, /HTTP\/1\.1 200/, 'koneksi tetap hidup setelah idle');
+  assert.equal(serverSockets[0].listenerCount('timeout'), baseline);
+
+  // B: timeout tetap berfungsi di koneksi yang sama setelah request normal.
+  const closedAt = await new Promise((resolve) => {
+    const start = Date.now();
+    socket.once('close', () => resolve(Date.now() - start));
+    socket.write(
+      'POST /stall HTTP/1.1\r\n' +
+        'Host: 127.0.0.1:' + port + '\r\n' +
+        'Content-Type: application/json\r\n' +
+        'Content-Length: 100\r\n' +
+        'Connection: keep-alive\r\n\r\n' +
+        '{"a":',
+    );
+  });
+  assert.ok(closedAt >= 100 && closedAt < 1000, 'body macet harus ditutup, closedAt=' + closedAt);
+  assert.equal(serverSockets[0].listenerCount('timeout'), baseline, 'listener bersih setelah timeout');
+
+  // C: abort/disconnect client.
+  const aborted = await openSocket(port);
+  clients.push(aborted);
+  aborted.write('POST /x HTTP/1.1\r\nHost: 127.0.0.1:' + port + '\r\nContent-Length: 100\r\n\r\n{"a":');
+  await sleep(50);
+  aborted.destroy();
+  await sleep(100);
+  assert.equal(serverSockets[1].listenerCount('timeout'), baseline, 'listener bersih setelah client memutus');
+  assert.equal(serverSockets[1].destroyed, true, 'socket server ikut tertutup');
+
+  // C: response ditutup paksa (close tanpa finish).
+  const early = await openSocket(port);
+  clients.push(early);
+  await httpExchange(early, 'POST /early HTTP/1.1\r\nHost: 127.0.0.1:' + port + '\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{"a":');
+  await sleep(100);
+  assert.equal(serverSockets[2].listenerCount('timeout'), baseline, 'listener bersih saat response ditutup paksa');
 });
 
 async function waitHealth(base, tries = 300) {

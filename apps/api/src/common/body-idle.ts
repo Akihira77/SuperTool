@@ -38,8 +38,21 @@ export function bodyIdleGuard(idleMs: number) {
     };
     socket.setTimeout(idleMs, onTimeout);
 
+    let cleared = false;
     const clear = (): void => {
-      socket.setTimeout(0);
+      if (cleared) return;
+      cleared = true;
+      // `setTimeout(0)` hanya mematikan timer; callback dari setTimeout(ms, cb)
+      // tetap terpasang sebagai listener 'timeout'. Di keep-alive listener itu
+      // akan menumpuk, jadi listener milik middleware ini dilepas eksplisit.
+      socket.removeListener('timeout', onTimeout);
+      if (!socket.destroyed) socket.setTimeout(0);
+      // Lepas referensi request/response secepat mungkin; semua `once`.
+      req.removeListener('end', clear);
+      req.removeListener('close', clear);
+      req.removeListener('aborted', clear);
+      res.removeListener('close', clear);
+      res.removeListener('finish', clear);
     };
     req.once('end', clear);
     req.once('close', clear);
