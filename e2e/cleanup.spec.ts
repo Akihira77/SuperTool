@@ -238,11 +238,10 @@ test('cleanup: kegagalan freePort membersihkan direktori dan tidak spawn', async
   const portError = new Error('port gagal');
 
   const error = await startApp({
-    makeTempDir: async (prefix) => {
-      removed.push(`/tmp/${prefix}`);
-      return `/tmp/${prefix}`;
+    makeTempDir: async (prefix) => `/tmp/${prefix}`,
+    removeDir: async (dir) => {
+      removed.push(dir);
     },
-    removeDir: async () => undefined,
     allocatePort: async () => {
       throw portError;
     },
@@ -254,6 +253,7 @@ test('cleanup: kegagalan freePort membersihkan direktori dan tidak spawn', async
 
   expect(error).toBe(portError);
   expect(counter.spawns).toBe(0);
+  // Tepat sekali per direktori, dalam urutan pembuatannya.
   expect(removed).toEqual(['/tmp/st-e2e-data-', '/tmp/st-e2e-files-', '/tmp/st-e2e-tmp-']);
 });
 
