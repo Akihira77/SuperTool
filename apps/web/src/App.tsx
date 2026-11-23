@@ -589,47 +589,51 @@ function Shell() {
                 const active = session.id === store.activeId;
                 const Component = toolById(session.tool)?.component;
                 if (!Component) return null;
-                if (!active && !mounted.has(session.id)) return null;
+                // Panel selalu dirender supaya `aria-controls` tab selalu menunjuk
+                // elemen nyata. Chunk tool tetap lazy: hanya sesi aktif/pernah aktif
+                // yang memuat komponennya.
+                const loadContent = active || mounted.has(session.id);
                 return (
-                  <Suspense
+                  <div
                     key={session.id}
-                    fallback={
-                      active ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Spinner />
-                        </div>
-                      ) : null
-                    }
+                    ref={(node) => {
+                      if (node) {
+                        // Tick memicu ulang permintaan fokus yang menunggu root ini.
+                        if (!rootSeen.current.has(session.id)) {
+                          rootSeen.current.add(session.id);
+                          setRootTick((tick) => tick + 1);
+                        }
+                        sessionNodes.current.set(session.id, node);
+                      } else {
+                        sessionNodes.current.delete(session.id);
+                      }
+                    }}
+                    id={'session-panel-' + session.id}
+                    role="tabpanel"
+                    aria-labelledby={'session-tab-' + session.id}
+                    tabIndex={-1}
+                    className={cn(
+                      'absolute inset-0 flex min-h-0 min-w-0 flex-col outline-none',
+                      !active && 'pointer-events-none invisible',
+                    )}
+                    aria-hidden={active ? undefined : true}
                   >
                     {/* Kotak sesi selalu absolute dengan ukuran sama; pindah tab
                         hanya mengubah visibility, bukan layout flex/absolute. */}
-                    <div
-                      ref={(node) => {
-                        if (node) {
-                          // Sesi lazy baru benar-benar ter-commit setelah chunk-nya siap.
-                          // Tick memicu ulang permintaan fokus yang menunggu root ini.
-                          if (!rootSeen.current.has(session.id)) {
-                            rootSeen.current.add(session.id);
-                            setRootTick((tick) => tick + 1);
-                          }
-                          sessionNodes.current.set(session.id, node);
-                        } else {
-                          sessionNodes.current.delete(session.id);
+                    {loadContent ? (
+                      <Suspense
+                        fallback={
+                          active ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Spinner />
+                            </div>
+                          ) : null
                         }
-                      }}
-                      id={'session-panel-' + session.id}
-                      role="tabpanel"
-                      aria-labelledby={'session-tab-' + session.id}
-                      tabIndex={-1}
-                      className={cn(
-                        'absolute inset-0 flex min-h-0 min-w-0 flex-col outline-none',
-                        !active && 'pointer-events-none invisible',
-                      )}
-                      aria-hidden={active ? undefined : true}
-                    >
-                      <SessionContent component={Component} />
-                    </div>
-                  </Suspense>
+                      >
+                        <SessionContent component={Component} />
+                      </Suspense>
+                    ) : null}
+                  </div>
                 );
               })}
               {!activeSession ? (

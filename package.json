@@ -9,10 +9,15 @@
     "start": "pnpm --filter @super-tool/api start",
     "update:ytdlp": "pnpm --filter @super-tool/api update:ytdlp",
     "typecheck": "pnpm -r typecheck",
-    "check": "pnpm build && pnpm --filter @super-tool/web test && node --test apps/api/selfcheck.test.mjs apps/api/restore.test.mjs apps/api/jobs.test.mjs apps/api/http-store.test.mjs apps/api/workspaces.test.mjs apps/api/proxy.test.mjs apps/api/proxy-security.test.mjs apps/api/zip.test.mjs apps/api/retention.test.mjs apps/api/integration.test.mjs"
+    "check": "pnpm build && pnpm --filter @super-tool/web test && node --test apps/api/selfcheck.test.mjs apps/api/restore.test.mjs apps/api/jobs.test.mjs apps/api/http-store.test.mjs apps/api/workspaces.test.mjs apps/api/proxy.test.mjs apps/api/proxy-security.test.mjs apps/api/zip.test.mjs apps/api/retention.test.mjs apps/api/integration.test.mjs",
+    "e2e": "pnpm build && playwright test"
   },
   "engines": {
     "node": ">=22.13"
   },
-  "packageManager": "pnpm@11.15.1"
+  "packageManager": "pnpm@11.15.1",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1"
+  }
 }

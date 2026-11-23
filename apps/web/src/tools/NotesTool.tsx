@@ -508,7 +508,7 @@ export default function NotesTool() {
                 <div
                   ref={gutterRef}
                   aria-hidden="true"
-                  className="mono w-10 shrink-0 overflow-hidden border-r border-line bg-panel/20 py-5 text-right text-[12.5px] leading-7 text-muted/45 select-none md:py-6"
+                  className="mono w-10 shrink-0 overflow-hidden border-r border-line bg-panel/20 py-5 text-right text-[12.5px] leading-7 text-muted/80 select-none md:py-6"
                 >
                   {gutterHeights.map((height, index) => (
                     <div key={index} className="pr-2 tabular-nums" style={{ height }}>

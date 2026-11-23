@@ -101,6 +101,7 @@ export function SessionTabs({
               ref={(node) => {
                 if (active) activeRef.current = node;
               }}
+              role="presentation"
               data-session-id={session.id}
               className={cn(
                 'group flex h-7 max-w-[210px] shrink-0 items-center rounded-md border pr-0.5 transition-colors',

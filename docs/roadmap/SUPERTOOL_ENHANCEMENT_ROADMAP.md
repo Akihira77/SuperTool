@@ -201,9 +201,10 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Batas memori/CPU per operasi; timeout konsisten (proxy 120 dtk, HTTP client 1–60 dtk, Docker 20–120 dtk, body/respons dibatasi).
 - [x] Aksesibilitas dasar: tab sesi punya `role=tab`, `aria-selected`, fokus keyboard, Enter/Space; tombol ikon memakai label.
 - [x] Tidak ada telemetri keluar; diagnostik hanya lokal dan tidak dikirim otomatis.
-- [ ] Audit aksesibilitas otomatis dan uji responsif layar kecil.
+- [x] Audit aksesibilitas otomatis (axe, WCAG 2.1 A/AA + 2.2 AA) pada login, ganti password, shell, Catatan, URL Viewer, Command Palette; tidak ada pelanggaran critical/serious.
+- [ ] Uji responsif layar kecil (belum; butuh viewport 360 px).
 - Acceptance:
-  - Audit aksesibilitas otomatis tidak menemukan pelanggaran kritis (belum dijalankan).
+  - Audit aksesibilitas otomatis tidak menemukan pelanggaran kritis (selesai; lihat §7 hasil verifikasi).
   - Tidak ada operasi tanpa timeout.
 
 ### Fase 6 — Test dan CI (M)
@@ -212,7 +213,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 - [x] Unit test frontend: action registry, workflow lintas tool, container sesi (Vitest).
 - [x] Integration test API dengan DB sementara: login, ganti password, baca berkas, path keluar jail, tiket proxy metadata.
 - [x] CI: typecheck, build, test, audit dependensi (GitHub Actions, Node 22.13 + 24).
-- [ ] E2E browser minimal: login, buka tool, proxy, notes download (masih uji manual).
+- [x] E2E browser minimal: login + ganti password wajib, multi-sesi, proxy path dengan mock upstream, notes autosave + download (Playwright, Chromium).
 - Acceptance:
   - `pnpm check` mencakup frontend dan backend.
   - CI gagal pada type error, test gagal, build gagal, atau audit high.
@@ -233,7 +234,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 2. Action registry + palette.
 3. Workspace.
 4. Git/Docker/log (selesai); AI kontekstual belum.
-5. Test/CI (selesai); E2E browser dan audit aksesibilitas otomatis tersisa.
+5. Test/CI (selesai), termasuk E2E browser + audit aksesibilitas otomatis.
 
 ---
 
@@ -331,12 +332,16 @@ Hasil verifikasi aktual:
 - `pnpm audit --audit-level high` lulus; tersisa 1 low + 2 moderate (bukan high).
 - Uji manual: proxy tiket 401/302/200, WS 401/101, metadata 400, restore traversal/symlink/SQLite rusak/versi skema ditolak, Compose lifecycle, Git commit/branch/stash.
 - CI workflow ditambahkan tetapi belum dijalankan di GitHub (belum ada push remote).
+- `pnpm e2e` lulus 12 test (Chromium, build produksi, data sementara): E2E-01…E2E-05 + 6 audit axe + cek keyboard.
+- axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 6 state yang diaudit. Pengecualian terdokumentasi: `aria-required-children` pada tablist sesi (tombol tutup per-tab), dibatasi rule + elemen itu saja di `e2e/support/a11y.ts`.
+- Perbaikan aksesibilitas dari audit: `aria-controls` tab sesi selalu menunjuk panel nyata (panel dirender lebih dulu, konten tetap lazy), checkbox task-list Markdown disembunyikan dari accessibility tree, kontras nomor baris editor dinaikkan ke `muted/80`.
+- Negative control dijalankan lokal: mematikan autosave, menghapus aksi download, menghapus atribut `sandbox` proxy, dan melepas gate ganti password masing-masing membuat test terkait gagal (perubahan dikembalikan).
 
 Backlog berprioritas yang tersisa:
 
 | Prioritas | Item | Nilai | Kompleksitas | Dependensi | Modul | Acceptance |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | E2E browser + audit aksesibilitas | Tinggi | M | Playwright/axe | `apps/web`, CI | Login → tool → proxy → notes download otomatis; tidak ada pelanggaran kritis |
+| ~~P1~~ | ~~E2E browser + audit aksesibilitas~~ (selesai: `pnpm e2e`) | Tinggi | M | Playwright/axe | `apps/web`, CI | Login → tool → proxy → notes download otomatis; tidak ada pelanggaran kritis |
 | P1 | Migrasi skema berversi | Tinggi | M | — | `common/db.ts` | `user_version` naik bertahap, backup sebelum migrasi, rollback teruji |
 | P1 | Hapus/isolasi penuh mode path | Tinggi | M | — | `proxy.middleware.ts`, `UrlTool.tsx` | HTML pihak ketiga tidak pernah se-origin dengan app |
 | P2 | AI kontekstual opt-in | Sedang | L | Config provider + consent | `apps/api`, UI baru | Default mati, redaksi rahasia, tidak ada kiriman otomatis |

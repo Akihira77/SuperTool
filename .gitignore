@@ -15,3 +15,6 @@ temp/
 .DS_Store
 apps/web/dist/
 apps/api/dist/
+test-results/
+playwright-report/
+blob-report/

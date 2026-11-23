@@ -55,7 +55,7 @@ export function CodeEditor({ value, onChange, readOnly, placeholder, onSave, cla
       <div
         ref={gutterRef}
         aria-hidden="true"
-        className="mono w-14 shrink-0 select-none overflow-hidden border-r border-line/70 bg-panel pr-2 py-3 text-right text-[12.5px] leading-[1.65rem] tabular-nums text-muted/50"
+        className="mono w-14 shrink-0 select-none overflow-hidden border-r border-line/70 bg-panel pr-2 py-3 text-right text-[12.5px] leading-[1.65rem] tabular-nums text-muted/80"
       >
         {Array.from({ length: lineCount }, (_, i) => (
           <div key={i}>{i + 1}</div>

@@ -491,8 +491,33 @@ Detail arsitektur: [docs/arsitektur.md](docs/arsitektur.md). Referensi endpoint:
 | `pnpm start` | Jalankan hasil build |
 | `pnpm typecheck` | `tsc --noEmit` di semua paket |
 | `pnpm check` | Build + unit test frontend + seluruh suite API (selfcheck, restore, jobs, HTTP store, workspace, integrasi) |
+| `pnpm e2e` | Build lalu jalankan E2E browser (Playwright + axe) |
 
-GitHub Actions (`.github/workflows/ci.yml`) menjalankan instalasi frozen lockfile, typecheck, `pnpm check`, dan audit dependensi level high pada Node 22.13 dan 24 untuk setiap push ke `master` dan pull request.
+## E2E browser dan audit aksesibilitas
+
+`pnpm e2e` membangun aplikasi lebih dulu, lalu menjalankan Playwright terhadap **build produksi** (satu origin: API menyajikan `apps/web/dist`). Tidak perlu internet.
+
+- Browser: Chromium (Playwright headless). Instalasi sekali: `pnpm exec playwright install chromium`.
+- Isolasi: setiap worker membuat `ST_DATA_DIR`, `ST_FS_ROOTS`, `ST_TEMP_DIR`, dan port sendiri lewat `mkdtemp`, lalu menghapusnya setelah test. Upstream proxy untuk E2E-03 adalah server HTTP lokal buatan test (`e2e/support/app.ts`).
+- Worker tunggal (`workers: 1`) karena satu instance API dipakai bersama; test tetap tidak bergantung urutan (helper login idempoten: password awal → password test).
+- Trace + screenshot disimpan saat gagal (`test-results/`), report HTML di `playwright-report/`.
+
+Skenario yang dicakup (`e2e/`):
+
+| ID | Alur |
+|----|------|
+| E2E-01 | Login password awal → ganti password wajib (validasi pendek & konfirmasi), sesi bertahan setelah reload, logout |
+| E2E-02 | Buka Catatan + JSON sebagai sesi berbeda, pindah tab, persistence setelah reload, panah keyboard |
+| E2E-03 | URL Viewer mode path lewat mock upstream: konten termuat, atribut `sandbox`, CSP sandbox respons proxy; negatif: tanpa sesi 401, target metadata 400 |
+| E2E-04 | Catatan: buat, autosave (tunggu respons PUT), reload, unduh `.md` dan cocokkan isinya |
+| E2E-05 | API tanpa sesi 401, mutasi tanpa CSRF 403, error login dapat diakses, cookie sesi invalid → login |
+| D | axe (WCAG 2.1 A/AA + 2.2 AA) pada login, ganti password, shell, Catatan, URL Viewer, Command Palette; cek keyboard skip link, focus trap palette, Escape, ARIA tab sesi |
+
+Hasil axe: tidak ada pelanggaran `critical`/`serious`. Satu pengecualian terdokumentasi: `aria-required-children` pada tablist sesi karena tombol tutup per-tab berada di dalam item tab (pola closable tabs); pengecualian dibatasi ke rule + elemen itu saja di `e2e/support/a11y.ts`, bukan rule global.
+
+Batasan: hanya Chromium; mode proxy **subdomain** tidak diuji otomatis (butuh `*.localhost` khusus browser); tidak ada pengujian screen reader manual; axe bukan pengganti uji keyboard manual.
+
+GitHub Actions (`.github/workflows/ci.yml`) menjalankan instalasi frozen lockfile, typecheck, `pnpm check`, dan audit dependensi level high pada Node 22.13 dan 24 untuk setiap push ke `master` dan pull request. Job `e2e` terpisah (Node 22.13) menginstal Chromium, build produksi, menjalankan `pnpm exec playwright test`, dan mengunggah report/trace hanya saat gagal.
 
 ## Batasan yang diketahui
 
