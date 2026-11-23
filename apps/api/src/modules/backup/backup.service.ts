@@ -5,11 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { DatabaseSync } from 'node:sqlite';
 import { ZipArchive } from 'archiver';
 import type { Response } from 'express';
 import { cfg } from '../../config';
-import { db, replaceDatabase, SCHEMA_VERSION } from '../../common/db';
+import { db, replaceDatabase, validateDatabaseFile } from '../../common/db';
 
 const exec = promisify(execFile);
 
@@ -35,6 +34,9 @@ const stamp = () => {
  */
 @Injectable()
 export class BackupService {
+  /** Restore berjalan sinkron terhadap file DB; cegah dua restore bersamaan. */
+  private restoring = false;
+
   private uploadsDir() {
     return join(cfg.dataDir, UPLOADS);
   }
@@ -70,6 +72,16 @@ export class BackupService {
   }
 
   async restore(file?: Uploaded) {
+    if (this.restoring) throw new BadRequestException('Restore lain sedang berjalan');
+    this.restoring = true;
+    try {
+      return await this.restoreNow(file);
+    } finally {
+      this.restoring = false;
+    }
+  }
+
+  private async restoreNow(file?: Uploaded) {
     if (!file || (!file.path && !file.buffer?.length)) throw new BadRequestException('File .zip tidak ditemukan');
 
     // Multer sudah menulis upload ke disk; buffer hanya dipakai pemanggil lama.
@@ -108,7 +120,7 @@ export class BackupService {
       if (!info?.isFile() || info.size < 512) throw new BadRequestException('File database di dalam backup tidak valid');
       if (info.size > MAX_DB) throw new BadRequestException('Database backup terlalu besar');
       await this.assertSqliteHeader(dbFile);
-      await this.validateDatabase(dbFile);
+      validateDatabaseFile(dbFile);
 
       const stagedUploads = join(out, UPLOADS);
       const hasUploads = existsSync(stagedUploads);
@@ -135,6 +147,20 @@ export class BackupService {
       const message = (err as Error).message ?? '';
       if (message.includes('ENOENT') && message.includes('unzip')) {
         throw new BadRequestException('Perintah unzip tidak tersedia di server');
+      }
+      // Hanya pesan internal yang aman ditampilkan; error filesystem mentah bisa
+      // memuat path data user, jadi dicatat ke log dan diganti pesan generik.
+      const safe =
+        message.startsWith('Gagal ') ||
+        message.startsWith('Checkpoint database gagal') ||
+        message.startsWith('Database restore tidak valid') ||
+        message.startsWith('Database backup') ||
+        message.startsWith('Integritas database backup') ||
+        message.startsWith('Versi skema backup') ||
+        message.startsWith('Restore database lain');
+      if (!safe) {
+        process.stderr.write('restore: ' + message + '\n');
+        throw new BadRequestException('Gagal memulihkan backup');
       }
       throw new BadRequestException('Gagal memulihkan backup: ' + message.slice(0, 160));
     } finally {
@@ -288,37 +314,6 @@ export class BackupService {
       }
     } finally {
       await handle.close();
-    }
-  }
-
-  /** Buka salinan sebagai database: integritas, foreign key, versi skema, tabel wajib. */
-  private async validateDatabase(dbFile: string) {
-    let check: DatabaseSync | null = null;
-    try {
-      check = new DatabaseSync(dbFile);
-      const integrity = check.prepare('PRAGMA integrity_check').all() as Array<Record<string, unknown>>;
-      const bad = integrity.filter((row) => String(Object.values(row)[0] ?? '').toLowerCase() !== 'ok');
-      if (!integrity.length || bad.length) {
-        throw new BadRequestException('Integritas database backup rusak');
-      }
-      if ((check.prepare('PRAGMA foreign_key_check').all() as unknown[]).length) {
-        throw new BadRequestException('Database backup melanggar foreign key');
-      }
-      const versionRow = check.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
-      const version = Number(versionRow?.user_version ?? 0);
-      if (!Number.isInteger(version) || version < 0 || version > SCHEMA_VERSION) {
-        throw new BadRequestException('Versi skema backup tidak didukung (ditemukan ' + version + ', maks ' + SCHEMA_VERSION + ')');
-      }
-      const tables = new Set(
-        (check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((row) => row.name),
-      );
-      for (const required of ['account', 'notes', 'urls']) {
-        if (!tables.has(required)) throw new BadRequestException('Database backup tidak memuat tabel ' + required);
-      }
-      const account = check.prepare('SELECT COUNT(*) AS n FROM account').get() as { n?: number } | undefined;
-      if (Number(account?.n ?? 0) < 1) throw new BadRequestException('Database backup tidak memuat akun');
-    } finally {
-      check?.close();
     }
   }
 
