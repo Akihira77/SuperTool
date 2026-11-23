@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { AppLogger } from './common/app-logger';
 import { auditHttp } from './common/audit-http.middleware';
+import { bodyIdleGuard, bodyIdleMs } from './common/body-idle';
 import { one } from './common/db';
 import { cfg } from './config';
 import { AuditService } from './modules/audit/audit.service';
@@ -24,6 +25,13 @@ async function bootstrap() {
 
   const auth = app.get(AuthService);
   const instance = app.getHttpAdapter().getInstance();
+
+  // Semua route yang mengonsumsi body (proxy, /api/hook, multipart, JSON)
+  // melewati guard ini lebih dulu. requestTimeout global dimatikan untuk upload
+  // multi-GB; sebagai gantinya body wajib mengalir minimal setiap
+  // ST_UPLOAD_IDLE_MS. Timer dilepas saat body selesai, jadi proses lanjutan
+  // dan respons lambat tidak ikut diputus.
+  instance.use(bodyIdleGuard(bodyIdleMs(process.env.ST_UPLOAD_IDLE_MS)));
 
   // Header keamanan untuk aplikasi; konten proxy tidak boleh di-frame-lock di sini
   // karena memang ditampilkan di iframe (mode path punya CSP sandbox sendiri).
@@ -97,24 +105,8 @@ async function bootstrap() {
   instance.use('/api', auditHttp(app.get(AuditService)));
 
   // requestTimeout global dimatikan supaya upload multi-GB tidak diputus di
-  // tengah jalan. Sebagai gantinya body multipart wajib mengalir minimal setiap
-  // ST_UPLOAD_IDLE_MS; socket yang macet (slowloris) ditutup. Timeout dilepas
-  // begitu body selesai supaya proses simpan/ekstrak yang lama tidak ikut kena.
-  // Didaftarkan sebelum body parser karena parser yang menunggu body.
-  const uploadIdleMs = Number(process.env.ST_UPLOAD_IDLE_MS ?? 120_000);
-  instance.use((req: any, res: any, next: () => void) => {
-    const type = String(req.headers['content-type'] ?? '').toLowerCase();
-    if (!(uploadIdleMs > 0) || !type.startsWith('multipart/form-data')) return next();
-    const socket = req.socket;
-    socket.setTimeout(uploadIdleMs, () => socket.destroy());
-    const clear = () => socket.setTimeout(0);
-    req.once('end', clear);
-    req.once('close', clear);
-    res.once('close', clear);
-    next();
-  });
-
-  // Setelah proxy: baru parse JSON untuk endpoint sendiri.
+  // tengah jalan. Penggantinya bodyIdleGuard di atas; batas ukuran tetap dijaga
+  // di FileInterceptor dan receiver masing-masing.
   app.useBodyParser('json', { limit: '25mb' });
 
   const indexFile = join(cfg.webDist, 'index.html');
@@ -128,8 +120,8 @@ async function bootstrap() {
 
   const server = app.getHttpServer();
   // Upload multipart berukuran GB tidak boleh diputus requestTimeout 5 menit
-  // bawaan Node. Penggantinya idle timeout per-body di bawah; batas ukuran
-  // tetap dijaga di FileInterceptor.
+  // bawaan Node. Penggantinya bodyIdleGuard di atas; batas ukuran tetap dijaga
+  // di FileInterceptor.
   server.requestTimeout = 0;
   server.headersTimeout = 120_000;
   server.on('upgrade', (req: any, socket: any, head: Buffer) => {

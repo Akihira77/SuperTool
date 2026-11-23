@@ -11,9 +11,11 @@ import { join } from 'node:path';
 import headersPolicy from './dist/modules/proxy/proxy-headers.js';
 import proxyMiddleware from './dist/modules/proxy/proxy.middleware.js';
 import httpClient from './dist/common/http-client.js';
+import bodyIdle from './dist/common/body-idle.js';
 
 const ROOT = new URL('../..', import.meta.url).pathname;
 const { stripCredentialCookies, upstreamHttpHeaders, upstreamUpgradeHeaders, SANDBOX_CSP } = headersPolicy;
+const { bodyIdleMs } = bodyIdle;
 
 test('header policy: cookie credential dibuang, cookie target dipertahankan', () => {
   assert.equal(stripCredentialCookies('st_session=abc; target=1; st_proxy=xyz'), 'target=1');
@@ -268,6 +270,17 @@ test('DNS pinning HTTP: alamat yang ditolak tidak pernah sampai ke connection fa
   assert.equal(calls.length, 0);
 });
 
+test('body idle: nilai env tak wajar jatuh ke default, 0 tetap nonaktif', () => {
+  assert.equal(bodyIdleMs(undefined), 120_000);
+  assert.equal(bodyIdleMs(''), 120_000);
+  assert.equal(bodyIdleMs('abc'), 120_000);
+  assert.equal(bodyIdleMs('NaN'), 120_000);
+  assert.equal(bodyIdleMs('0'), 0);
+  assert.equal(bodyIdleMs('-5'), 0);
+  assert.equal(bodyIdleMs('250'), 250);
+  assert.equal(bodyIdleMs('999999999999'), 60 * 60 * 1000);
+});
+
 async function waitHealth(base, tries = 300) {
   for (let i = 0; i < tries; i += 1) {
     try {
@@ -297,6 +310,63 @@ function rawRequest(port, payload) {
   });
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function openSocket(port) {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect(port, '127.0.0.1');
+    socket.once('error', reject);
+    socket.once('connect', () => resolve(socket));
+  });
+}
+
+/** Kirim header + sebagian body lalu diam; guard harus menutup koneksi. */
+async function stallBody(port, head, waitMs = 700) {
+  const socket = await openSocket(port);
+  let data = '';
+  let closedAt = 0;
+  const start = Date.now();
+  socket.on('data', (chunk) => {
+    data += chunk.toString('utf8');
+  });
+  socket.once('close', () => {
+    closedAt = Date.now() - start;
+  });
+  socket.write(head);
+  await sleep(waitMs);
+  socket.destroy();
+  return { data, closedAt };
+}
+
+function multipartBody(boundary, filename, content) {
+  return Buffer.from(
+    '--' + boundary + '\r\n' +
+      'Content-Disposition: form-data; name="file"; filename="' + filename + '"\r\n' +
+      'Content-Type: text/plain\r\n\r\n' +
+      content + '\r\n' +
+      '--' + boundary + '--\r\n',
+  );
+}
+
+/** Kirim body bertahap dengan jeda di bawah idle; server tidak boleh memutus. */
+async function trickleBody(port, head, body, chunkSize, delay) {
+  const socket = await openSocket(port);
+  let data = '';
+  socket.on('data', (chunk) => {
+    data += chunk.toString('utf8');
+  });
+  socket.write(head);
+  for (let i = 0; i < body.length; i += chunkSize) {
+    await sleep(delay);
+    socket.write(body.subarray(i, i + chunkSize));
+  }
+  await new Promise((resolve) => {
+    socket.setTimeout(5000, () => socket.destroy());
+    socket.once('close', resolve);
+  });
+  return data;
+}
+
 test('security proxy: credential, policy sesi, CSP sandbox, ticket', async (t) => {
   const data = await mkdtemp(join(tmpdir(), 'st-sec-data-'));
   const files = await mkdtemp(join(tmpdir(), 'st-sec-files-'));
@@ -307,23 +377,34 @@ test('security proxy: credential, policy sesi, CSP sandbox, ticket', async (t) =
   const seen = [];
   const upgrades = [];
   const upstream = http.createServer((req, res) => {
-    seen.push({ url: req.url, headers: req.headers });
-    if (req.url.startsWith('/html')) {
-      res.writeHead(200, {
-        'content-type': 'text/html',
-        'content-security-policy': "default-src * 'unsafe-inline'",
-        'set-cookie': 'target=1; Path=/',
-      });
-      res.end('<html><head></head><body><script>fetch("/api/auth/me")</script></body></html>');
-      return;
-    }
-    if (req.url.startsWith('/svg')) {
-      res.writeHead(200, { 'content-type': 'image/svg+xml' });
-      res.end('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
-      return;
-    }
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true }));
+    const entry = { url: req.url, headers: req.headers, body: '' };
+    seen.push(entry);
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      entry.body = Buffer.concat(chunks).toString('utf8');
+      const reply = () => {
+        if (req.url.startsWith('/html')) {
+          res.writeHead(200, {
+            'content-type': 'text/html',
+            'content-security-policy': "default-src * 'unsafe-inline'",
+            'set-cookie': 'target=1; Path=/',
+          });
+          res.end('<html><head></head><body><script>fetch("/api/auth/me")</script></body></html>');
+          return;
+        }
+        if (req.url.startsWith('/svg')) {
+          res.writeHead(200, { 'content-type': 'image/svg+xml' });
+          res.end('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+          return;
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      };
+      // Respons sengaja lebih lambat dari idle body: timer body harus sudah dilepas.
+      if (req.url.startsWith('/slow')) setTimeout(reply, 600);
+      else reply();
+    });
   });
   upstream.on('upgrade', (req, socket) => {
     upgrades.push(req.headers);
@@ -465,26 +546,138 @@ test('security proxy: credential, policy sesi, CSP sandbox, ticket', async (t) =
   }
   assert.equal(forgedHeaders.accept, 'application/json');
 
-  // Phase 5: body multipart yang macet ditutup oleh idle timeout, bukan menunggu selamanya.
+  // Phase 3A: body multipart macet dihentikan; body yang mengalir di bawah
+  // idle tetap diterima; respons lambat setelah body selesai tidak diputus.
+  const boundary = 'st-boundary';
+  const fileBody = multipartBody(boundary, 'a.txt', 'isi');
+  const uploadHead =
+    'POST /api/fs/upload?path=' + encodeURIComponent(files) + ' HTTP/1.1\r\n' +
+    'Host: 127.0.0.1:' + apiPort + '\r\n' +
+    'Cookie: ' + cookie + '\r\n' +
+    'X-ST-CSRF: 1\r\n' +
+    'Content-Type: multipart/form-data; boundary=' + boundary + '\r\n' +
+    'Content-Length: ' + fileBody.length + '\r\n' +
+    'Connection: close\r\n\r\n';
+
   const idleStart = Date.now();
-  let idleReply = '';
-  try {
-    idleReply = await rawRequest(
-      apiPort,
-      'POST /api/fs/upload?path=' + encodeURIComponent(files) + ' HTTP/1.1\r\n' +
-        'Host: 127.0.0.1:' + apiPort + '\r\n' +
-        'Cookie: ' + cookie + '\r\n' +
-        'X-ST-CSRF: 1\r\n' +
-        'Content-Type: multipart/form-data; boundary=x\r\n' +
-        'Content-Length: 1000\r\n' +
-        'Connection: close\r\n\r\n',
-    );
-  } catch {
-    // Reset koneksi saat socket ditutup juga dianggap berhasil.
-  }
+  const stalledUpload = await stallBody(apiPort, uploadHead.replace('Content-Length: ' + fileBody.length, 'Content-Length: 1000'));
   const idleElapsed = Date.now() - idleStart;
-  assert.doesNotMatch(idleReply, /HTTP\/1\.1/, 'upload macet tidak boleh mendapat respons');
-  assert.ok(idleElapsed >= 150 && idleElapsed < 3000, 'idle timeout upload harus aktif, elapsed=' + idleElapsed);
+  assert.ok(!/HTTP\/1\.1 2\d\d/.test(stalledUpload.data), 'upload macet tidak boleh sukses');
+  assert.ok(stalledUpload.closedAt > 50 && stalledUpload.closedAt < 600, 'guard harus menutup upload macet, closedAt=' + stalledUpload.closedAt);
+  assert.ok(idleElapsed < 3000, 'idle timeout upload harus aktif, elapsed=' + idleElapsed);
+
+  // Data yang tetap mengalir (jeda < idle) tidak boleh diputus.
+  const trickled = await trickleBody(apiPort, uploadHead, fileBody, 8, 60);
+  assert.match(trickled, /HTTP\/1\.1 200|HTTP\/1\.1 201/, 'upload lambat tapi mengalir harus diterima, reply=' + trickled.slice(0, 120));
+
+  // Body selesai sebelum upstream lambat membalas: timer sudah dilepas.
+  const slow = await fetch(base + '/api/proxy/b/' + token + '/slow', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ ok: 1 }),
+  });
+  assert.equal(slow.status, 200, 'respons lambat setelah body tidak boleh diputus');
+
+  // Phase 3B: proxy POST dengan body tidak lengkap tidak boleh sampai ke upstream.
+  const seenBeforePartial = seen.length;
+  const partialProxy = await stallBody(
+    apiPort,
+    'POST /api/proxy/b/' + token + '/echo HTTP/1.1\r\n' +
+      'Host: 127.0.0.1:' + apiPort + '\r\n' +
+      'Cookie: ' + cookie + '\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Content-Length: 100\r\n' +
+      'Connection: close\r\n\r\n' +
+      '{"partial":',
+  );
+  assert.ok(partialProxy.closedAt > 50 && partialProxy.closedAt < 600, 'body proxy macet harus ditutup, closedAt=' + partialProxy.closedAt);
+  assert.equal(seen.length, seenBeforePartial, 'upstream tidak boleh menerima body proxy yang tidak lengkap');
+
+  const proxyPost = await rawRequest(
+    apiPort,
+    'POST /api/proxy/b/' + token + '/echo HTTP/1.1\r\n' +
+      'Host: 127.0.0.1:' + apiPort + '\r\n' +
+      'Cookie: ' + cookie + '\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Content-Length: 11\r\n' +
+      'Connection: close\r\n\r\n' +
+      '{"hello":1}',
+  );
+  assert.match(proxyPost, /200 OK/, 'proxy POST normal harus tetap jalan');
+  assert.equal(seen.at(-1).body, '{"hello":1}', 'body proxy normal tetap utuh');
+
+  // Phase 3C: webhook — body macet dihentikan, batas ukuran tetap berlaku,
+  // body normal tetap utuh.
+  const hookInfo = await (await fetch(base + '/api/webhook', { headers: { cookie } })).json();
+  const hookToken = hookInfo.endpoints[0].token;
+  const hookHead =
+    'POST /api/hook/' + hookToken + ' HTTP/1.1\r\n' +
+    'Host: 127.0.0.1:' + apiPort + '\r\n' +
+    'Content-Type: application/json\r\n';
+
+  const stalledHook = await stallBody(apiPort, hookHead + 'Content-Length: 100\r\nConnection: close\r\n\r\n{"a":');
+  assert.ok(stalledHook.closedAt > 50 && stalledHook.closedAt < 600, 'body webhook macet harus ditutup, closedAt=' + stalledHook.closedAt);
+
+  const hookOk = await fetch(base + '/api/hook/' + hookToken, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ping: 1 }),
+  });
+  assert.equal(hookOk.status, 200, 'webhook normal harus tetap diterima');
+  const hookData = await (await fetch(base + '/api/webhook', { headers: { cookie } })).json();
+  assert.equal(hookData.items[0].body, '{"ping":1}', 'body webhook normal tetap utuh');
+
+  const big = Buffer.alloc(11 * 1024 * 1024, 0x61);
+  let bigReply = '';
+  try {
+    bigReply = await rawRequest(apiPort, hookHead + 'Content-Type: application/octet-stream\r\nContent-Length: ' + big.length + '\r\nConnection: close\r\n\r\n' + big.toString('latin1'));
+  } catch {
+    // Koneksi diputus saat body ditolak juga dianggap berhasil.
+  }
+  assert.ok(!/HTTP\/1\.1 201/.test(bigReply), 'body webhook di atas batas tidak boleh diterima');
+
+  // Phase 3D: JSON tidak lengkap tidak boleh menunggu selamanya.
+  const stalledJson = await stallBody(
+    apiPort,
+    'POST /api/auth/login HTTP/1.1\r\n' +
+      'Host: 127.0.0.1:' + apiPort + '\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Content-Length: 100\r\n' +
+      'Connection: close\r\n\r\n' +
+      '{"password":',
+  );
+  assert.ok(stalledJson.closedAt > 50 && stalledJson.closedAt < 600, 'body JSON macet harus ditutup, closedAt=' + stalledJson.closedAt);
+  assert.ok(!/HTTP\/1\.1 2\d\d/.test(stalledJson.data), 'login dengan body tidak lengkap tidak boleh sukses');
+
+  // Phase 3E: keep-alive tidak mewarisi timer body lama; disconnect aman.
+  const keepAlive = await openSocket(apiPort);
+  let keepAliveData = '';
+  keepAlive.on('data', (chunk) => {
+    keepAliveData += chunk.toString('utf8');
+  });
+  keepAlive.write(
+    'POST /api/hook/' + hookToken + ' HTTP/1.1\r\n' +
+      'Host: 127.0.0.1:' + apiPort + '\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Content-Length: 2\r\n' +
+      'Connection: keep-alive\r\n\r\n{}',
+  );
+  await sleep(200);
+  assert.match(keepAliveData, /HTTP\/1\.1 200/, 'request keep-alive pertama harus selesai');
+  await sleep(400);
+  keepAliveData = '';
+  keepAlive.write('GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:' + apiPort + '\r\nConnection: close\r\n\r\n');
+  await sleep(200);
+  assert.match(keepAliveData, /200 OK/, 'socket keep-alive tidak boleh mewarisi timer body lama');
+  keepAlive.destroy();
+
+  const dropped = await openSocket(apiPort);
+  dropped.write(hookHead + 'Content-Length: 100\r\n\r\n{"x":');
+  await sleep(50);
+  dropped.destroy();
+  await sleep(100);
+  const stillAlive = await fetch(base + '/api/health');
+  assert.equal(stillAlive.status, 200, 'server tetap sehat setelah client memutus body');
 
   // SEC-06: HTML path mode tetap origin opak dan CSP upstream tidak menang.
   const html = await fetch(base + '/api/proxy/b/' + token + '/html', { headers: { cookie } });
