@@ -513,11 +513,15 @@ Skenario yang dicakup (`e2e/`):
 | E2E-05 | API tanpa sesi 401, mutasi tanpa CSRF 403, error login dapat diakses, cookie sesi invalid → login |
 | D | axe (WCAG 2.1 A/AA + 2.2 AA) pada login, ganti password, shell, Catatan, URL Viewer, Command Palette; cek keyboard skip link, focus trap palette, Escape, ARIA tab sesi |
 
-Hasil axe: tidak ada pelanggaran `critical`/`serious`. Satu pengecualian terdokumentasi: `aria-required-children` pada tablist sesi karena tombol tutup per-tab berada di dalam item tab (pola closable tabs); pengecualian dibatasi ke rule + elemen itu saja di `e2e/support/a11y.ts`, bukan rule global.
+Hasil axe: tidak ada pelanggaran `critical`/`serious`, tanpa pengecualian rule. Tablist sesi hanya berisi `role=tab`; tombol tutup per-tab dipindahkan ke toolbar (nama aksesibel menyebut sesi aktif) dan `Delete` pada tab yang fokus juga menutup sesi, jadi tidak ada kontrol interaktif di dalam tablist.
+
+Checkbox task-list Markdown tetap terlihat oleh screen reader (status checked) dengan label statis "Tugas selesai"/"Tugas belum selesai", `disabled` dari `marked`, dan `tabindex="-1"` sehingga tidak masuk urutan Tab. `aria-label` dipasang lewat DOM setelah DOMPurify, bukan dengan menyambung string HTML.
 
 Batasan: hanya Chromium; mode proxy **subdomain** tidak diuji otomatis (butuh `*.localhost` khusus browser); tidak ada pengujian screen reader manual; axe bukan pengganti uji keyboard manual.
 
 GitHub Actions (`.github/workflows/ci.yml`) menjalankan instalasi frozen lockfile, typecheck, `pnpm check`, dan audit dependensi level high pada Node 22.13 dan 24 untuk setiap push ke `master` dan pull request. Job `e2e` terpisah (Node 22.13) menginstal Chromium, build produksi, menjalankan `pnpm exec playwright test`, dan mengunggah report/trace hanya saat gagal.
+
+Install CI memakai `YOUTUBE_DL_SKIP_DOWNLOAD=true` hanya pada langkah `pnpm install`. Postinstall `youtube-dl-exec` mengunduh binary yt-dlp lewat GitHub API dan pernah ditolak rate limit di runner bersama; binary itu hanya dipakai tool Downloader saat runtime, tidak oleh typecheck, build, test API, maupun E2E. Instalasi lokal developer tidak diubah dan `pnpm update:ytdlp` tetap menjadi cara mengunduh/memperbarui binary.
 
 ## Batasan yang diketahui
 

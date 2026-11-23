@@ -58,6 +58,7 @@ export function SessionTabs({
   };
 
   const toolFor = (id: string) => tools.find((tool) => tool.id === id);
+  const activeSession = sessions.find((session) => session.id === activeId);
   const labelFor = (tool: SessionTool | undefined, fallback: string) =>
     tool ? t(tool.key as 'nav.markdown', tool.label) : fallback;
 
@@ -104,7 +105,7 @@ export function SessionTabs({
               role="presentation"
               data-session-id={session.id}
               className={cn(
-                'group flex h-7 max-w-[210px] shrink-0 items-center rounded-md border pr-0.5 transition-colors',
+                'group flex h-7 max-w-[210px] shrink-0 items-center rounded-md border transition-colors',
                 active
                   ? 'border-accent/50 bg-accent/10 text-ink shadow-[inset_0_-2px_0_rgb(107_150_255/0.55)]'
                   : 'border-transparent text-muted hover:border-line hover:bg-panel2/60 hover:text-ink',
@@ -161,7 +162,7 @@ export function SessionTabs({
                   tabIndex={active ? 0 : -1}
                   draggable
                   title={t('session.renameHint')}
-                  className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md pl-2 text-left text-[12px] focus-visible:outline-none"
+                  className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-2 text-left text-[12px] focus-visible:outline-none"
                   onClick={() => onActivate(session.id)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -172,6 +173,11 @@ export function SessionTabs({
                     if (event.key === 'F2') {
                       event.preventDefault();
                       startRename(session);
+                      return;
+                    }
+                    if (event.key === 'Delete') {
+                      event.preventDefault();
+                      closeSession(session.id);
                       return;
                     }
                     const previous = sessions[index - 1];
@@ -228,22 +234,25 @@ export function SessionTabs({
                   </span>
                 </button>
               )}
-              <button
-                type="button"
-                aria-label={t('session.close') + ': ' + (session.name || labelFor(tool, 'Sesi'))}
-                title={t('session.close')}
-                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-muted/60 opacity-80 transition-colors hover:bg-bad/15 hover:text-bad group-hover:opacity-100"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeSession(session.id);
-                }}
-              >
-                <Icon name="x" size={11} />
-              </button>
             </div>
           );
         })}
       </div>
+      {/* Tombol tutup tidak boleh jadi anak tablist; kontrolnya dipasang di
+          toolbar dan tetap menjangkau sesi aktif lewat keyboard (Delete). */}
+      <button
+        type="button"
+        aria-label={t('session.close') + (activeSession ? ': ' + (activeSession.name || labelFor(toolFor(activeSession.tool), 'Sesi')) : '')}
+        title={t('session.close')}
+        data-action="session:close-active"
+        disabled={!activeSession}
+        className="grid size-7 shrink-0 cursor-pointer place-items-center rounded text-muted/70 transition-colors hover:bg-bad/15 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted/70"
+        onClick={() => {
+          if (activeSession) closeSession(activeSession.id);
+        }}
+      >
+        <Icon name="x" size={12} />
+      </button>
       <div className="relative shrink-0">
         <DropdownMenu
           menuId="session-add-menu"

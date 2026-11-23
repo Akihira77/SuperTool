@@ -332,9 +332,9 @@ Hasil verifikasi aktual:
 - `pnpm audit --audit-level high` lulus; tersisa 1 low + 2 moderate (bukan high).
 - Uji manual: proxy tiket 401/302/200, WS 401/101, metadata 400, restore traversal/symlink/SQLite rusak/versi skema ditolak, Compose lifecycle, Git commit/branch/stash.
 - CI workflow ditambahkan tetapi belum dijalankan di GitHub (belum ada push remote).
-- `pnpm e2e` lulus 12 test (Chromium, build produksi, data sementara): E2E-01…E2E-05 + 6 audit axe + cek keyboard.
-- axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 6 state yang diaudit. Pengecualian terdokumentasi: `aria-required-children` pada tablist sesi (tombol tutup per-tab), dibatasi rule + elemen itu saja di `e2e/support/a11y.ts`.
-- Perbaikan aksesibilitas dari audit: `aria-controls` tab sesi selalu menunjuk panel nyata (panel dirender lebih dulu, konten tetap lazy), checkbox task-list Markdown disembunyikan dari accessibility tree, kontras nomor baris editor dinaikkan ke `muted/80`.
+- `pnpm e2e` lulus 13 test (Chromium, build produksi, data sementara): E2E-01…E2E-05 + 6 audit axe + cek keyboard + semantik checkbox task-list Markdown.
+- axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 6 state yang diaudit, tanpa pengecualian rule. Tablist sesi hanya berisi `role=tab`; tombol tutup pindah ke toolbar dan `Delete` pada tab fokus juga menutup sesi.
+- Perbaikan aksesibilitas dari audit: `aria-controls` tab sesi selalu menunjuk panel nyata (panel dirender lebih dulu, konten tetap lazy), kontrol tutup dipindah keluar tablist, checkbox task-list Markdown tetap terbaca screen reader dengan label status, kontras nomor baris editor dinaikkan ke `muted/80`.
 - Negative control dijalankan lokal: mematikan autosave, menghapus aksi download, menghapus atribut `sandbox` proxy, dan melepas gate ganti password masing-masing membuat test terkait gagal (perubahan dikembalikan).
 
 Backlog berprioritas yang tersisa:

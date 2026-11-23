@@ -73,7 +73,10 @@ export default function MarkdownTool() {
     return () => clearTimeout(id);
   }, [text]);
 
-  const html = useMemo(() => renderMarkdown(text), [text]);
+  const html = useMemo(
+    () => renderMarkdown(text, { done: t('markdown.taskDone'), open: t('markdown.taskOpen') }),
+    [text, t],
+  );
   const stats = useMemo(() => {
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
     return { words, chars: text.length, lines: text.split('\n').length, minutes: Math.max(1, Math.round(words / 200)) };

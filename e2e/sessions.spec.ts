@@ -35,4 +35,15 @@ test('E2E-02 sesi: buka dua tool, pindah tab, bertahan setelah reload', async ({
   // Keyboard: panah kiri memindahkan sesi aktif kembali ke Catatan.
   await page.keyboard.press('ArrowLeft');
   await expect(sessionTab(page, 'Catatan')).toHaveAttribute('aria-selected', 'true');
+
+  // Tutup sesi aktif lewat tombol toolbar (nama aksesibel menyebut sesinya).
+  await page.getByRole('button', { name: /^Tutup sesi: Catatan$/ }).click();
+  await expect(sessionTab(page, 'Catatan')).toHaveCount(0);
+  await expect(sessionTab(page, 'JSON')).toBeVisible();
+
+  // Delete pada tab yang fokus juga menutup sesi.
+  await sessionTab(page, 'JSON').focus();
+  await page.keyboard.press('Delete');
+  await expect(sessionTab(page, 'JSON')).toHaveCount(0);
+  await expect(sessionTab(page, 'Catatan')).toHaveCount(0);
 });

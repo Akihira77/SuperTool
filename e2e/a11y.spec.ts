@@ -1,6 +1,6 @@
 import { expect, test } from './support/fixtures';
 import { startApp } from './support/app';
-import { SESSION_TABLIST_EXCEPTION, audit } from './support/a11y';
+import { audit } from './support/a11y';
 import { INITIAL_PASSWORD, openTool, sessionTab, signIn } from './support/auth';
 
 test('D a11y: halaman login dan ganti password', async ({ page }) => {
@@ -21,22 +21,21 @@ test('D a11y: halaman login dan ganti password', async ({ page }) => {
 
 test('D a11y: shell, notes, URL viewer, command palette', async ({ page, app }) => {
   await signIn(page, app);
-  const allow = [SESSION_TABLIST_EXCEPTION];
-  await audit(page, 'shell', { allow });
+  await audit(page, 'shell');
 
   await openTool(page, 'Catatan');
-  await audit(page, 'notes', { allow });
+  await audit(page, 'notes');
 
   await openTool(page, 'URL Viewer');
   // Isi iframe adalah dokumen pihak ketiga (sandbox, origin opak) — bukan milik aplikasi.
-  await audit(page, 'url-viewer', { exclude: ['iframe'], allow });
+  await audit(page, 'url-viewer', { exclude: ['iframe'] });
 
   await openTool(page, 'Catatan');
   await sessionTab(page, 'Catatan').click();
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette' });
   await expect(palette).toBeVisible();
-  await audit(page, 'command-palette', { allow });
+  await audit(page, 'command-palette');
   await page.keyboard.press('Escape');
   await expect(palette).toBeHidden();
 });
@@ -87,4 +86,25 @@ test('D keyboard: skip link, fokus dialog, Escape, ARIA tab sesi', async ({ page
     expect((await tab.getAttribute('aria-label')) ?? '').not.toBe('');
   }
   expect(tabbable).toBe(1);
+
+  // Anak tablist hanya tab. Kontrol tutup ada di toolbar, bukan di dalam tablist.
+  await expect(tablist.locator('button:not([role="tab"]), a, input, select, textarea')).toHaveCount(0);
+});
+
+test('D markdown: checkbox task-list menyimpan status dan tidak fokusable', async ({ page, app }) => {
+  await signIn(page, app);
+  await openTool(page, 'Markdown');
+
+  await page.locator('[data-action="markdown:editor"]').fill('- [x] sudah selesai\n- [ ] belum selesai\n');
+
+  const boxes = page.locator('.md input[type="checkbox"]');
+  await expect(boxes).toHaveCount(2);
+  await expect(boxes.nth(0)).toBeChecked();
+  await expect(boxes.nth(1)).not.toBeChecked();
+  await expect(boxes.nth(0)).toHaveAttribute('aria-label', 'Tugas selesai');
+  await expect(boxes.nth(1)).toHaveAttribute('aria-label', 'Tugas belum selesai');
+  await expect(boxes.nth(0)).toBeDisabled();
+  await expect(boxes.nth(1)).toBeDisabled();
+  expect(await boxes.nth(0).getAttribute('tabindex')).toBe('-1');
+  expect(await boxes.nth(1).getAttribute('tabindex')).toBe('-1');
 });

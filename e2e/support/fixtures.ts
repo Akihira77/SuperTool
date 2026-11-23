@@ -12,16 +12,22 @@ export const test = base.extend<Record<string, never>, WorkerFixtures>({
   app: [
     async ({}, use) => {
       const app = await startApp();
-      await use(app);
-      await app.stop();
+      try {
+        await use(app);
+      } finally {
+        await app.stop();
+      }
     },
     { scope: 'worker', auto: true },
   ],
   upstream: [
     async ({}, use) => {
       const upstream = await startMockUpstream();
-      await use(upstream);
-      await upstream.stop();
+      try {
+        await use(upstream);
+      } finally {
+        await upstream.stop();
+      }
     },
     { scope: 'worker', auto: true },
   ],
