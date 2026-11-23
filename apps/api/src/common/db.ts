@@ -16,6 +16,13 @@ mkdirSync(cfg.dataDir, { recursive: true });
 /** Versi skema yang dipahami build ini; backup dengan versi lebih baru ditolak. */
 export const SCHEMA_VERSION = 1;
 
+/** Kolom minimum yang dipakai modul aplikasi; DB lama tanpa kolom ini ditolak. */
+const REQUIRED_COLUMNS: Record<string, string[]> = {
+  account: ['id', 'salt', 'hash', 'pv', 'must_change', 'secret', 'created_at'],
+  notes: ['id', 'title', 'body', 'created_at', 'updated_at'],
+  urls: ['id', 'name', 'url', 'proxy', 'created_at'],
+};
+
 // Skema ringan untuk workspace (metadata proyek, bukan akun terpisah).
 const WORKSPACE_SCHEMA = `
   CREATE TABLE IF NOT EXISTS workspaces (
@@ -222,7 +229,13 @@ function fsyncDir(path: string): void {
   }
 }
 
-function writeRestoreJournal(entry: RestoreJournal, sync: (path: string) => void = fsyncDir): void {
+/**
+ * Tulis journal baru secara atomik: tmp -> fsync file -> rename. Dipisahkan
+ * dari konfirmasi durability direktori supaya pemanggil bisa membedakan
+ * "journal belum terpasang" (rollback aman) dari "journal terpasang tetapi
+ * durability belum terkonfirmasi" (keputusan harus fail-closed).
+ */
+function installRestoreJournal(entry: RestoreJournal): void {
   const tmp = restoreJournal + '.tmp';
   writeFileSync(tmp, JSON.stringify({ ...entry, at: Date.now() }), { encoding: 'utf8', mode: 0o600 });
   const fd = openSync(tmp, 'r+');
@@ -232,6 +245,11 @@ function writeRestoreJournal(entry: RestoreJournal, sync: (path: string) => void
     closeSync(fd);
   }
   renameSync(tmp, restoreJournal);
+}
+
+/** Tulis journal untuk fase yang belum commit; kegagalan = belum ada perubahan aktif. */
+function writeRestoreJournal(entry: RestoreJournal, sync: (path: string) => void = fsyncDir): void {
+  installRestoreJournal(entry);
   sync(cfg.dataDir);
 }
 
@@ -239,6 +257,25 @@ function removeRestoreJournal(): void {
   rmSync(restoreJournal, { force: true });
   removeQuiet(restoreJournal + '.tmp');
   fsyncDir(cfg.dataDir);
+}
+
+/**
+ * Database yang tercatat commit harus benar-benar ada dan valid sebelum
+ * artefak lama dibuang. `new DatabaseSync(file)` tidak dipakai di sini karena
+ * pada file yang hilang ia membuat database kosong; validasi memakai mode
+ * read-only sehingga kerusakan tidak berubah menjadi database baru palsu.
+ */
+function assertCommittedDatabase(): void {
+  if (!existsSync(file)) {
+    throw new Error('Restore commit tidak lengkap: database aktif hilang (' + file + '); artefak dipertahankan');
+  }
+  try {
+    validateDatabaseFile(file);
+  } catch (err) {
+    throw new Error(
+      'Restore commit tidak valid: ' + (err as Error).message + ' (' + file + '); artefak dipertahankan',
+    );
+  }
 }
 
 /**
@@ -269,6 +306,8 @@ export function recoverInterruptedRestore(): void {
   }
 
   if (journal.phase === 'committed') {
+    // Jangan menyentuh artefak sebelum database committed terbukti ada & valid.
+    assertCommittedDatabase();
     let cleanupOk = true;
     if (journal.uploads === undefined) {
       // Journal versi lama: tidak menyimpan status uploads. Salinan lama yang
@@ -529,13 +568,6 @@ function ensureExtraSchema(target: DatabaseSync): void {
   target.exec('PRAGMA user_version = ' + SCHEMA_VERSION);
 }
 
-/** Kolom minimum yang dipakai modul aplikasi; DB lama tanpa kolom ini ditolak. */
-const REQUIRED_COLUMNS: Record<string, string[]> = {
-  account: ['id', 'salt', 'hash', 'pv', 'must_change', 'secret', 'created_at'],
-  notes: ['id', 'title', 'body', 'created_at', 'updated_at'],
-  urls: ['id', 'name', 'url', 'proxy', 'created_at'],
-};
-
 /**
  * Validasi file database sebelum menyentuh database aktif. Hanya baca, jadi
  * file backup tidak berubah. Dipakai juga oleh BackupService saat validasi zip.
@@ -599,6 +631,17 @@ export type RestorePhase =
   | 'prepared'
   | 'committed';
 
+/** Titik rollback setelah langkah tertentu selesai; hanya untuk injeksi test. */
+export type RollbackStep =
+  | 'new-db-removed'
+  | 'new-wal-removed'
+  | 'new-uploads-removed'
+  | 'old-uploads-restored'
+  | 'old-db-restored'
+  | 'old-db-opened'
+  | 'journal-removed'
+  | 'dir-synced';
+
 /**
  * Titik injeksi untuk test fault. Produksi memakai default di bawah.
  * `onPhase` dipanggil setelah journal durable pada tahap tersebut.
@@ -619,6 +662,7 @@ export type RestoreDeps = Partial<{
   validate: (path: string) => void;
   validatePrepared: (target: DatabaseSync) => void;
   onPhase: (phase: RestorePhase) => void;
+  onRollback: (step: RollbackStep) => void;
 }>;
 
 /** `uploads` = folder uploads staging yang ikut ditukar; null = biarkan apa adanya. */
@@ -653,6 +697,14 @@ function checkpointPrepared(target: DatabaseSync): void {
 }
 
 let restoreInProgress = false;
+
+/** Outcome transaksi tidak pasti: jangan rollback, jangan layani request. */
+function abortUncertainRestore(message: string, cause: unknown): never {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  process.stderr.write('restore: ' + message + ' (' + detail + ')\n');
+  process.stderr.write('restore: journal dan artefak dipertahankan; proses dihentikan\n');
+  process.exit(1);
+}
 
 /**
  * Ganti database (dan opsional folder uploads) sebagai satu transaksi:
@@ -691,6 +743,7 @@ export function replaceDatabase(source: string, deps: ReplaceOptions = {}): { ok
     validate: deps.validate ?? validateDatabaseFile,
     validatePrepared: deps.validatePrepared ?? validatePrepared,
     onPhase: deps.onPhase ?? (() => {}),
+    onRollback: deps.onRollback ?? (() => {}),
   };
 
   let closedLive = false;
@@ -831,8 +884,17 @@ export function replaceDatabase(source: string, deps: ReplaceOptions = {}): { ok
     }
     io.onPhase('prepared');
 
-    writeRestoreJournal({ phase: 'committed', uploads: installUploads, hadUploads }, io.fsyncDir);
+    // Commit boundary eksplisit: rename journal adalah satu-satunya source of
+    // truth. `committed` diset tepat setelah rename, sebelum durability
+    // direktori dikonfirmasi, sehingga kegagalan fsync berikutnya tidak pernah
+    // memicu rollback yang menghapus generasi yang sudah tercatat commit.
+    installRestoreJournal({ phase: 'committed', uploads: installUploads, hadUploads });
     committed = true;
+    try {
+      io.fsyncDir(cfg.dataDir);
+    } catch (err) {
+      abortUncertainRestore('journal commit terpasang tetapi fsync direktori gagal; rollback dibatalkan', err);
+    }
     io.onPhase('committed');
     db = next;
     next = null;
@@ -879,50 +941,62 @@ export function replaceDatabase(source: string, deps: ReplaceOptions = {}): { ok
     notifyDatabaseReplaced();
     return { ok: true, path: file };
   } catch (err) {
-    if (!committed) {
-      if (next) {
-        try {
-          next.close();
-        } catch {
-          // handle baru mungkin sudah tidak bisa ditutup; file tetap dihapus
-        }
+    if (committed) {
+      // Journal sudah tercatat commit: rollback dilarang karena bisa menghapus
+      // generasi yang otoritatif. Fail closed, startup menyelesaikan cleanup.
+      abortUncertainRestore('restore gagal setelah journal commit terpasang', err);
+    }
+    if (next) {
+      try {
+        next.close();
+      } catch {
+        // handle baru mungkin sudah tidak bisa ditutup; file tetap dihapus
       }
-      if (closedLive) {
-        try {
-          if (installed) {
-            io.remove(file);
-            io.remove(file + '-wal');
-            io.remove(file + '-shm');
-          }
-          if (uploadsInstalled) io.removeDir(uploadsDir);
-          if (uploadsMoved && existsSync(uploadsOld)) io.rename(uploadsOld, uploadsDir);
-          if (oldMoved && existsSync(restoreOld)) io.rename(restoreOld, file);
-          if (existsSync(file)) {
-            db = new DatabaseSync(file);
-            configureDb(db);
-          }
-          io.remove(restoreIncoming);
-          io.fsyncDir(cfg.dataDir);
-          removeRestoreJournal();
-        } catch (rollbackErr) {
-          // Rollback gagal: hasil transaksi tidak pasti (bisa database baru,
-          // bisa campuran DB/uploads). Melanjutkan request berisiko memakai
-          // state yang salah, jadi proses dihentikan dengan journal dan artefak
-          // utuh; startup berikutnya memulihkan secara idempoten.
-          process.stderr.write(
-            'restore: rollback gagal, state tidak pasti; proses dihentikan (' +
-              (rollbackErr as Error).message +
-              ')\n',
-          );
-          process.stderr.write('restore: error asli (' + (err as Error).message + ')\n');
-          process.exit(1);
+    }
+    if (closedLive) {
+      try {
+        if (installed) {
+          io.remove(file);
+          io.onRollback('new-db-removed');
+          io.remove(file + '-wal');
+          io.remove(file + '-shm');
+          io.onRollback('new-wal-removed');
         }
-      } else {
-        try {
-          io.remove(restoreIncoming);
-        } catch {
-          // file staging bisa dibersihkan startup
+        if (uploadsInstalled) {
+          io.removeDir(uploadsDir);
+          io.onRollback('new-uploads-removed');
         }
+        if (uploadsMoved && existsSync(uploadsOld)) {
+          io.rename(uploadsOld, uploadsDir);
+          io.onRollback('old-uploads-restored');
+        }
+        if (oldMoved && existsSync(restoreOld)) {
+          io.rename(restoreOld, file);
+          io.onRollback('old-db-restored');
+        }
+        if (existsSync(file)) {
+          db = new DatabaseSync(file);
+          configureDb(db);
+          io.onRollback('old-db-opened');
+        }
+        io.remove(restoreIncoming);
+        removeRestoreJournal();
+        io.onRollback('journal-removed');
+        io.fsyncDir(cfg.dataDir);
+        io.onRollback('dir-synced');
+      } catch (rollbackErr) {
+        // Rollback gagal: hasil transaksi tidak pasti (bisa database baru,
+        // bisa campuran DB/uploads). Melanjutkan request berisiko memakai
+        // state yang salah, jadi proses dihentikan dengan journal dan artefak
+        // utuh; startup berikutnya memulihkan secara idempoten.
+        process.stderr.write('restore: error asli (' + (err as Error).message + ')\n');
+        abortUncertainRestore('rollback gagal, state tidak pasti', rollbackErr);
+      }
+    } else {
+      try {
+        io.remove(restoreIncoming);
+      } catch {
+        // file staging bisa dibersihkan startup
       }
     }
     throw err;
