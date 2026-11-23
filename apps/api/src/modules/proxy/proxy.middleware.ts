@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { connect } from 'node:net';
+import { connect, type Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import type { ReadableStream } from 'node:stream/web';
 import type { AuthService } from '../auth/auth.service';
-import { assertLocalUrl, resolveLocalAddress } from '../../common/net-guard';
+import { assertLocalUrl, resolveLocalAddress, type ResolvedAddress } from '../../common/net-guard';
 import { streamLocal, type LocalStreamResponse } from '../../common/http-client';
 import { SANDBOX_CSP, upstreamHttpHeaders, upstreamUpgradeHeaders } from './proxy-headers';
 
@@ -428,12 +428,22 @@ export async function handleProxyRequest(
   return true;
 }
 
+/** Titik injeksi test: resolver DNS dan factory koneksi TCP. */
+export type UpgradeDeps = {
+  resolve?: (url: URL) => Promise<ResolvedAddress>;
+  connect?: (
+    options: { host: string; family: 4 | 6; port: number },
+    listener: () => void,
+  ) => Socket;
+};
+
 /** Teruskan WebSocket/upgrade apa pun ke target, supaya terminal & collab tetap jalan. */
 export function handleProxyUpgrade(
   req: IncomingMessage,
   socket: import('node:stream').Duplex,
   head: Buffer,
   auth: AuthService,
+  deps: UpgradeDeps = {},
 ): boolean {
   const targetInfo = resolveTarget(req);
   if (!targetInfo) return false;
@@ -448,13 +458,13 @@ export function handleProxyUpgrade(
     let resolved: { address: string; family: 4 | 6 };
     try {
       // Pin alamat hasil resolusi: lookup kedua bisa ditukar lewat DNS rebinding.
-      resolved = await resolveLocalAddress(target);
+      resolved = await (deps.resolve ?? resolveLocalAddress)(target);
     } catch (err) {
       refuse(403, (err as Error).message);
       return;
     }
     const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
-    const upstream = connect({ host: resolved.address, family: resolved.family, port }, () => {
+    const upstream = (deps.connect ?? connect)({ host: resolved.address, family: resolved.family, port }, () => {
       const headers = upstreamUpgradeHeaders(req.headers);
       headers.host = target.host;
       headers.origin = origin;

@@ -96,6 +96,24 @@ async function bootstrap() {
   // Catat semua request API sebelum parser body; payload dibaca saat respons selesai.
   instance.use('/api', auditHttp(app.get(AuditService)));
 
+  // requestTimeout global dimatikan supaya upload multi-GB tidak diputus di
+  // tengah jalan. Sebagai gantinya body multipart wajib mengalir minimal setiap
+  // ST_UPLOAD_IDLE_MS; socket yang macet (slowloris) ditutup. Timeout dilepas
+  // begitu body selesai supaya proses simpan/ekstrak yang lama tidak ikut kena.
+  // Didaftarkan sebelum body parser karena parser yang menunggu body.
+  const uploadIdleMs = Number(process.env.ST_UPLOAD_IDLE_MS ?? 120_000);
+  instance.use((req: any, res: any, next: () => void) => {
+    const type = String(req.headers['content-type'] ?? '').toLowerCase();
+    if (!(uploadIdleMs > 0) || !type.startsWith('multipart/form-data')) return next();
+    const socket = req.socket;
+    socket.setTimeout(uploadIdleMs, () => socket.destroy());
+    const clear = () => socket.setTimeout(0);
+    req.once('end', clear);
+    req.once('close', clear);
+    res.once('close', clear);
+    next();
+  });
+
   // Setelah proxy: baru parse JSON untuk endpoint sendiri.
   app.useBodyParser('json', { limit: '25mb' });
 
@@ -110,7 +128,8 @@ async function bootstrap() {
 
   const server = app.getHttpServer();
   // Upload multipart berukuran GB tidak boleh diputus requestTimeout 5 menit
-  // bawaan Node. Batas ukuran tetap dijaga di FileInterceptor.
+  // bawaan Node. Penggantinya idle timeout per-body di bawah; batas ukuran
+  // tetap dijaga di FileInterceptor.
   server.requestTimeout = 0;
   server.headersTimeout = 120_000;
   server.on('upgrade', (req: any, socket: any, head: Buffer) => {

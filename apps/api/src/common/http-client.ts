@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { request as httpRequest } from 'node:http';
+import { request as httpRequest, type ClientRequest, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { Readable } from 'node:stream';
 import type { ReadableStream } from 'node:stream/web';
@@ -150,11 +150,21 @@ type StreamOptions = {
   timeoutMs?: number;
 };
 
+/** Titik injeksi test: resolver dan transport bisa diganti tanpa mengubah jalur produksi. */
+export type HttpClientDeps = {
+  resolve?: (url: URL) => Promise<ResolvedAddress>;
+  request?: (options: RequestOptions, callback?: (res: import('node:http').IncomingMessage) => void) => ClientRequest;
+};
+
 /**
  * Request streaming dengan alamat tujuan dipin (DNS rebinding tidak bisa menukar host).
  * Redirect tidak diikuti; pemanggil yang memutuskan.
  */
-export async function streamLocal(rawUrl: string, options: StreamOptions = {}): Promise<LocalStreamResponse> {
+export async function streamLocal(
+  rawUrl: string,
+  options: StreamOptions = {},
+  deps: HttpClientDeps = {},
+): Promise<LocalStreamResponse> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -169,13 +179,13 @@ export async function streamLocal(rawUrl: string, options: StreamOptions = {}): 
   const body = method === 'GET' || method === 'HEAD' ? undefined : options.body;
   if (body && body.length > 30 * 1024 * 1024) throw new BadRequestException('Body maksimal 30 MB');
   const timeoutMs = Math.min(120_000, Math.max(1000, Number(options.timeoutMs ?? 120_000)));
-  const address = await resolveLocalAddress(url);
+  const address = await (deps.resolve ?? resolveLocalAddress)(url);
 
   const headers: Record<string, string> = { ...options.headers, host: url.host, 'accept-encoding': 'identity' };
   if (body) headers['content-length'] = String(body.length);
 
   return new Promise((resolve, reject) => {
-    const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const transport = deps.request ?? (url.protocol === 'https:' ? httpsRequest : httpRequest);
     const req = transport({
       protocol: url.protocol,
       hostname: address.address,

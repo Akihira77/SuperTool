@@ -124,6 +124,7 @@ Semua lewat environment variable atau file `apps/api/.env` (dimuat dengan `proce
 | `ST_WEB_DIST` | `../web/dist` | Lokasi hasil build frontend |
 | `ST_TEMP_DIR` | `temp/` di root repo | Folder kerja sementara yt-dlp dan upload besar; berkas upload dipindahkan, bukan disalin ke RAM |
 | `ST_MAX_UPLOAD_BYTES` | `21474836480` (20 GB) | Batas maksimum satu berkas upload di File Explorer/Kompresor |
+| `ST_UPLOAD_IDLE_MS` | `120000` | Body multipart wajib mengalir minimal setiap X ms; socket macet ditutup. `0` = matikan |
 | `ST_DEV_ORIGIN` | kosong | Origin yang diizinkan CORS saat dev; kosong = CORS mati |
 | `GOOGLE_CLIENT_ID` | kosong | OAuth client ID Google (Calendar) |
 | `GOOGLE_CLIENT_SECRET` | kosong | OAuth client secret Google |
