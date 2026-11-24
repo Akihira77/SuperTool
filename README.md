@@ -1,6 +1,6 @@
 # Super Tool
 
-Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port dan pemakaian disk, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
+Satu aplikasi web lokal untuk kebutuhan harian developer: menulis Markdown, merapikan JSON, membuat tipe TypeScript, mencatat, menyunting HTML dengan pratinjau terisolasi, membuka tool lain lewat URL, mengedit konfigurasi nginx, memantau port dan pemakaian disk, menjelajah file (termasuk pratinjau & edit Office, audio, video), mengompres/mengonversi berkas, mengunduh video/audio, dan ruang kerja developer (regex, hash, HTTP client, log, docker, git, cron, DNS).
 
 Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite lokal; isi berkas tetap di disk. Susunan tab multi sesi disimpan di `localStorage` browser.
 
@@ -24,6 +24,21 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 | 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
 | 16 | Telegram Command Center | Bot long polling: download URL YouTube/FB/Bilibili, kirim file langsung / link 0x0.st untuk file besar, kompres gambar/PDF lewat caption `/compress` |
+| 17 | HTML Studio | Editor HTML/CSS/JavaScript dengan pratinjau live tersandbox, preset Desktop/Tablet/Mobile, ekspor dokumen gabungan, buka & simpan `.html`/`.htm` dari File Explorer |
+
+## HTML Studio
+
+Editor tiga tab (HTML, CSS, JavaScript) dengan pratinjau dan penampil berkas HTML. Tab HTML menyimpan dokumen sumber apa adanya; CSS dan JavaScript dari tab terpisah disuntikkan hanya saat menyusun dokumen pratinjau/ekspor.
+
+Model keamanan pratinjau:
+
+- Dokumen dirender di `<iframe sandbox="allow-scripts">` tanpa `allow-same-origin`. Skrip pratinjau berjalan di origin opaque: tidak bisa membaca DOM induk, cookie, `localStorage`, atau state autentikasi aplikasi.
+- CSP `default-src 'none'` pada dokumen pratinjau memblokir skrip/gaya/gambar/font/fetch/WebSocket eksternal. Yang diizinkan hanya gaya dan skrip inline, image/font/media `data:`/`blob:`, plus `connect-src 'none'`, `frame-src 'none'`, dan `form-action 'none'`.
+- Navigasi top-level dan popup diblokir oleh sandbox; `meta refresh` dibuang saat penyusunan dokumen agar pratinjau tidak berpindah ke URL lain.
+- Isi pratinjau tidak pernah masuk ke DOM aplikasi (`dangerouslySetInnerHTML` tidak dipakai) dan request pratinjau tidak melewati API/proxy SuperTool.
+- Batasan: resource eksternal (CDN, gambar remote) tidak akan tampil. Bila nanti dibutuhkan, itu harus menjadi keputusan keamanan terpisah, bukan pelonggaran default.
+
+Alur File Explorer → HTML Studio memakai workflow `st:workflow` yang sudah ada: path dan isi berkas dikirim sebagai payload, lalu disimpan hanya lewat tombol **Simpan** (kontrak `PUT /api/fs/write`, tetap melewati jail `ST_FS_ROOTS`). Berkas besar yang terbaca sebagian tidak bisa disimpan agar isi tidak tertimpa parsial.
 
 ## Multi sesi
 

@@ -23,6 +23,7 @@ export const TOOLS: Array<Tool & { key: string }> = [
   { id: 'viewer', key: 'nav.viewer', label: 'URL Viewer', desc: 'Buka tool lain via iframe', icon: 'url', group: 'workspace', component: lazy(() => import('../tools/UrlTool')) },
   { key: 'nav.json', id: 'json', label: 'JSON', desc: 'Formatter & beautify', icon: 'json', group: 'build', component: lazy(() => import('../tools/JsonTool')) },
   { key: 'nav.types', id: 'types', label: 'JSON ke TS', desc: 'Generate tipe TypeScript', icon: 'types', group: 'build', component: lazy(() => import('../tools/TypesTool')) },
+  { key: 'nav.htmlStudio', id: 'html-studio', label: 'HTML Studio', desc: 'Editor, pratinjau & penampil HTML', icon: 'html', group: 'build', component: lazy(() => import('../tools/HtmlStudioTool')) },
   { key: 'nav.compress', id: 'compress', label: 'Kompresor', desc: 'Perkecil PDF & gambar', icon: 'compress', group: 'build', component: lazy(() => import('../tools/CompressTool')) },
   { key: 'nav.downloader', id: 'downloader', label: 'Downloader', desc: 'YouTube, Facebook, Bilibili', icon: 'download', group: 'build', component: lazy(() => import('../tools/DownloaderTool')) },
   { key: 'nav.devspace', id: 'devspace', label: 'Dev Space', desc: 'Regex, hash, HTTP, log, docker, git', icon: 'dev', group: 'ops', component: lazy(() => import('../tools/DevSpaceTool')) },

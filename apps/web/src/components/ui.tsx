@@ -30,6 +30,7 @@ const PATHS: Record<string, string> = {
   nginx: 'M4 5h16v6H4z M4 13h16v6H4z M8 8h.01 M8 16h.01',
   ports: 'M3 12h4l2-6 3 12 3-9 2 3h4',
   files: 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z',
+  html: 'M8 4L3 12l5 8 M16 4l5 8-5 8 M13.5 4l-3 16',
   plus: 'M12 5v14 M5 12h14',
   trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6',
   copy: 'M9 9h10v10H9z M5 15V5h10',
@@ -234,11 +235,13 @@ export function Tabs<T extends string>({
   value,
   onChange,
   className,
+  label,
 }: {
   items: Array<TabItem<T>>;
   value: T;
   onChange: (value: T) => void;
   className?: string;
+  label?: string;
 }) {
   const baseId = useId();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -262,7 +265,7 @@ export function Tabs<T extends string>({
   };
 
   return (
-    <div role="tablist" aria-orientation="horizontal" className={cn('tabbar', className)}>
+    <div role="tablist" aria-orientation="horizontal" aria-label={label} className={cn('tabbar', className)}>
       {items.map((item, index) => {
         const active = item.id === value;
         return (

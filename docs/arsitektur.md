@@ -60,6 +60,13 @@ Pencarian isi (`grep`) memakai jail yang sama untuk setiap include path, termasu
 - **WebSocket** mengikuti aturan mode: subdomain wajib tiket, path wajib sesi; keduanya memanggil `assertLocalUrl` sebelum connect.
 - **Batas tulis-ulang** 8 MB; respons lebih besar dijawab 502 alih-alih ditahan di memori.
 
+## Isolasi pratinjau HTML Studio
+
+- Sumber pengguna tetap di tab HTML. `lib/htmlStudio.ts` menyusun dokumen pratinjau/ekspor: CSP `<meta>` disisipkan setelah `<head>`, lalu CSS/JS tab terpisah disuntikkan dengan penanda `data-st-html-studio`. Penyusunan ulang membuang penanda lama lebih dulu supaya tidak menduplikasi blok.
+- Pratinjau dirender lewat `iframe srcDoc` dengan `sandbox="allow-scripts"` dan tanpa `allow-same-origin`; skrip berjalan di origin opak. Tidak ada `dangerouslySetInnerHTML` dan tidak ada jalur request lewat API/proxy aplikasi. `meta refresh` dibuang saat komposisi.
+- CSP pratinjau: `default-src 'none'`, `script-src 'unsafe-inline'`, `style-src 'unsafe-inline'`, `img-src data: blob:`, `font-src data:`, `media-src data: blob:`, `connect-src 'none'`, `frame-src 'none'`, `worker-src 'none'`, `form-action 'none'`, `base-uri 'none'`. Konsekuensinya resource eksternal tidak tampil; mendukungnya nanti butuh keputusan keamanan terpisah.
+- Integrasi File Explorer memakai event `st:workflow` yang sudah ada (payload `{path, name, content, truncated}` divalidasi `parseImportPayload`). Simpan manual memakai `PUT /api/fs/write` sehingga jail `ST_FS_ROOTS` tetap berlaku; berkas terpotong tidak boleh disimpan.
+
 ## Net guard dan HTTP client
 
 `common/net-guard.ts` mengklasifikasikan alamat IPv4/IPv6 (termasuk IPv4-mapped) dan memblokir loopback, privat, CGNAT, link-local, ULA, dokumentasi, multicast, serta metadata cloud. `resolveLocalAddress()` mengunci alamat hasil resolusi pertama.
@@ -132,6 +139,8 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `components/CommandPalette.tsx` | Palette dua tingkat: submenu statis/async (daftar URL), form pencarian File Explorer, Esc/Backspace kembali |
 | `lib/json2ts.ts` | Inferensi tipe: nama dari key, gabung bentuk array, penanda `?` untuk field yang tidak selalu ada |
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
+| `lib/htmlStudio.ts` | Penyusun dokumen pratinjau/ekspor HTML Studio: CSP, injeksi CSS/JS bertanda, validasi payload impor |
+| `tools/HtmlStudioTool.tsx` | Editor HTML/CSS/JS tiga tab, pratinjau `iframe` sandbox, preset viewport, simpan/ekspor, integrasi File Explorer |
 | `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
 | `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda); judul event di grid, modal detail (WIB/WITA/WIT), rentang bulan berjalan, form Tambah Event, connect/reconnect OAuth, Sync + auto-refresh 5 menit, mapping all-day; pengingat pop-up + bell 1 jam/30/15 menit dengan pilihan tersimpan di `localStorage` |
 | `tools/DownloaderTool.tsx` | Cek link dulu (`/downloader/info`: judul/thumbnail/durasi/resolusi), lalu pilih resolusi/audio-only dan Download; POST `/downloader/proxy`; Chrome/Edge stream ke File System Access, fallback blob; status proses & cancel |

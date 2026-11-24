@@ -929,6 +929,27 @@ export default function FilesTool() {
                       {t('files.preview')}
                     </Button>
                   ) : null}
+                  {['html', 'htm'].includes(fileExt) && !largeFile ? (
+                    <Button
+                      size="sm"
+                      icon="html"
+                      data-action="files:htmlStudio"
+                      onClick={() =>
+                        runWorkflow({
+                          tool: 'html-studio',
+                          action: 'open',
+                          payload: {
+                            path: file.path,
+                            name: file.path.split('/').pop() ?? file.path,
+                            content: file.text,
+                            truncated: false,
+                          },
+                        })
+                      }
+                    >
+                      {t('files.openHtmlStudio')}
+                    </Button>
+                  ) : null}
                   {!file.binary && !editing && !largeFile ? (
                     <Button size="sm" icon="edit" onClick={() => setEditing(true)}>
                       {t('common.edit')}

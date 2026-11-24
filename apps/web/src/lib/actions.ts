@@ -31,6 +31,8 @@ export const TOOL_ACTIONS: readonly ToolAction[] = [
   { tool: 'json', action: 'upload', icon: 'download' },
   { tool: 'json', action: 'download', icon: 'download' },
   { tool: 'types', action: 'download', icon: 'download' },
+  { tool: 'html-studio', action: 'write', icon: 'html', focus: 'editor' },
+  { tool: 'html-studio', action: 'export', icon: 'download' },
   { tool: 'notes', action: 'new', icon: 'plus' },
   { tool: 'notes', action: 'search', icon: 'search', focus: 'search', intent: 'search', select: true },
   { tool: 'notes', action: 'delete', icon: 'trash' },
