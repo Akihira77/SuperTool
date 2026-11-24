@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   PREVIEW_CSP,
   composeDocument,
-  isDirty,
+  createBaseline,
+  dirtyState,
   parseImportPayload,
 } from './htmlStudio';
 
@@ -75,10 +76,48 @@ describe('parseImportPayload', () => {
   });
 });
 
-describe('isDirty', () => {
-  it('hanya menandai perubahan setelah ada baseline', () => {
-    expect(isDirty('a', null)).toBe(false);
-    expect(isDirty('a', 'a')).toBe(false);
-    expect(isDirty('b', 'a')).toBe(true);
+describe('dirtyState', () => {
+  const baseline = createBaseline('<h1>a</h1>', 'p{margin:0}', 'run()');
+
+  it('bersih saat semua editor sama dengan baseline', () => {
+    expect(dirtyState({ html: '<h1>a</h1>', css: 'p{margin:0}', js: 'run()' }, baseline)).toEqual({
+      sourceDirty: false,
+      workspaceDirty: false,
+    });
+  });
+
+  it('perubahan CSS saja menandai workspace, bukan berkas sumber', () => {
+    expect(dirtyState({ html: '<h1>a</h1>', css: 'p{margin:1px}', js: 'run()' }, baseline)).toEqual({
+      sourceDirty: false,
+      workspaceDirty: true,
+    });
+  });
+
+  it('perubahan JavaScript saja menandai workspace, bukan berkas sumber', () => {
+    expect(dirtyState({ html: '<h1>a</h1>', css: 'p{margin:0}', js: 'run(1)' }, baseline)).toEqual({
+      sourceDirty: false,
+      workspaceDirty: true,
+    });
+  });
+
+  it('perubahan HTML menandai keduanya', () => {
+    expect(dirtyState({ html: '<h1>b</h1>', css: 'p{margin:0}', js: 'run()' }, baseline)).toEqual({
+      sourceDirty: true,
+      workspaceDirty: true,
+    });
+  });
+
+  it('menyimpan HTML tidak membersihkan CSS/JS yang masih berubah', () => {
+    const content = { html: '<h1>b</h1>', css: 'p{margin:1px}', js: 'run()' };
+    const afterSave = { ...baseline, html: content.html };
+    expect(dirtyState(content, afterSave)).toEqual({ sourceDirty: false, workspaceDirty: true });
+  });
+
+  it('baseline bawaan membuat template awal dianggap bersih', () => {
+    const starter = createBaseline();
+    expect(dirtyState({ html: starter.html, css: starter.css, js: starter.js }, starter)).toEqual({
+      sourceDirty: false,
+      workspaceDirty: false,
+    });
   });
 });

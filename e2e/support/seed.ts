@@ -140,14 +140,19 @@ export const MARKDOWN_FIXTURE = [
 export type SeededHtml = { path: string; name: string; content: string };
 
 /** Berkas HTML deterministik untuk alur File Explorer → HTML Studio. */
-export async function seedHtmlFile(request: APIRequestContext, baseUrl: string, name = 'studio-demo.html'): Promise<SeededHtml> {
+export async function seedHtmlFile(
+  request: APIRequestContext,
+  baseUrl: string,
+  name = 'studio-demo.html',
+  marker = 'SEEDED-HTML',
+): Promise<SeededHtml> {
   const root = await fsRoot(request, baseUrl);
   const path = root + '/' + name;
   const content = [
     '<!doctype html>',
     '<html lang="id">',
     '<head><style>h1 { color: rgb(10, 20, 30); }</style></head>',
-    '<body><h1 id="seeded">SEEDED-HTML</h1></body>',
+    '<body><h1 id="seeded">' + marker + '</h1></body>',
     '</html>',
   ].join('\n');
   await json(request.put(baseUrl + '/api/fs/write', { data: { path, content }, headers: CSRF }));

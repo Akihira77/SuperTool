@@ -12,9 +12,11 @@ import {
   START_HTML,
   START_JS,
   composeDocument,
-  isDirty,
+  createBaseline,
+  dirtyState,
   parseImportPayload,
   type PreviewPreset,
+  type StudioBaseline,
 } from '../lib/htmlStudio';
 
 type EditorTab = 'html' | 'css' | 'js';
@@ -41,7 +43,7 @@ export default function HtmlStudioTool() {
   const [preset, setPreset] = useState<PreviewPreset>('desktop');
   const [previewDoc, setPreviewDoc] = useState(() => composeDocument(START_HTML, START_CSS, START_JS));
   const [source, setSource] = useState<{ path: string; name: string } | null>(null);
-  const [baseline, setBaseline] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<StudioBaseline>(() => createBaseline());
   const [truncated, setTruncated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -75,15 +77,17 @@ export default function HtmlStudioTool() {
     return () => clearTimeout(id);
   }, [html, css, js, t]);
 
-  const dirty = isDirty(html, baseline);
+  const dirty = dirtyState({ html, css, js }, baseline);
+  // Berkas sumber hanya menampung tab HTML; CSS/JS tetap pekerjaan workspace.
+  const onlyWorkspaceDirty = dirty.workspaceDirty && !dirty.sourceDirty;
   const empty = !html.trim() && !css.trim() && !js.trim();
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty.workspaceDirty) return;
     const onUnload = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', onUnload);
     return () => window.removeEventListener('beforeunload', onUnload);
-  }, [dirty]);
+  }, [dirty.workspaceDirty]);
 
   const exportDoc = () => {
     try {
@@ -99,12 +103,12 @@ export default function HtmlStudioTool() {
   };
 
   const save = async () => {
-    if (!source || !dirty || truncated || busy) return;
+    if (!source || !dirty.sourceDirty || truncated || busy) return;
     setBusy(true);
     setError('');
     try {
       await api.put('/fs/write', { path: source.path, content: html });
-      setBaseline(html);
+      setBaseline((current) => ({ ...current, html }));
       toast(t('common.saved'), 'ok');
     } catch (err) {
       // Konten editor tidak disentuh saat gagal, jadi pengguna bisa mencoba lagi.
@@ -123,7 +127,7 @@ export default function HtmlStudioTool() {
         setError(t('htmlStudio.importInvalid'));
         return;
       }
-      if (dirty) {
+      if (dirty.workspaceDirty) {
         const ok = await confirm({
           title: t('htmlStudio.discardTitle'),
           message: t('htmlStudio.discardMessage') + ' ' + (source?.path ?? imported.path),
@@ -137,14 +141,14 @@ export default function HtmlStudioTool() {
       setTab('html');
       setView((current) => (current === 'preview' ? 'edit' : current));
       setSource({ path: imported.path, name: imported.name });
-      setBaseline(imported.content);
+      setBaseline(createBaseline(imported.content, '', ''));
       setTruncated(imported.truncated);
       setError('');
     })();
   });
 
   const reset = async () => {
-    const worked = source !== null || html !== START_HTML || css !== START_CSS || js !== START_JS;
+    const worked = source !== null || dirty.workspaceDirty;
     if (worked) {
       const ok = await confirm({
         title: t('htmlStudio.resetTitle'),
@@ -158,7 +162,7 @@ export default function HtmlStudioTool() {
     setCss(START_CSS);
     setJs(START_JS);
     setSource(null);
-    setBaseline(null);
+    setBaseline(createBaseline());
     setTruncated(false);
     setError('');
   };
@@ -176,7 +180,15 @@ export default function HtmlStudioTool() {
         subtitle={source ? source.path : t('htmlStudio.subtitle')}
         icon="html"
       >
-        {source ? <Badge tone={dirty ? 'warn' : 'ok'}>{dirty ? t('htmlStudio.unsaved') : t('htmlStudio.saved')}</Badge> : null}
+        {source ? (
+          <Badge tone={dirty.workspaceDirty ? 'warn' : 'ok'}>
+            {dirty.sourceDirty
+              ? t('htmlStudio.unsaved')
+              : onlyWorkspaceDirty
+                ? t('htmlStudio.workspaceUnsaved')
+                : t('htmlStudio.saved')}
+          </Badge>
+        ) : null}
         <SegmentedControl
           items={[
             { id: 'edit', label: t('htmlStudio.modeEdit') },
@@ -193,8 +205,14 @@ export default function HtmlStudioTool() {
           variant="primary"
           data-action="html-studio:save"
           loading={busy}
-          disabled={!source || !dirty || truncated}
-          title={truncated ? t('htmlStudio.truncated') : undefined}
+          disabled={!source || !dirty.sourceDirty || truncated}
+          title={
+            truncated
+              ? t('htmlStudio.truncated')
+              : source && !dirty.sourceDirty && dirty.workspaceDirty
+                ? t('htmlStudio.separateTabs')
+                : undefined
+          }
           onClick={() => void save()}
         >
           {t('common.save')}

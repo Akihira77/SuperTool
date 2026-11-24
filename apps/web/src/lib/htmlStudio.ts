@@ -129,6 +129,25 @@ export function parseImportPayload(payload: unknown): ImportedHtml | null {
   return { path: raw.path, name, content: raw.content, truncated: raw.truncated === true };
 }
 
-export function isDirty(current: string, baseline: string | null): boolean {
-  return baseline !== null && current !== baseline;
+export type StudioContent = { html: string; css: string; js: string };
+export type StudioBaseline = StudioContent;
+
+export function createBaseline(html = START_HTML, css = START_CSS, js = START_JS): StudioBaseline {
+  return { html, css, js };
+}
+
+/**
+ * `sourceDirty` hanya membandingkan tab HTML, karena hanya tab itu yang ditulis
+ * ke berkas sumber. `workspaceDirty` mencakup CSS/JS: perubahan di tab tersebut
+ * tetap pekerjaan yang belum tersimpan, hanya bukan ke berkas asal.
+ */
+export function dirtyState(
+  content: StudioContent,
+  baseline: StudioBaseline,
+): { sourceDirty: boolean; workspaceDirty: boolean } {
+  const sourceDirty = content.html !== baseline.html;
+  return {
+    sourceDirty,
+    workspaceDirty: sourceDirty || content.css !== baseline.css || content.js !== baseline.js,
+  };
 }

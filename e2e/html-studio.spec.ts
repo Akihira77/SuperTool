@@ -3,7 +3,8 @@ import { audit } from './support/a11y';
 import { openTool, signIn } from './support/auth';
 import { seedHtmlFile } from './support/seed';
 
-const panel = (page: Page) => page.locator('[role="tabpanel"]:not([aria-hidden="true"])');
+// Panel sesi aktif; panel tab editor di dalamnya juga role="tabpanel".
+const panel = (page: Page) => page.locator('[role="tabpanel"]:not([aria-hidden="true"])').first();
 
 async function previewFrame(page: Page) {
   const handle = await panel(page).locator('iframe').elementHandle();
@@ -18,6 +19,27 @@ async function previewEval(page: Page, expression: string) {
 
 async function fillEditor(page: Page, name: string, value: string) {
   await panel(page).getByRole('textbox', { name }).fill(value);
+}
+
+const sessionTab = (page: Page, name: string) =>
+  page.getByRole('tablist', { name: 'Sesi Super Tool' }).getByRole('tab', { name, exact: true });
+
+/** Dipakai untuk memeriksa apakah penjaga `beforeunload` sedang aktif. */
+const unloadBlocked = (page: Page) =>
+  page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+
+async function openHtmlInStudio(page: Page, name: string) {
+  await sessionTab(page, 'File Explorer').click();
+  const files = panel(page);
+  const back = files.getByRole('button', { name: 'Kembali ke daftar' });
+  if (await back.count()) await back.click();
+  await files.locator('tbody tr', { hasText: name }).click();
+  await files.getByRole('button', { name: 'Buka di HTML Studio' }).click();
+  await expect(sessionTab(page, 'HTML Studio')).toHaveAttribute('aria-selected', 'true');
 }
 
 test('HTML Studio: pratinjau langsung, tab editor, dan preset viewport', async ({ page, app }) => {
@@ -180,4 +202,128 @@ test('HTML Studio: label aksesibel mengikuti bahasa tanpa reload', async ({ page
   await expect(studio.getByRole('textbox', { name: 'HTML editor' })).toBeVisible();
   await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
   await expect(studio.getByRole('textbox', { name: 'CSS editor' })).toBeVisible();
+});
+
+test('HTML Studio: perubahan CSS/JS saja terhitung belum tersimpan', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openTool(page, 'HTML Studio');
+  const studio = panel(page);
+
+  expect(await unloadBlocked(page)).toBe(false);
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await fillEditor(page, 'Editor CSS', 'body { margin: 9px; }');
+  expect(await unloadBlocked(page)).toBe(true);
+
+  // Reset juga menjaga perubahan CSS saja.
+  await studio.getByRole('button', { name: 'Atur ulang' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Batal' }).click();
+  await expect(studio.getByRole('textbox', { name: 'Editor CSS' })).toHaveValue('body { margin: 9px; }');
+
+  await studio.getByRole('button', { name: 'Atur ulang' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Atur ulang', exact: true }).click();
+  expect(await unloadBlocked(page)).toBe(false);
+
+  await studio.getByRole('tab', { name: 'JavaScript', exact: true }).click();
+  await fillEditor(page, 'Editor JavaScript', 'window.flag = 1;');
+  expect(await unloadBlocked(page)).toBe(true);
+});
+
+test('HTML Studio: impor ulang minta konfirmasi untuk CSS/JS yang belum tersimpan', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const first = await seedHtmlFile(page.request, app.baseUrl, 'studio-a.html', 'SEED-A');
+  const second = await seedHtmlFile(page.request, app.baseUrl, 'studio-b.html', 'SEED-B');
+
+  await openTool(page, 'File Explorer');
+  await openHtmlInStudio(page, first.name);
+
+  const studio = panel(page);
+  const htmlEditor = studio.getByRole('textbox', { name: 'Editor HTML' });
+  const cssEditor = studio.getByRole('textbox', { name: 'Editor CSS' });
+  await expect(htmlEditor).toHaveValue(/SEED-A/);
+  await expect(studio.getByText('Tersimpan', { exact: true })).toBeVisible();
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await cssEditor.fill('body { margin: 7px; }');
+  await expect(studio.getByText('CSS/JS belum tersimpan', { exact: true })).toBeVisible();
+
+  // Tab HTML tidak berubah, tetapi CSS belum tersimpan: impor lain harus bertanya.
+  await openHtmlInStudio(page, second.name);
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Batal' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(studio).toContainText(first.path);
+  await expect(cssEditor).toHaveValue('body { margin: 7px; }');
+
+  // JavaScript juga dihitung sebelum impor berikutnya.
+  await studio.getByRole('tab', { name: 'JavaScript', exact: true }).click();
+  const jsEditor = studio.getByRole('textbox', { name: 'Editor JavaScript' });
+  await jsEditor.fill('window.flag = 1;');
+
+  await openHtmlInStudio(page, second.name);
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Lanjutkan' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect(studio).toContainText(second.path);
+  await expect(htmlEditor).toHaveValue(/SEED-B/);
+  await expect(studio.getByText('Tersimpan', { exact: true })).toBeVisible();
+  expect(await unloadBlocked(page)).toBe(false);
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await expect(cssEditor).toHaveValue('');
+  await studio.getByRole('tab', { name: 'JavaScript', exact: true }).click();
+  await expect(jsEditor).toHaveValue('');
+});
+
+test('HTML Studio: simpan hanya HTML dan mempertahankan CSS/JS saat gagal', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const file = await seedHtmlFile(page.request, app.baseUrl, 'studio-save.html', 'SEED-SAVE');
+
+  await openTool(page, 'File Explorer');
+  await openHtmlInStudio(page, file.name);
+
+  const studio = panel(page);
+  const htmlEditor = studio.getByRole('textbox', { name: 'Editor HTML' });
+  const cssEditor = studio.getByRole('textbox', { name: 'Editor CSS' });
+  const saveButton = studio.getByRole('button', { name: 'Simpan', exact: true });
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await cssEditor.fill('body { margin: 11px; }');
+  await expect(studio.getByText('CSS/JS belum tersimpan', { exact: true })).toBeVisible();
+  await expect(saveButton).toBeDisabled();
+
+  await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
+  await htmlEditor.fill('<!doctype html><html><body><h1 id="updated">UPDATED-SAVE</h1></body></html>');
+  await expect(studio.getByText('Belum disimpan', { exact: true })).toBeVisible();
+  await saveButton.click();
+
+  await expect(studio.getByText('CSS/JS belum tersimpan', { exact: true })).toBeVisible();
+  expect(await unloadBlocked(page)).toBe(true);
+  await expect
+    .poll(async () => {
+      const res = await page.request.get(app.baseUrl + '/api/fs/read?path=' + encodeURIComponent(file.path));
+      return ((await res.json()) as { text: string }).text;
+    })
+    .toContain('UPDATED-SAVE');
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await expect(cssEditor).toHaveValue('body { margin: 11px; }');
+
+  // Simpan gagal tidak boleh menghapus isi editor atau menandai tersimpan.
+  await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
+  await htmlEditor.fill('<p>GAGAL-SIMPAN</p>');
+  await page.route('**/api/fs/write', (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'disk penuh' }) }),
+  );
+  await saveButton.click();
+  await expect(studio.getByRole('alert')).toContainText('disk penuh');
+  await expect(htmlEditor).toHaveValue('<p>GAGAL-SIMPAN</p>');
+  await expect(studio.getByText('Belum disimpan', { exact: true })).toBeVisible();
+  await page.unroute('**/api/fs/write');
 });

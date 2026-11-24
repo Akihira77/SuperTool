@@ -28,7 +28,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 
 ## HTML Studio
 
-Editor tiga tab (HTML, CSS, JavaScript) dengan pratinjau dan penampil berkas HTML. Tab HTML menyimpan dokumen sumber apa adanya; CSS dan JavaScript dari tab terpisah disuntikkan hanya saat menyusun dokumen pratinjau/ekspor.
+Editor tiga tab (HTML, CSS, JavaScript) dengan pratinjau dan penampil berkas HTML. Tab HTML menyimpan dokumen sumber apa adanya; CSS dan JavaScript dari tab terpisah disuntikkan hanya saat menyusun dokumen pratinjau/ekspor. Perubahan pada tab CSS/JS ikut dihitung sebagai pekerjaan belum tersimpan (badge, konfirmasi impor/reset, penjaga `beforeunload`), tetapi tombol **Simpan** tetap hanya menulis tab HTML ke berkas sumber.
 
 Model keamanan pratinjau:
 

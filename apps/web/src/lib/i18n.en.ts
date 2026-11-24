@@ -991,6 +991,7 @@ export const EN: Partial<Record<Key, string>> = {
   'htmlStudio.discardMessage': 'The open file will be replaced:',
   'htmlStudio.unsaved': 'Unsaved',
   'htmlStudio.saved': 'Saved',
+  'htmlStudio.workspaceUnsaved': 'CSS/JS not saved',
   'htmlStudio.saveFailed': 'Failed to save file',
   'htmlStudio.importInvalid': 'Invalid HTML file payload',
   'htmlStudio.truncated':

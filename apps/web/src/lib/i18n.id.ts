@@ -990,6 +990,7 @@ export const ID = {
   'htmlStudio.discardMessage': 'Berkas yang sedang dibuka akan diganti:',
   'htmlStudio.unsaved': 'Belum disimpan',
   'htmlStudio.saved': 'Tersimpan',
+  'htmlStudio.workspaceUnsaved': 'CSS/JS belum tersimpan',
   'htmlStudio.saveFailed': 'Gagal menyimpan berkas',
   'htmlStudio.importInvalid': 'Payload berkas HTML tidak valid',
   'htmlStudio.truncated':
