@@ -119,19 +119,32 @@ describe('formatDocument', () => {
     expect(double).toContain('const a = "x";');
   });
 
-  it('menerapkan semi dan trailing comma', async () => {
+  it('menerapkan semi', async () => {
     const noSemi = await formatDocument('const a = 1', 'js', { ...preferences, semi: false });
     expect(noSemi.trim()).toBe('const a = 1');
-    const noComma = await formatDocument('const o = { a: 1, b: 2 }', 'js', { ...preferences, trailingComma: 'none' });
-    const allComma = await formatDocument('const o = { a: 1, b: 2 }', 'js', { ...preferences, trailingComma: 'all', printWidth: 80 });
-    expect(noComma).toBe('const o = { a: 1, b: 2 };\n');
-    expect(allComma).toBe('const o = { a: 1, b: 2 };\n');
-    const multiline = await formatDocument('const o = { alpha: 111111, beta: 222222, gamma: 333333 }', 'js', {
-      ...preferences,
-      trailingComma: 'all',
-      printWidth: 40 as 80,
-    });
-    expect(multiline).toContain('gamma: 333333,\n');
+    const withSemi = await formatDocument('const a = 1', 'js', { ...preferences, semi: true });
+    expect(withSemi.trim()).toBe('const a = 1;');
+  });
+
+  it('trailingComma none, es5, dan all menghasilkan keluaran berbeda', async () => {
+    // Objek dan daftar argumen sama-sama pecah baris pada printWidth 80.
+    const multiline =
+      'const hasil = proses({ alphaOperator: 111111, betaOperator: 222222, gammaOperator: 333333, deltaOperator: 444444 }, nilaiKeduaParameter);';
+    const [none, es5, all] = await Promise.all([
+      formatDocument(multiline, 'js', { ...preferences, printWidth: 80, trailingComma: 'none' }),
+      formatDocument(multiline, 'js', { ...preferences, printWidth: 80, trailingComma: 'es5' }),
+      formatDocument(multiline, 'js', { ...preferences, printWidth: 80, trailingComma: 'all' }),
+    ]);
+    // none: tidak ada koma sebelum penutup objek maupun argumen.
+    expect(none).toContain('deltaOperator: 444444\n');
+    expect(none).toContain('\n  nilaiKeduaParameter\n');
+    // es5: koma pada objek, tetap tanpa koma pada argumen fungsi.
+    expect(es5).toContain('deltaOperator: 444444,\n');
+    expect(es5).toContain('\n  nilaiKeduaParameter\n');
+    // all: koma di keduanya.
+    expect(all).toContain('deltaOperator: 444444,\n');
+    expect(all).toContain('nilaiKeduaParameter,\n');
+    expect(new Set([none, es5, all]).size).toBe(3);
   });
 
   it('menerapkan bracket spacing', async () => {

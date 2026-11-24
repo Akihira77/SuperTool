@@ -446,6 +446,7 @@ export default function HtmlStudioTool() {
                 value={activeValue}
                 onChange={setActiveValue}
                 language={tab}
+                stateKey={tab}
                 dataAction="html-studio:editor"
                 placeholder={editorLabel}
                 wrap

@@ -9,7 +9,7 @@ import {
   lineNumbers,
   placeholder as cmPlaceholder,
 } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory } from '@codemirror/commands';
 import {
   HighlightStyle,
   bracketMatching,
@@ -54,7 +54,15 @@ type Props = {
   /** Ditempel di elemen contenteditable agar command palette bisa memfokuskannya. */
   dataAction?: string;
   onContextMenu?: (menu: CodeEditorContextMenu) => void;
+  /**
+   * Kunci dokumen untuk editor yang menampung beberapa tab (HTML Studio).
+   * Tiap kunci menyimpan `EditorState` sendiri: history, selection, fold, dan
+   * posisi scroll tidak tercampur antar dokumen.
+   */
+  stateKey?: string;
 };
+
+type SavedState = { state: EditorState; scrollTop: number; scrollLeft: number };
 
 // Warna mengikuti token tema SuperTool (styles.css), termasuk kontras baris aktif.
 const theme = EditorView.theme(
@@ -120,16 +128,6 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: '#fda4af' },
 ]);
 
-function editorChrome(placeholder?: string, dataAction?: string): Extension {
-  return [
-    EditorView.contentAttributes.of({
-      'aria-label': placeholder ?? 'Editor kode',
-      ...(dataAction ? { 'data-action': dataAction } : {}),
-    }),
-    placeholder ? cmPlaceholder(placeholder) : [],
-  ];
-}
-
 function languageExtension(language?: EditorLanguage): Extension {
   if (language === 'html') return html();
   if (language === 'css') return css();
@@ -137,11 +135,43 @@ function languageExtension(language?: EditorLanguage): Extension {
   return [];
 }
 
+/** Plain-text consumer tidak punya fold range; gutter kosong hanya makan ruang. */
+function foldExtension(language?: EditorLanguage): Extension {
+  return language ? [foldGutter(), codeFolding()] : [];
+}
+
+/**
+ * Mode baca memakai dua lapis: `EditorState.readOnly` menolak transaksi ubah,
+ * `EditorView.editable(false)` melepas contenteditable sehingga input browser
+ * (ketik, paste, drag/drop) tidak masuk. Seleksi dan salin tetap jalan.
+ * Penanda baris aktif dimatikan supaya preview tidak terlihat seperti mode edit.
+ */
+function modeExtension(readOnly: boolean): Extension {
+  if (readOnly) return [EditorState.readOnly.of(true), EditorView.editable.of(false)];
+  return [highlightActiveLine(), highlightActiveLineGutter()];
+}
+
+function chromeExtension(placeholder?: string, dataAction?: string, readOnly = false): Extension {
+  return [
+    EditorView.contentAttributes.of({
+      'aria-label': placeholder ?? 'Editor kode',
+      // `editable(false)` melepas contenteditable; tanpa tabindex isi preview
+      // tidak bisa difokuskan sehingga Ctrl+A/Ctrl+C jatuh ke seluruh halaman.
+      ...(readOnly ? { 'aria-readonly': 'true', tabindex: '0' } : {}),
+      ...(dataAction ? { 'data-action': dataAction } : {}),
+    }),
+    placeholder ? cmPlaceholder(placeholder) : [],
+  ];
+}
+
 /**
  * Editor kode bersama berbasis CodeMirror 6: nomor baris, baris aktif,
- * folding per-bahasa, dan placeholder. Nilai tetap controlled dari React;
- * perubahan eksternal (impor, format, ganti tab) disinkronkan tanpa
- * memicu onChange.
+ * folding per-bahasa, dan placeholder. Nilai tetap controlled dari React.
+ *
+ * Konfigurasi yang bisa berubah saat runtime (bahasa, wrap, read-only, label)
+ * memakai `Compartment`, jadi `EditorView` tidak dibuat ulang: history,
+ * selection, scroll, dan fold state bertahan. `stateKey` menyimpan satu
+ * `EditorState` per dokumen untuk editor multi-tab.
  */
 export function CodeEditor({
   value,
@@ -155,74 +185,134 @@ export function CodeEditor({
   editorRef,
   dataAction,
   onContextMenu,
+  stateKey,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const applying = useRef(false);
-  // Atribut ARIA + placeholder bisa berubah (ganti bahasa/tab) tanpa membuat ulang dokumen.
-  const chrome = useRef(new Compartment()).current;
+  const states = useRef(new Map<string, SavedState>());
+  const activeKey = useRef(stateKey ?? '');
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const extensions: Extension[] = [
+  // Compartment stabil: dipakai ulang oleh setiap state per tab.
+  const conf = useRef({
+    language: new Compartment(),
+    fold: new Compartment(),
+    wrap: new Compartment(),
+    mode: new Compartment(),
+    chrome: new Compartment(),
+  }).current;
+
+  // Nilai terbaru untuk pembuatan state di dalam effect (tanpa dependency reaktif).
+  const latest = useRef({ language, wrap, readOnly, placeholder, dataAction });
+  latest.current = { language, wrap, readOnly, placeholder, dataAction };
+
+  const buildExtensions = (): Extension[] => {
+    const props = latest.current;
+    return [
       theme,
       lineNumbers(),
-      // Plain-text consumer tidak punya fold range; gutter kosong hanya makan ruang.
-      ...(language ? [foldGutter(), codeFolding()] : []),
-      highlightActiveLine(),
-      highlightActiveLineGutter(),
+      conf.language.of(languageExtension(props.language)),
+      conf.fold.of(foldExtension(props.language)),
+      conf.wrap.of(props.wrap ? EditorView.lineWrapping : []),
+      conf.mode.of(modeExtension(Boolean(props.readOnly))),
+      conf.chrome.of(chromeExtension(props.placeholder, props.dataAction, Boolean(props.readOnly))),
       drawSelection(),
       bracketMatching(),
       indentOnInput(),
       syntaxHighlighting(highlightStyle),
       history(),
       keymap.of([
-        { key: 'Mod-s', run: () => {
-          onSaveRef.current?.();
-          return true;
-        } },
+        {
+          key: 'Mod-s',
+          run: () => {
+            onSaveRef.current?.();
+            return true;
+          },
+        },
         indentWithTab,
         ...defaultKeymap,
         ...historyKeymap,
         ...foldKeymap,
       ]),
-      languageExtension(language),
-      chrome.of(editorChrome(placeholder, dataAction)),
-    ];
-    if (wrap) extensions.push(EditorView.lineWrapping);
-    if (readOnly) extensions.push(EditorState.readOnly.of(true));
-    extensions.push(
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !applying.current) onChangeRef.current?.(update.state.doc.toString());
       }),
-    );
+    ];
+  };
 
+  const reconfigureAndScroll = (saved?: SavedState) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const props = latest.current;
+    view.dispatch({
+      effects: [
+        conf.language.reconfigure(languageExtension(props.language)),
+        conf.fold.reconfigure(foldExtension(props.language)),
+        conf.wrap.reconfigure(props.wrap ? EditorView.lineWrapping : []),
+        conf.mode.reconfigure(modeExtension(Boolean(props.readOnly))),
+        conf.chrome.reconfigure(chromeExtension(props.placeholder, props.dataAction, Boolean(props.readOnly))),
+      ],
+    });
+    if (!saved) return;
+    view.scrollDOM.scrollTop = saved.scrollTop;
+    view.scrollDOM.scrollLeft = saved.scrollLeft;
+  };
+
+  // View dibuat sekali; sisanya dikonfigurasi lewat compartment.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
     const view = new EditorView({
-      state: EditorState.create({ doc: value, extensions }),
+      state: EditorState.create({ doc: value, extensions: buildExtensions() }),
       parent: host,
     });
     viewRef.current = view;
     // Scroller adalah elemen yang benar-benar menggulir; jadikan fokusabel
     // supaya aturan axe scrollable-region-focusable tetap terpenuhi.
     view.scrollDOM.setAttribute('tabindex', '0');
+    activeKey.current = stateKey ?? '';
     return () => {
       view.destroy();
       viewRef.current = null;
     };
-    // View dibuat ulang hanya saat konfigurasi struktural berubah.
-  }, [language, wrap, readOnly, chrome]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Label aksesibel mengikuti bahasa aktif tanpa mengganggu isi dokumen.
+  // Ganti dokumen aktif: simpan state lama, pulihkan state tab tujuan.
   useEffect(() => {
-    viewRef.current?.dispatch({ effects: chrome.reconfigure(editorChrome(placeholder, dataAction)) });
-  }, [placeholder, dataAction, chrome]);
+    const view = viewRef.current;
+    if (!view) return;
+    const nextKey = stateKey ?? '';
+    if (nextKey === activeKey.current) return;
+    states.current.set(activeKey.current, {
+      state: view.state,
+      scrollTop: view.scrollDOM.scrollTop,
+      scrollLeft: view.scrollDOM.scrollLeft,
+    });
+    activeKey.current = nextKey;
+    const saved = states.current.get(nextKey);
+    if (saved) {
+      view.setState(saved.state);
+      reconfigureAndScroll(saved);
+      return;
+    }
+    view.setState(EditorState.create({ doc: value, extensions: buildExtensions() }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateKey]);
+
+  useEffect(() => {
+    if (!viewRef.current) return;
+    reconfigureAndScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, wrap, readOnly, placeholder, dataAction]);
 
   // Sinkronkan nilai dari luar (impor, format, reset, ganti tab editor).
+  // `stateKey` ikut jadi dependency: setelah state tab lain dipulihkan, nilainya
+  // harus dibandingkan ulang walau string `value` kebetulan sama (mis. '').
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -232,9 +322,13 @@ export function CodeEditor({
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: value },
       selection: EditorSelection.single(Math.min(anchor, value.length), Math.min(head, value.length)),
+      // Penggantian dari luar (impor, format) jadi langkah undo sendiri:
+      // undo setelah format mengembalikan teks sebelum format, bukan
+      // mencabut ketikan pengguna sebelumnya.
+      annotations: isolateHistory.of('full'),
     });
     applying.current = false;
-  }, [value]);
+  }, [value, stateKey]);
 
   useEffect(() => {
     const handle: CodeEditorHandle = {

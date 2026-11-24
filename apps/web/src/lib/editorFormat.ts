@@ -81,28 +81,36 @@ const parserOptions = (preferences: FormatPreferences) => ({
 });
 
 /**
- * Format satu dokumen sesuai bahasanya. Melempar error parser Prettier apa
- * adanya supaya pemanggil bisa mempertahankan konten lama.
+ * Format satu dokumen sesuai bahasanya. Plugin dimuat per bahasa supaya tab
+ * CSS tidak mengunduh parser Babel/PostCSS yang tidak dipakai (dan sebaliknya).
+ * Melempar error parser Prettier apa adanya supaya pemanggil bisa
+ * mempertahankan konten lama.
  */
 export async function formatDocument(
   code: string,
   language: FormatLanguage,
   preferences: FormatPreferences = DEFAULT_FORMAT_PREFERENCES,
 ): Promise<string> {
-  const [{ format }, htmlPlugin, postcssPlugin, babelPlugin, estreePlugin] = await Promise.all([
+  if (language === 'html') {
+    const [{ format }, htmlPlugin] = await Promise.all([
+      import('prettier/standalone'),
+      import('prettier/plugins/html'),
+    ]);
+    return format(code, { parser: 'html', ...parserOptions(preferences), plugins: [htmlPlugin] });
+  }
+  if (language === 'css') {
+    const [{ format }, postcssPlugin] = await Promise.all([
+      import('prettier/standalone'),
+      import('prettier/plugins/postcss'),
+    ]);
+    return format(code, { parser: 'css', ...parserOptions(preferences), plugins: [postcssPlugin] });
+  }
+  const [{ format }, babelPlugin, estreePlugin] = await Promise.all([
     import('prettier/standalone'),
-    import('prettier/plugins/html'),
-    import('prettier/plugins/postcss'),
     import('prettier/plugins/babel'),
     // Parser babel memakai AST estree; plugin-nya wajib didaftarkan di standalone.
     import('prettier/plugins/estree'),
   ]);
-  if (language === 'html') {
-    return format(code, { parser: 'html', ...parserOptions(preferences), plugins: [htmlPlugin] });
-  }
-  if (language === 'css') {
-    return format(code, { parser: 'css', ...parserOptions(preferences), plugins: [postcssPlugin] });
-  }
   return format(code, {
     parser: 'babel',
     ...parserOptions(preferences),

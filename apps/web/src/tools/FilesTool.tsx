@@ -329,7 +329,8 @@ export default function FilesTool() {
   };
 
   const save = async () => {
-    if (!file) return;
+    // Ctrl+S pada mode baca tidak boleh menulis apa pun ke disk.
+    if (!file || !editing) return;
     setBusy(true);
     try {
       await api.put('/fs/write', { path: file.path, content: draft });
@@ -1023,7 +1024,7 @@ export default function FilesTool() {
                     }}
                   />
                 ) : (
-                  <CodeEditor value={editing ? draft : file.text} onChange={setDraft} readOnly={!editing} onSave={save} wrap />
+                  <CodeEditor value={draft} onChange={setDraft} readOnly={!editing} onSave={save} wrap />
                 )}
               </div>
             </div>

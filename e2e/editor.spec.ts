@@ -331,7 +331,7 @@ test('CodeEditor: berkas teks dapat dipratinjau dan disunting lewat File Explore
   const files = panel(page);
   await files.locator('tbody tr', { hasText: file.name }).click();
 
-  const editor = files.locator('[contenteditable="true"]');
+  const editor = files.locator('.cm-content');
   await expect.poll(async () => (await editor.innerText()).replace(/\u200b/g, '').trim()).toContain('BARIS-AWAL');
 
   await files.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -345,4 +345,161 @@ test('CodeEditor: berkas teks dapat dipratinjau dan disunting lewat File Explore
       return ((await res.json()) as { text: string }).text;
     })
     .toContain('BARIS-BARU');
+});
+
+test('CodeEditor: ganti bahasa tidak menghapus history dokumen tiap tab', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openTool(page, 'HTML Studio');
+
+  const studio = panel(page);
+  const htmlEditor = studio.getByRole('textbox', { name: 'Editor HTML' });
+  const cssEditor = studio.getByRole('textbox', { name: 'Editor CSS' });
+
+  await htmlEditor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('\n<!--MARK-HTM-->');
+  await expect.poll(() => editorText(htmlEditor)).toContain('MARK-HTM');
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await cssEditor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('\n/*MARK-CSS*/');
+  await expect.poll(() => editorText(cssEditor)).toContain('MARK-CSS');
+
+  // Kembali ke HTML: dokumen dan history-nya utuh, bukan dibangun ulang.
+  await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
+  await expect.poll(() => editorText(htmlEditor)).toContain('MARK-HTM');
+  await htmlEditor.click();
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => editorText(htmlEditor)).not.toContain('MARK-HTM');
+
+  // Undo di HTML tidak menyentuh history CSS.
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await expect.poll(() => editorText(cssEditor)).toContain('MARK-CSS');
+  await cssEditor.click();
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => editorText(cssEditor)).not.toContain('MARK-CSS');
+});
+
+test('CodeEditor: fold bertahan saat tab dan bahasa editor berganti', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openTool(page, 'HTML Studio');
+
+  const studio = panel(page);
+  const editor = activeEditor(page);
+  const placeholder = studio.locator('.cm-foldPlaceholder');
+
+  await studio.locator('.cm-foldGutter .cm-gutterElement span:visible').first().click();
+  await expect(placeholder).toHaveCount(1);
+  const collapsed = await editorText(editor);
+  expect(collapsed).not.toContain('Halo, HTML Studio');
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
+
+  // Bahasa dan state dokumen dikonfigurasi ulang, lipatan tetap di tempatnya.
+  await expect(placeholder).toHaveCount(1);
+  await expect.poll(() => editorText(editor)).not.toContain('Halo, HTML Studio');
+});
+
+test('HTML Studio: Format bisa dibatalkan dengan undo dan tidak mengubah history tab lain', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openTool(page, 'HTML Studio');
+
+  const studio = panel(page);
+  const htmlEditor = studio.getByRole('textbox', { name: 'Editor HTML' });
+  const cssEditor = studio.getByRole('textbox', { name: 'Editor CSS' });
+  const formatButton = studio.getByRole('button', { name: 'Format Dokumen' });
+
+  await htmlEditor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('\n<!--MARK-HTM-->');
+
+  await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
+  await cssEditor.fill('a{color:red}');
+  await formatButton.click();
+  await expect.poll(() => editorText(cssEditor)).toContain('a {\n  color: red;\n}');
+
+  // Format adalah perubahan dokumen biasa: satu undo mengembalikan teks asli.
+  await cssEditor.click();
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => editorText(cssEditor)).toBe('a{color:red}');
+
+  // History HTML tidak tersentuh oleh format CSS.
+  await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
+  await expect.poll(() => editorText(htmlEditor)).toContain('MARK-HTM');
+  await htmlEditor.click();
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => editorText(htmlEditor)).not.toContain('MARK-HTM');
+});
+
+test('File Explorer: mode baca menolak ketik dan paste, tetapi teks tetap bisa disalin', async ({ page, app }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const file = await seedHtmlFile(page.request, app.baseUrl, 'editor-baca.html', 'MODE-BACA');
+
+  await openTool(page, 'File Explorer');
+  const files = panel(page);
+  await files.locator('tbody tr', { hasText: file.name }).click();
+  const editor = files.locator('.cm-content');
+  await expect.poll(() => editorText(editor)).toContain('MODE-BACA');
+  // Tidak ada contenteditable: input browser tidak punya jalan masuk.
+  await expect(editor).toHaveAttribute('contenteditable', 'false');
+  await expect(editor).toHaveAttribute('aria-readonly', 'true');
+
+  const before = await editorText(editor);
+  await editor.click();
+  await page.keyboard.type('HARUSNYA-TIDAK-MASUK');
+  await expect.poll(() => editorText(editor)).toBe(before);
+
+  await page.evaluate(() => navigator.clipboard.writeText('TEMPELAN'));
+  await page.keyboard.press('Control+v');
+  await expect.poll(() => editorText(editor)).toBe(before);
+
+  // Seleksi dan salin tetap berfungsi di mode baca.
+  await editor.click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('MODE-BACA');
+});
+
+test('File Explorer: draft bertahan saat berpindah pratinjau/edit dan seleksi tidak hilang', async ({ page, app }) => {
+  await signIn(page, app);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const file = await seedHtmlFile(page.request, app.baseUrl, 'editor-draft.md', 'DRAFT-AWAL');
+
+  await openTool(page, 'File Explorer');
+  const files = panel(page);
+  const preview = files.getByRole('button', { name: 'Pratinjau', exact: true });
+  await files.locator('tbody tr', { hasText: file.name }).click();
+  const editor = files.locator('.cm-content');
+  await expect.poll(() => editorText(editor)).toContain('DRAFT-AWAL');
+
+  await files.getByRole('button', { name: 'Edit', exact: true }).click();
+  await editor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('\n<!--DRAFT-BARU-->');
+  await expect.poll(() => editorText(editor)).toContain('DRAFT-BARU');
+
+  // Pratinjau melepas editor; kembali ke mode tulis tidak menghapus draft.
+  await preview.click();
+  await expect(editor).toHaveCount(0);
+  await preview.click();
+  await expect.poll(() => editorText(files.locator('.cm-content'))).toContain('DRAFT-BARU');
+
+  // Pindah read-only → edit mempertahankan seleksi (bukan mengembalikan kursor ke awal).
+  await files.getByRole('button', { name: 'Batal', exact: true }).click();
+  await expect(files.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
+  await files.locator('.cm-content').click();
+  await page.keyboard.press('Control+a');
+  await files.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(files.locator('.cm-content')).toHaveAttribute('contenteditable', 'true');
+  // Seleksi dipegang state CodeMirror dan tidak runtuh saat mode berganti.
+  await expect
+    .poll(() => page.evaluate(() => document.getSelection()?.toString() ?? ''))
+    .toContain('DRAFT-AWAL');
 });
