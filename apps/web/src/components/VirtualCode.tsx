@@ -7,7 +7,7 @@ const ROW = 24;
 const MAX_WIDTH_CH = 2000;
 
 /** Penampil kode read-only yang hanya merender baris di viewport (untuk berkas besar). */
-export function VirtualCode({ value, ext = '', className, resetKey }: { value: string; ext?: string; className?: string; resetKey?: string }) {
+export function VirtualCode({ value, ext = '', className, resetKey, label }: { value: string; ext?: string; className?: string; resetKey?: string; label?: string }) {
   const lines = useMemo(() => value.split('\n'), [value]);
   const maxLen = useMemo(() => lines.reduce((max, line) => Math.max(max, line.length), 0), [lines]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -27,7 +27,13 @@ export function VirtualCode({ value, ext = '', className, resetKey }: { value: s
 
   return (
     <div data-vcode className={cn('mono flex h-full min-h-0 overflow-hidden rounded-panel border border-line bg-[#070d14] text-[14px] shadow-elev-1', className)}>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-auto overflow-y-scroll">
+      <div
+        ref={scrollRef}
+        tabIndex={0}
+        role="region"
+        aria-label={label}
+        className="min-h-0 flex-1 overflow-x-auto overflow-y-scroll"
+      >
         <div className="relative min-w-full" style={{ height: virtualizer.getTotalSize(), width }}>
           {virtualizer.getVirtualItems().map((row) => (
             <div

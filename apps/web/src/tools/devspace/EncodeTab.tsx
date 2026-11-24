@@ -185,7 +185,7 @@ export default function EncodeTab() {
               value={hmacKey}
               onChange={(event) => setHmacKey(event.target.value)}
               placeholder="kunci HMAC (opsional)"
-              aria-label="Kunci HMAC"
+              aria-label={t('a11y.hmacKey')}
               className="mono min-w-0 flex-1 py-1"
             />
             <Button icon="check" onClick={() => void runHash()} disabled={!input}>

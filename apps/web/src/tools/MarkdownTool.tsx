@@ -74,7 +74,17 @@ export default function MarkdownTool() {
   }, [text]);
 
   const html = useMemo(
-    () => renderMarkdown(text, { done: t('markdown.taskDone'), open: t('markdown.taskOpen') }),
+    () => renderMarkdown(text, { done: t('markdown.taskDone'), open: t('markdown.taskOpen'), code: t('markdown.codeBlock') }),
+    [text, t],
+  );
+  // Preview memakai heading dokumen mulai dari h2: halaman sudah punya h1.
+  const previewHtml = useMemo(
+    () =>
+      renderMarkdown(
+        text,
+        { done: t('markdown.taskDone'), open: t('markdown.taskOpen'), code: t('markdown.codeBlock') },
+        { headingOffset: 1 },
+      ),
     [text, t],
   );
   const stats = useMemo(() => {
@@ -145,7 +155,7 @@ export default function MarkdownTool() {
           ]}
           value={view}
           onChange={setView}
-          label="Mode tampilan"
+          label={t('a11y.viewMode')}
           className="capitalize"
         />
         <CopyButton text={html} label="HTML" />
@@ -173,8 +183,8 @@ export default function MarkdownTool() {
       </PageHeader>
 
       {view !== 'preview' ? (
-        <div className="flex shrink-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-line bg-panel/20 px-3 py-1.5">
-          <Toolbar label="Format" className="shrink-0 flex-nowrap">
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line bg-panel/20 px-3 py-1.5">
+          <Toolbar label={t('a11y.formatToolbar')} className="min-w-0 flex-wrap sm:flex-nowrap">
             {buttons.map((button) => (
               <Button key={button.label} variant="ghost" size="sm" title={button.title} onClick={button.run}>
                 {button.label}
@@ -199,8 +209,13 @@ export default function MarkdownTool() {
           </div>
         ) : null}
         {view !== 'edit' ? (
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">
-            <div className="md mx-auto max-w-3xl" dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label={t('markdown.previewPane')}
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5"
+          >
+            <div className="md mx-auto max-w-3xl" dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
         ) : null}
       </div>

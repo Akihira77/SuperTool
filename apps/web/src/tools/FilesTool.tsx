@@ -811,7 +811,7 @@ export default function FilesTool() {
                 <div className="ml-auto flex items-center gap-1.5">
                   {office.editable !== 'none' && !editing ? (
                     <Button size="sm" icon="edit" onClick={() => setEditing(true)}>
-                      Edit
+                      {t('common.edit')}
                     </Button>
                   ) : null}
                   {editing ? (
@@ -926,12 +926,12 @@ export default function FilesTool() {
                       aria-pressed={preview}
                       onClick={() => setPreview(!preview)}
                     >
-                      Preview
+                      {t('files.preview')}
                     </Button>
                   ) : null}
                   {!file.binary && !editing && !largeFile ? (
                     <Button size="sm" icon="edit" onClick={() => setEditing(true)}>
-                      Edit
+                      {t('common.edit')}
                     </Button>
                   ) : null}
                   {editing ? (
@@ -986,9 +986,21 @@ export default function FilesTool() {
                     </div>
                   )
                 ) : largeFile ? (
-                  <VirtualCode value={file.text} ext={fileExt} resetKey={file.path} />
+                  <VirtualCode value={file.text} ext={fileExt} resetKey={file.path} label={t('files.contentPane')} />
                 ) : preview ? (
-                  <div className="md h-full overflow-y-auto rounded-lg border border-line bg-[#070d14] p-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(file.text) }} />
+                  <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label={t('files.contentPane')}
+                    className="md h-full overflow-y-auto rounded-lg border border-line bg-[#070d14] p-5"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdown(
+                        file.text,
+                        { done: t('markdown.taskDone'), open: t('markdown.taskOpen'), code: t('markdown.codeBlock') },
+                        { headingOffset: 1 },
+                      ),
+                    }}
+                  />
                 ) : (
                   <CodeEditor value={editing ? draft : file.text} onChange={setDraft} readOnly={!editing} onSave={save} wrap />
                 )}
@@ -1070,7 +1082,7 @@ export default function FilesTool() {
                       <td className="border-b border-line/60 px-3 py-2 text-right whitespace-nowrap opacity-70 focus-within:opacity-100 group-hover:opacity-100">
                         {!entry.dir ? (
                           <a
-                            className="btn btn-ghost btn-sm px-1"
+                            className="btn btn-ghost btn-sm min-w-6 px-1"
                             href={RAW + encodeURIComponent(entry.path) + '&download=1'}
                             download
                             title={t('common.download')}
@@ -1083,7 +1095,7 @@ export default function FilesTool() {
                         <IconButton
                           icon="copy"
                           size="sm"
-                          className="px-1"
+                          className="min-w-6 px-1"
                           tooltip={t('files.copyPath')}
                           label={t('files.copyPath') + ': ' + entry.path}
                           onClick={(e) => {
@@ -1094,7 +1106,7 @@ export default function FilesTool() {
                         <IconButton
                           icon="edit"
                           size="sm"
-                          className="px-1"
+                          className="min-w-6 px-1"
                           tooltip={t('files.rename')}
                           label={t('files.rename') + ': ' + entry.name}
                           onClick={(e) => {
@@ -1106,7 +1118,7 @@ export default function FilesTool() {
                           icon="trash"
                           size="sm"
                           tone="danger"
-                          className="px-1"
+                          className="min-w-6 px-1"
                           tooltip={t('common.delete')}
                           label={t('common.delete') + ': ' + entry.name}
                           onClick={(e) => {

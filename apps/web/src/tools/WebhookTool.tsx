@@ -167,7 +167,7 @@ export default function WebhookTool() {
         </Button>
       </PageHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 md:p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 max-lg:overflow-y-auto md:p-5">
         <Card className="flex flex-col gap-3 bg-panel/80 p-4">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="label mr-1">{t('webhook.endpoints')}</span>
@@ -266,7 +266,7 @@ export default function WebhookTool() {
 
         {error ? <div role="alert" className="text-[13px] text-bad">{error}</div> : null}
 
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[320px_1fr]">
+        <div className="grid min-h-0 flex-1 gap-3 max-lg:max-h-[560px] max-lg:min-h-[420px] max-lg:flex-none max-lg:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-cols-[320px_1fr]">
           <Card className="flex min-h-0 flex-col overflow-hidden bg-panel/60">
             <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/70 px-3 py-2 text-[12px] text-muted">
               {t('webhook.requests')}
@@ -287,7 +287,7 @@ export default function WebhookTool() {
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="mono rounded bg-panel2 px-1 text-[12.5px] text-accent">{item.method}</span>
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink/85">{item.path}</span>
+                    <span title={item.path} className="min-w-0 flex-1 truncate text-[12.5px] text-ink/85">{item.path}</span>
                   </span>
                   <span className="flex items-center gap-2 text-[12.5px] tabular-nums text-muted">
                     {timeAgo(item.at)} · {bytes(item.size)}
@@ -298,7 +298,12 @@ export default function WebhookTool() {
             </div>
           </Card>
 
-          <Card className="min-h-0 overflow-auto bg-panel/60">
+          <Card
+            tabIndex={0}
+            role="region"
+            aria-label={t('webhook.detail')}
+            className="min-h-0 overflow-auto bg-panel/60"
+          >
             {current ? (
               <div className="flex flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">

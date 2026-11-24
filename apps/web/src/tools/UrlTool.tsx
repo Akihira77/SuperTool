@@ -313,7 +313,7 @@ export default function UrlTool() {
           </Button>
         ) : null}
         {active?.proxy ? (
-          <div role="group" aria-label="Mode proxy" className="seg">
+          <div role="group" aria-label={t('a11y.proxyMode')} className="seg">
             {([
               ['sub', 'Subdomain', 'Tiap target dapat origin sendiri: cookie, localStorage, dan /api/... bekerja normal'],
               ['path', 'Path', 'Satu origin, URL ditulis ulang. Cukup untuk halaman statis'],
@@ -416,8 +416,8 @@ export default function UrlTool() {
                     size="sm"
                     className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={() => startEdit(view)}
-                    label={'Ubah ' + view.name}
-                    tooltip="Ubah"
+                    label={t('common.edit') + ' ' + view.name}
+                    tooltip={t('common.edit')}
                   />
                   <IconButton
                     icon="x"
@@ -425,8 +425,8 @@ export default function UrlTool() {
                     tone="danger"
                     className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={() => void remove(view.id)}
-                    label={'Hapus ' + view.name}
-                    tooltip="Hapus"
+                    label={t('common.delete') + ' ' + view.name}
+                    tooltip={t('common.delete')}
                   />
                 </div>
               ))

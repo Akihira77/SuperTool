@@ -139,7 +139,7 @@ export default function LogsTab() {
           onChange={(event) => setPath(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && void load(path)}
           placeholder="/var/log/nginx/error.log"
-          aria-label="Berkas log"
+          aria-label={t('a11y.logFile')}
           className="mono min-w-0 flex-1 py-1.5"
           spellCheck={false}
         />

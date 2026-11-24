@@ -189,7 +189,7 @@ export default function SettingsTool() {
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} icon="save" />
 
       <div className="page-body">
-        <nav aria-label={t('settings.navLabel')} className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-control border border-line bg-bg/90 p-1 backdrop-blur-sm">
+        <nav aria-label={t('settings.navLabel')} className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-1 rounded-control border border-line bg-bg/90 p-1 backdrop-blur-sm">
           {[
             ['settings-backup', 'settings.navData'],
             ['settings-diagnostics', 'settings.navDiagnostics'],
@@ -245,7 +245,7 @@ export default function SettingsTool() {
         </Card>
 
         <Card id="settings-diagnostics" className="scroll-mt-4 flex flex-col gap-3 p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-control bg-accent/15 text-accent"><Icon name="ports" size={14} /></span>
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium">{t('settings.diagnostics')}</div>
@@ -269,12 +269,13 @@ export default function SettingsTool() {
               </div>
               {diag.db.error ? <div role="alert" className="rounded-control border border-bad/30 bg-bad/10 p-2 text-[12.5px] text-bad">{diag.db.error}</div> : null}
               <div className="rounded-control border border-line bg-panel2/40 p-2.5">
-                <div className="label mb-1">{t('settings.diagLogs')}</div>
+                <div className="label mb-1">{t('settings.diagLastError')}</div>
                 {diag.lastError ? (
                   <div className="mb-1.5 rounded border border-bad/30 bg-bad/10 p-1.5 font-mono text-[12.5px] text-bad">
                     {new Date(diag.lastError.ts).toLocaleTimeString()} [{diag.lastError.context}] {diag.lastError.message}
                   </div>
                 ) : <div className="mb-1.5 text-[12px] text-muted">{t('settings.diagNoError')}</div>}
+                <div className="label mt-2 mb-1">{t('settings.diagLogs')}</div>
                 <div
                   tabIndex={0}
                   role="region"
@@ -286,6 +287,7 @@ export default function SettingsTool() {
                       {new Date(entry.ts).toLocaleTimeString()} [{entry.context}] {entry.message}
                     </div>
                   ))}
+                  {!diag.logs.length ? <div className="text-[12px]">{t('settings.diagNoLogs')}</div> : null}
                 </div>
               </div>
             </div>

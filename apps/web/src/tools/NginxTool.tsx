@@ -263,7 +263,7 @@ export default function NginxTool() {
             onBlur={() => void loadModels()}
             placeholder="API key (opsional)"
             className="w-36 py-1 text-[13px]"
-            aria-label="API key LLM"
+            aria-label={t('a11y.llmApiKey')}
           />
           <Input
             list="st-llm-models"
@@ -274,7 +274,7 @@ export default function NginxTool() {
             }}
             placeholder="model LLM"
             className="w-44 py-1 text-[13px]"
-            aria-label="Model LLM"
+            aria-label={t('a11y.llmModel')}
           />
           <datalist id="st-llm-models">
             {models.map((item) => (
@@ -381,18 +381,18 @@ export default function NginxTool() {
           <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel/40 xl:w-96">
             <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel/30 px-3 py-2 text-[12px] text-muted">
               <Icon name="eye" size={13} />
-              <span className="min-w-0 flex-1 truncate">Penjelasan LLM{explain.model ? ' · ' + explain.model : ''}</span>
-              <IconButton icon="x" label="Tutup" onClick={() => setExplain(null)} />
+              <span className="min-w-0 flex-1 truncate">{t('nginx.explainTitle')}{explain.model ? ' · ' + explain.model : ''}</span>
+              <IconButton icon="x" label={t('common.close')} onClick={() => setExplain(null)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {explain.loading ? (
                 <div className="flex items-center gap-2 p-2 text-sm text-muted">
-                  <Spinner /> Meminta penjelasan...
+                  <Spinner /> {t('nginx.explainLoading')}
                 </div>
               ) : explain.error ? (
                 <p className="p-2 text-sm text-bad">{explain.error}</p>
               ) : (
-                <div className="md text-[14px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text) }} />
+                <div className="md text-[14px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(explain.text, { done: t('markdown.taskDone'), open: t('markdown.taskOpen'), code: t('markdown.codeBlock') }, { headingOffset: 1 }) }} />
               )}
             </div>
           </aside>
@@ -403,7 +403,7 @@ export default function NginxTool() {
         <div
           ref={menuRef}
           role="menu"
-          aria-label="Aksi teks"
+          aria-label={t('a11y.textActions')}
           style={{ top: menu.y, left: menu.x }}
           className="popover fixed z-50 w-56"
         >

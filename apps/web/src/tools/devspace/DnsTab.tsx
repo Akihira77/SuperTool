@@ -59,7 +59,7 @@ export default function DnsTab() {
           onChange={(event) => setHost(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && void lookup()}
           placeholder="contoh: github.com"
-          aria-label="Host atau IP"
+          aria-label={t('a11y.hostOrIp')}
           className="mono min-w-0 flex-1 py-1.5"
           spellCheck={false}
         />

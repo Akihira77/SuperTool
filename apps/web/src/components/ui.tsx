@@ -1,9 +1,11 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type HTMLAttributes,
   type InputHTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -12,6 +14,7 @@ import {
   type RefObject,
   type TextareaHTMLAttributes,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../lib/i18n';
 import { useMenu } from '../lib/useMenu';
 import { useFocusTrap } from '../lib/useFocusTrap';
@@ -386,10 +389,81 @@ export function Tooltip({
   side?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
 }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
+
+  // Tooltip dipasang di body lewat portal supaya tidak terpotong overflow
+  // parent, lalu dijepit ke dalam viewport setiap kali muncul.
+  useEffect(() => {
+    const host = anchorRef.current?.parentElement;
+    if (!host) return;
+    const show = () => setOpen(true);
+    const hide = () => setOpen(false);
+    host.addEventListener('pointerenter', show);
+    host.addEventListener('pointerleave', hide);
+    host.addEventListener('focusin', show);
+    host.addEventListener('focusout', hide);
+    return () => {
+      host.removeEventListener('pointerenter', show);
+      host.removeEventListener('pointerleave', hide);
+      host.removeEventListener('focusin', show);
+      host.removeEventListener('focusout', hide);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const host = anchorRef.current?.parentElement;
+      const tip = tipRef.current;
+      if (!host || !tip) return;
+      const anchor = host.getBoundingClientRect();
+      const width = tip.offsetWidth;
+      const height = tip.offsetHeight;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const gap = 6;
+      const margin = 8;
+      const left =
+        side === 'left'
+          ? anchor.left - width - gap
+          : side === 'right'
+            ? anchor.right + gap
+            : anchor.left + anchor.width / 2 - width / 2;
+      const top =
+        side === 'top'
+          ? anchor.top - height - gap
+          : side === 'bottom'
+            ? anchor.bottom + gap
+            : anchor.top + anchor.height / 2 - height / 2;
+      setPos({
+        left: Math.min(Math.max(margin, left), Math.max(margin, vw - width - margin)),
+        top: Math.min(Math.max(margin, top), Math.max(margin, vh - height - margin)),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, side]);
+
   return (
-    <span aria-hidden="true" className={cn('tooltip', `tooltip-${side}`, className)}>
-      {label}
-    </span>
+    <>
+      <span ref={anchorRef} aria-hidden="true" className="hidden" />
+      {open && typeof document !== 'undefined'
+        ? createPortal(
+            <span ref={tipRef} aria-hidden="true" style={pos ?? undefined} className={cn('tooltip', className)}>
+              {label}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

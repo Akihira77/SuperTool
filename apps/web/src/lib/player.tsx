@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Icon, cn } from '../components/ui';
+import { useI18n } from './i18n';
 
 const RAW = '/api/fs/raw?path=';
 const VOLUME_KEY = 'st:media:volume';
@@ -45,6 +46,7 @@ const clock = (seconds: number) => {
 
 /** Pemutar media global: elemen tetap hidup saat pindah menu, volume disimpan. */
 export function PlayerProvider({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const playerRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLVideoElement>(null);
   const lastPath = useRef<string | null>(null);
@@ -216,7 +218,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           data-player="dock"
           data-mode={expanded ? 'full' : 'mini'}
           role="region"
-          aria-label="Pemutar media"
+          aria-label={t('a11y.mediaPlayer')}
           style={position && !fullscreen ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto', width: position.w, margin: 0 } : undefined}
           className={cn(
             'fixed bottom-4 z-50 overflow-hidden border border-line bg-panel/95 shadow-2xl backdrop-blur',
@@ -241,8 +243,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 type="button"
                 className="btn btn-ghost shrink-0 px-1.5 py-0.5"
                 onClick={toggleFullscreen}
-                title={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
-                aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+                title={fullscreen ? t('a11y.exitFullscreen') : t('a11y.fullscreen')}
+                aria-label={fullscreen ? t('a11y.exitFullscreen') : t('a11y.fullscreen')}
               >
                 <Icon name={fullscreen ? 'fullscreenExit' : 'fullscreen'} size={13} />
               </button>
@@ -252,13 +254,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 type="button"
                 className="btn btn-ghost shrink-0 px-1.5 py-0.5"
                 onClick={expanded ? minimize : expand}
-                title={expanded ? 'Kecilkan' : 'Perbesar'}
-                aria-label={expanded ? 'Kecilkan' : 'Perbesar'}
+                title={expanded ? t('a11y.minimizePlayer') : t('a11y.expandPlayer')}
+                aria-label={expanded ? t('a11y.minimizePlayer') : t('a11y.expandPlayer')}
               >
                 <Icon name={expanded ? 'minimize' : 'maximize'} size={13} />
               </button>
             ) : null}
-            <button type="button" className="btn btn-ghost shrink-0 px-1.5 py-0.5" onClick={close} title="Tutup" aria-label="Tutup">
+            <button type="button" className="btn btn-ghost shrink-0 px-1.5 py-0.5" onClick={close} title={t('common.close')} aria-label={t('common.close')}>
               <Icon name="x" size={13} />
             </button>
           </div>
@@ -275,7 +277,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             onEnded={() => setPlaying(false)}
             onError={() => {
               setPlaying(false);
-              setError('Tidak bisa memutar berkas ini (codec tidak didukung?)');
+              setError(t('a11y.mediaError'));
             }}
             className={cn(
               track.kind === 'video'
@@ -294,8 +296,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                   expanded ? 'h-10 w-10' : 'h-8 w-8',
                 )}
                 onClick={toggle}
-                title={playing ? 'Jeda' : 'Putar'}
-                aria-label={playing ? 'Jeda' : 'Putar'}
+                title={playing ? t('a11y.pause') : t('a11y.play')}
+                aria-label={playing ? t('a11y.pause') : t('a11y.play')}
               >
                 <Icon name={playing ? 'pause' : 'play'} size={expanded ? 16 : 14} />
               </button>
@@ -308,7 +310,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 onChange={(event) => seek(Number(event.target.value))}
                 disabled={!duration}
                 className="min-w-0 flex-1 accent-accent"
-                aria-label="Posisi"
+                aria-label={t('a11y.position')}
               />
               <span className="mono w-16 shrink-0 text-right text-[12.5px] text-muted">
                 {clock(time)} / {clock(duration)}
@@ -324,7 +326,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 value={volume}
                 onChange={(event) => setVolume(Number(event.target.value))}
                 className="min-w-0 flex-1 accent-accent"
-                aria-label="Volume"
+                aria-label={t('a11y.volume')}
               />
               <span className="mono w-9 shrink-0 text-right text-[12.5px] text-muted">{Math.round(volume * 100)}%</span>
             </div>

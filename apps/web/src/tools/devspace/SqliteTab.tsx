@@ -280,7 +280,7 @@ export default function SqliteTab() {
               }}
               spellCheck={false}
               className="mono h-24 resize-none text-[12.5px]"
-              aria-label="SQL"
+              aria-label={t('a11y.sqlQuery')}
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" icon="play" loading={busy} onClick={() => void runSql()} disabled={busy || !sql.trim()}>

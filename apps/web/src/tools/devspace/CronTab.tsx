@@ -86,7 +86,7 @@ export default function CronTab() {
             className="mono min-w-0 flex-1 py-1.5"
             spellCheck={false}
             placeholder="0 3 * * * /path/script.sh"
-            aria-label="Jadwal cron"
+            aria-label={t('a11y.cronSchedule')}
           />
           <Button variant="primary" icon="plus" onClick={() => void add()} disabled={busy || !line.trim()}>
             Tambah

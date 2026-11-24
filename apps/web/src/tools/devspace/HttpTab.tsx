@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, Card, CopyButton, Field, Icon, IconButton, Input, Select, Textarea, cn } from '../../components/ui';
 import { api, ApiError } from '../../lib/api';
 import { bytes } from '../../lib/format';
+import { useI18n } from '../../lib/i18n';
 
 type Row = { key: string; value: string };
 type Reply = {
@@ -39,6 +40,7 @@ function timeAgo(ts: number): string {
 }
 
 export default function HttpTab() {
+  const { t } = useI18n();
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('http://127.0.0.1:3001/api/health');
   const [headers, setHeaders] = useState<Row[]>([{ key: 'Accept', value: 'application/json' }]);
@@ -206,7 +208,7 @@ export default function HttpTab() {
           <IconButton
             className="ml-auto"
             icon="plus"
-            label="Koleksi baru"
+            label={t('a11y.collectionNew')}
             size="sm"
             onClick={() => setNewCollection((value) => (value ? '' : ' '))}
           />
@@ -222,10 +224,10 @@ export default function HttpTab() {
                 if (event.key === 'Escape') setNewCollection('');
               }}
               placeholder="Nama koleksi"
-              aria-label="Nama koleksi"
+              aria-label={t('a11y.collectionName')}
               className="py-1 text-[12.5px]"
             />
-            <IconButton icon="check" label="Simpan koleksi" size="sm" onClick={() => void addCollection()} />
+            <IconButton icon="check" label={t('a11y.saveCollection')} size="sm" onClick={() => void addCollection()} />
           </div>
         ) : null}
         <div className="flex flex-col gap-0.5">
@@ -252,7 +254,7 @@ export default function HttpTab() {
           <span className="field-label">Tersimpan</span>
           <span className="ml-auto tabular-nums text-[12.5px] text-muted/60">{saved.length}</span>
         </div>
-        <Input value={savedQuery} onChange={(event) => setSavedQuery(event.target.value)} placeholder="Cari request" aria-label="Cari request" className="py-1 text-[12.5px]" />
+        <Input value={savedQuery} onChange={(event) => setSavedQuery(event.target.value)} placeholder="Cari request" aria-label={t('a11y.searchRequests')} className="py-1 text-[12.5px]" />
         <div className="flex flex-col gap-0.5">
           {shownSaved.map((item) => (
             <div key={item.id} className={cn('group flex items-center gap-1 rounded px-1.5 py-1 transition-colors', activeSaved === item.id ? 'bg-accent/12' : 'hover:bg-panel2')}>
@@ -265,7 +267,7 @@ export default function HttpTab() {
               </button>
               <IconButton
                 icon="x"
-                label="Hapus"
+                label={t('common.delete')}
                 tone="danger"
                 size="sm"
                 className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
@@ -281,7 +283,7 @@ export default function HttpTab() {
           <IconButton
             className="ml-auto"
             icon="plus"
-            label="Environment baru"
+            label={t('a11y.environmentNew')}
             size="sm"
             onClick={() => setEnvDraft({ id: '', name: '', variables: [{ key: '', value: '' }] })}
           />
@@ -295,7 +297,7 @@ export default function HttpTab() {
           }}
           options={[{ value: '', label: 'Tanpa environment' }, ...envs.map((item) => ({ value: item.id, label: item.name }))]}
           size="sm"
-          label="Environment"
+          label={t('a11y.environment')}
         />
         {activeEnv ? (
           <Button size="sm" className="justify-center text-[12px]" onClick={() => setEnvDraft(activeEnv)}>
@@ -339,13 +341,13 @@ export default function HttpTab() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto p-4 md:p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={method} onChange={setMethod} options={METHOD_OPTIONS} size="sm" label="Metode" className="w-28" />
+          <Select value={method} onChange={setMethod} options={METHOD_OPTIONS} size="sm" label={t('a11y.method')} className="w-28" />
           <Input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && void send()}
             placeholder="http://127.0.0.1:3001/api/... atau {{baseUrl}}/api"
-            aria-label="URL request"
+            aria-label={t('a11y.requestUrl')}
             className="mono min-w-0 flex-1 py-1.5"
             spellCheck={false}
           />
@@ -355,13 +357,13 @@ export default function HttpTab() {
         </div>
 
         <Card className="flex flex-wrap items-center gap-2 p-2.5">
-          <Input value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Nama request" aria-label="Nama request" className="min-w-32 flex-1 py-1 text-[12.5px]" />
+          <Input value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Nama request" aria-label={t('a11y.requestName')} className="min-w-32 flex-1 py-1 text-[12.5px]" />
           <Select
             value={collectionId}
             onChange={setCollectionId}
             options={[{ value: '', label: 'Tanpa koleksi' }, ...collections.map((item) => ({ value: item.id, label: item.name }))]}
             size="sm"
-            label="Koleksi"
+            label={t('a11y.collection')}
             className="w-44"
           />
           <Button icon="save" size="sm" onClick={() => void saveRequest()} disabled={!url.trim()} title="Simpan ke SQLite">
@@ -377,7 +379,7 @@ export default function HttpTab() {
                 value={envDraft.name}
                 onChange={(event) => setEnvDraft({ ...envDraft, name: event.target.value })}
                 placeholder="Nama environment"
-                aria-label="Nama environment"
+                aria-label={t('a11y.environmentName')}
                 className="min-w-40 flex-1 py-1 text-[13px]"
               />
               <Button icon="save" size="sm" onClick={() => void saveEnv()}>
@@ -400,7 +402,7 @@ export default function HttpTab() {
                     setEnvDraft({ ...envDraft, variables: envDraft.variables.map((item, at) => (at === index ? { ...item, key: event.target.value } : item)) })
                   }
                   placeholder="nama"
-                  aria-label="Nama variabel"
+                  aria-label={t('a11y.variableName')}
                   className="mono w-44 py-1"
                 />
                 <Input
@@ -409,12 +411,12 @@ export default function HttpTab() {
                     setEnvDraft({ ...envDraft, variables: envDraft.variables.map((item, at) => (at === index ? { ...item, value: event.target.value } : item)) })
                   }
                   placeholder="nilai"
-                  aria-label="Nilai variabel"
+                  aria-label={t('a11y.variableValue')}
                   className="mono min-w-0 flex-1 py-1"
                 />
                 <IconButton
                   icon="x"
-                  label="Hapus variabel"
+                  label={t('a11y.removeVariable')}
                   tone="danger"
                   size="sm"
                   onClick={() => setEnvDraft({ ...envDraft, variables: envDraft.variables.filter((_, at) => at !== index) })}
@@ -437,7 +439,7 @@ export default function HttpTab() {
         <Card className="flex flex-col gap-2 p-3">
           <div className="flex items-center gap-2">
             <span className="field-label">Header</span>
-            <IconButton icon="plus" label="Tambah header" size="sm" onClick={() => setHeaders([...headers, { key: '', value: '' }])} />
+            <IconButton icon="plus" label={t('a11y.addHeader')} size="sm" onClick={() => setHeaders([...headers, { key: '', value: '' }])} />
           </div>
           {headers.map((row, index) => (
             <div key={index} className="flex items-center gap-2">
@@ -445,7 +447,7 @@ export default function HttpTab() {
                 value={row.key}
                 onChange={(event) => setHeaders(headers.map((item, at) => (at === index ? { ...item, key: event.target.value } : item)))}
                 placeholder="Nama"
-                aria-label="Nama header"
+                aria-label={t('a11y.headerName')}
                 className="mono w-48 py-1"
                 spellCheck={false}
               />
@@ -453,13 +455,13 @@ export default function HttpTab() {
                 value={row.value}
                 onChange={(event) => setHeaders(headers.map((item, at) => (at === index ? { ...item, value: event.target.value } : item)))}
                 placeholder="Nilai"
-                aria-label="Nilai header"
+                aria-label={t('a11y.headerValue')}
                 className="mono min-w-0 flex-1 py-1"
                 spellCheck={false}
               />
               <IconButton
                 icon="x"
-                label="Hapus header"
+                label={t('a11y.removeHeader')}
                 tone="danger"
                 size="sm"
                 onClick={() => setHeaders(headers.filter((_, at) => at !== index))}
@@ -492,7 +494,7 @@ export default function HttpTab() {
               <span className="tabular-nums text-muted">{reply.ms} ms</span>
               <span className="tabular-nums text-muted">{bytes(reply.size)}</span>
               <span className="mono truncate text-muted">{reply.url}</span>
-              <CopyButton text={reply.body} label="Salin body" />
+              <CopyButton text={reply.body} label={t('a11y.copyBody')} />
             </div>
 
             <Card className="px-3 py-2">
