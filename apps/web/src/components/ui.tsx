@@ -621,6 +621,7 @@ export function Select<T extends string = string>({
   size = 'md',
   className,
   triggerClassName,
+  popupWidth,
 }: {
   value: T;
   onChange: (value: T) => void;
@@ -632,12 +633,16 @@ export function Select<T extends string = string>({
   size?: 'sm' | 'md';
   className?: string;
   triggerClassName?: string;
+  /** Lebar popup dalam px; default mengikuti lebar trigger. */
+  popupWidth?: number;
 }) {
   const autoId = useId();
   const listId = autoId + '-listbox';
   const triggerId = id ?? autoId + '-trigger';
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [triggerWidth, setTriggerWidth] = useState(0);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -673,9 +678,57 @@ export function Select<T extends string = string>({
 
   const openList = () => {
     if (disabled) return;
+    setTriggerWidth(triggerRef.current?.getBoundingClientRect().width ?? 0);
     setActive(selectedIndex >= 0 ? selectedIndex : 0);
     setOpen(true);
   };
+
+  // Popup dipasang di body lewat portal: tidak terpotong overflow header,
+  // tidak kalah stacking context konten, dan bisa membalik ke atas /
+  // dijepit ke viewport. Lebar default mengikuti trigger (perilaku lama).
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const place = () => {
+      const trigger = triggerRef.current;
+      const list = listRef.current;
+      if (!trigger || !list) return;
+      const anchor = trigger.getBoundingClientRect();
+      const width = popupWidth ?? anchor.width;
+      const height = list.offsetHeight;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const margin = 8;
+      const gap = 4;
+      const below = vh - anchor.bottom - gap - margin;
+      const above = anchor.top - gap - margin;
+      const top =
+        height > below && above > below
+          ? Math.max(margin, anchor.top - gap - height)
+          : Math.min(Math.max(margin, anchor.bottom + gap), Math.max(margin, vh - margin - height));
+      const left = Math.min(Math.max(margin, anchor.left), Math.max(margin, vw - margin - width));
+      setPos({
+        position: 'fixed',
+        top,
+        left,
+        width,
+        maxHeight: Math.min(256, Math.max(96, vh - margin * 2)),
+      });
+    };
+    const onScroll = (event: Event) => {
+      if (listRef.current?.contains(event.target as Node)) return;
+      place();
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, popupWidth, options.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -686,7 +739,9 @@ export function Select<T extends string = string>({
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('pointerdown', onPointer);
     return () => document.removeEventListener('pointerdown', onPointer);
@@ -761,42 +816,46 @@ export function Select<T extends string = string>({
           className={cn('shrink-0 text-muted transition-transform duration-[var(--duration-fast)]', open && 'rotate-180')}
         />
       </button>
-      {open ? (
-        <div
-          ref={listRef}
-          id={listId}
-          role="listbox"
-          aria-label={label}
-          tabIndex={-1}
-          className="popover absolute top-full z-50 mt-1 max-h-64 w-full overflow-y-auto outline-none"
-        >
-          {options.map((option, index) => {
-            const isSelected = option.value === value;
-            const isActive = index === active;
-            return (
-              <div
-                key={option.value + ':' + index}
-                id={optionId(index)}
-                role="option"
-                aria-selected={isSelected}
-                aria-disabled={option.disabled || undefined}
-                data-active={isActive}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setActive(index)}
-                onClick={() => choose(option)}
-                className={cn(
-                  'menu-item',
-                  isActive && 'bg-panel2 text-ink',
-                  option.disabled && 'pointer-events-none opacity-40',
-                )}
-              >
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                {isSelected ? <Icon name="check" size={13} className="shrink-0 text-accent" /> : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      {open && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={listRef}
+              id={listId}
+              role="listbox"
+              aria-label={label}
+              tabIndex={-1}
+              style={pos ?? { position: 'fixed', top: 0, left: 0, width: popupWidth ?? triggerWidth, visibility: 'hidden' }}
+              className="popover z-[90] max-h-64 overflow-y-auto outline-none"
+            >
+              {options.map((option, index) => {
+                const isSelected = option.value === value;
+                const isActive = index === active;
+                return (
+                  <div
+                    key={option.value + ':' + index}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={isSelected}
+                    aria-disabled={option.disabled || undefined}
+                    data-active={isActive}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => choose(option)}
+                    className={cn(
+                      'menu-item',
+                      isActive && 'bg-panel2 text-ink',
+                      option.disabled && 'pointer-events-none opacity-40',
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {isSelected ? <Icon name="check" size={13} className="shrink-0 text-accent" /> : null}
+                  </div>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

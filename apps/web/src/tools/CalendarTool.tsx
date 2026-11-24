@@ -618,6 +618,7 @@ export default function CalendarTool() {
           <Select
             size="sm"
             className="w-28"
+            popupWidth={184}
             value={String(remindBefore)}
             onChange={(next) => {
               const value = Number(next);
