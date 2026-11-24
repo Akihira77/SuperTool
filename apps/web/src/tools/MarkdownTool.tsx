@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CodeEditor } from '../components/CodeEditor';
+import { CodeEditor, type CodeEditorHandle } from '../components/CodeEditor';
 import { Button, CopyButton, IconButton, PageHeader, SegmentedControl, Toolbar, cn } from '../components/ui';
 import { useI18n } from '../lib/i18n';
 import { renderMarkdown } from '../lib/markdown';
@@ -36,7 +36,7 @@ export default function MarkdownTool() {
   const [view, setView] = useState<View>(() =>
     window.matchMedia('(max-width: 1023px)').matches ? 'edit' : 'split',
   );
-  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<CodeEditorHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Di layar sempit, paksa mode satu panel agar tidak ada dua pane sempit.
@@ -48,11 +48,6 @@ export default function MarkdownTool() {
     query.addEventListener('change', onChange);
     return () => query.removeEventListener('change', onChange);
   }, []);
-
-  // Penanda untuk command palette (data-action) tanpa mengubah CodeEditor.
-  useEffect(() => {
-    areaRef.current?.setAttribute('data-action', 'markdown:editor');
-  }, [view]);
 
   const download = () => {
     const blob = new Blob([text], { type: 'text/markdown' });
@@ -93,23 +88,23 @@ export default function MarkdownTool() {
   }, [text]);
 
   const wrap = (before: string, after = '') => {
-    const area = areaRef.current;
-    if (!area) return;
-    const start = area.selectionStart;
-    const end = area.selectionEnd;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const { from: start, to: end } = editor.getSelection();
     const selected = text.slice(start, end);
     setText(text.slice(0, start) + before + selected + after + text.slice(end));
     requestAnimationFrame(() => {
-      area.focus();
-      area.setSelectionRange(start + before.length, start + before.length + selected.length);
+      editor.focus();
+      editor.setSelection(start + before.length, start + before.length + selected.length);
     });
   };
 
   const prefixLines = (prefix: string) => {
-    const area = areaRef.current;
-    if (!area) return;
-    const start = text.lastIndexOf('\n', area.selectionStart - 1) + 1;
-    const endIndex = text.indexOf('\n', area.selectionEnd);
+    const editor = editorRef.current;
+    if (!editor) return;
+    const { from, to } = editor.getSelection();
+    const start = text.lastIndexOf('\n', from - 1) + 1;
+    const endIndex = text.indexOf('\n', to);
     const end = endIndex < 0 ? text.length : endIndex;
     const block = text
       .slice(start, end)
@@ -118,8 +113,8 @@ export default function MarkdownTool() {
       .join('\n');
     setText(text.slice(0, start) + block + text.slice(end));
     requestAnimationFrame(() => {
-      area.focus();
-      area.setSelectionRange(start, start + block.length);
+      editor.focus();
+      editor.setSelection(start, start + block.length);
     });
   };
 
@@ -205,7 +200,14 @@ export default function MarkdownTool() {
       <div className={cn('flex min-h-0 flex-1 flex-col lg:flex-row', view === 'split' && 'divide-y divide-line lg:divide-x lg:divide-y-0')}>
         {view !== 'preview' ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
-            <CodeEditor value={text} onChange={setText} areaRef={areaRef} wrap placeholder="# Mulai menulis..." />
+            <CodeEditor
+              value={text}
+              onChange={setText}
+              editorRef={editorRef}
+              dataAction="markdown:editor"
+              wrap
+              placeholder="# Mulai menulis..."
+            />
           </div>
         ) : null}
         {view !== 'edit' ? (

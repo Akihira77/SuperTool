@@ -24,7 +24,7 @@ Semua berjalan di mesin sendiri. Data (password, catatan, daftar URL) di SQLite 
 | 14 | Settings | Unduh backup `.zip` (database + uploads), pulihkan dari file backup, info ukuran/tabel database |
 | 15 | Storage Monitor | Treemap + tree ukuran folder home, urut terbesar, hapus folder aman (`node_modules`, `temp`, cache), bersihkan Docker |
 | 16 | Telegram Command Center | Bot long polling: download URL YouTube/FB/Bilibili, kirim file langsung / link 0x0.st untuk file besar, kompres gambar/PDF lewat caption `/compress` |
-| 17 | HTML Studio | Editor HTML/CSS/JavaScript dengan pratinjau live tersandbox, preset Desktop/Tablet/Mobile, ekspor dokumen gabungan, buka & simpan `.html`/`.htm` dari File Explorer |
+| 17 | HTML Studio | Editor CodeMirror HTML/CSS/JavaScript (baris aktif, lipat blok, Format Dokumen) dengan pratinjau live tersandbox, preset Desktop/Tablet/Mobile, ekspor dokumen gabungan, buka & simpan `.html`/`.htm` dari File Explorer |
 
 ## HTML Studio
 
@@ -37,6 +37,8 @@ Model keamanan pratinjau:
 - Navigasi top-level dan popup diblokir oleh sandbox; `meta refresh` dibuang saat penyusunan dokumen agar pratinjau tidak berpindah ke URL lain.
 - Isi pratinjau tidak pernah masuk ke DOM aplikasi (`dangerouslySetInnerHTML` tidak dipakai) dan request pratinjau tidak melewati API/proxy SuperTool.
 - Batasan: resource eksternal (CDN, gambar remote) tidak akan tampil. Bila nanti dibutuhkan, itu harus menjadi keputusan keamanan terpisah, bukan pelonggaran default.
+
+Tanpa berkas sumber, editor menjadi **Draf pratinjau**: tidak ada tombol Simpan (Ctrl+S hanya memberi petunjuk), sedangkan **Ekspor HTML** mengunduh dokumen gabungan HTML + CSS + JavaScript. Editor bersama berbasis CodeMirror 6 menyediakan penanda baris aktif, lipat/buka blok sesuai parser bahasa, dan **Format Dokumen** per tab memakai Prettier (berjalan lokal di browser; plugin dimuat saat dipakai). Preferensi format (indentasi, kutip, titik koma, trailing comma, spasi kurung, lebar baris) disimpan di `localStorage` `st:editor:format-preferences:v1` dengan validasi per-field dan fallback default; mengubah preferensi tidak menyentuh isi dokumen.
 
 Alur File Explorer → HTML Studio memakai workflow `st:workflow` yang sudah ada: path dan isi berkas dikirim sebagai payload, lalu disimpan hanya lewat tombol **Simpan** (kontrak `PUT /api/fs/write`, tetap melewati jail `ST_FS_ROOTS`). Berkas besar yang terbaca sebagian tidak bisa disimpan agar isi tidak tertimpa parsial.
 

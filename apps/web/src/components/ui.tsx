@@ -77,6 +77,8 @@ const PATHS: Record<string, string> = {
   db: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   webhook: 'M12 3v8 M8 7l4 4 4-4 M5 13h14v6H5z M8 16h.01 M12 16h.01 M16 16h.01',
   filter: 'M3 5h18l-7 8v6l-4 2v-8z',
+  format: 'M4 5h16 M4 10h11 M4 15h16 M4 20h8',
+  settings: 'M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 4v6 M9 14v6',
 };
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {

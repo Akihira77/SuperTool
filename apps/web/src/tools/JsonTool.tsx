@@ -33,12 +33,7 @@ function positionOf(message: string, label: string): string {
 export default function JsonTool() {
   const { t } = useI18n();
   const [text, setText] = useState(() => localStorage.getItem(KEY) ?? SAMPLE);
-  const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    areaRef.current?.setAttribute('data-action', 'json:editor');
-  }, []);
 
   const upload = async (file: File | undefined) => {
     if (file) setText(await file.text());
@@ -106,7 +101,7 @@ export default function JsonTool() {
 
       <div className="flex min-h-0 flex-1 flex-col divide-y divide-line overflow-y-auto lg:flex-row lg:divide-x lg:divide-y-0 lg:overflow-hidden">
         <div className="flex min-h-[45vh] min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4 lg:min-h-0">
-          <CodeEditor value={text} onChange={setText} areaRef={areaRef} placeholder='{"hello": "world"}' />
+          <CodeEditor value={text} onChange={setText} dataAction="json:editor" placeholder='{"hello": "world"}' />
         </div>
         <div className="flex min-h-[45vh] min-w-0 flex-1 flex-col bg-panel/[0.12] p-3 md:p-4 lg:min-h-0">
           {parsed.ok ? (

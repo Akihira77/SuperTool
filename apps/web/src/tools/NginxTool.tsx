@@ -358,16 +358,15 @@ export default function NginxTool() {
             <CodeEditor
               value={text}
               onChange={setText}
+              dataAction="nginx:editor"
               onSave={save}
               wrap
-              onContextMenu={(event) => {
-                event.preventDefault();
-                const area = event.currentTarget;
-                const picked = pickText(text, area.selectionStart, area.selectionEnd);
+              onContextMenu={(menu) => {
+                const picked = pickText(text, menu.from, menu.to);
                 if (!picked) return;
                 setMenu({
-                  x: Math.min(event.clientX, window.innerWidth - 240),
-                  y: Math.min(event.clientY, window.innerHeight - 140),
+                  x: Math.min(menu.clientX, window.innerWidth - 240),
+                  y: Math.min(menu.clientY, window.innerHeight - 140),
                   text: picked,
                 });
               }}

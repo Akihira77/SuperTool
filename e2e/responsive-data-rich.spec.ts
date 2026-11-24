@@ -81,7 +81,7 @@ test('E responsive: empat tool data-rich tidak melebar horizontal di 360/390', a
     await openAt(page, 'Markdown', width, height);
     // Iterasi sebelumnya meninggalkan sesi dalam mode pratinjau.
     await panel(page).getByRole('button', { name: 'Editor', exact: true }).click();
-    await panel(page).locator('textarea').first().fill(MARKDOWN_FIXTURE);
+    await panel(page).locator('[data-action="markdown:editor"]').fill(MARKDOWN_FIXTURE);
     const lastTool = await panel(page).getByRole('button', { name: 'Tabel' }).boundingBox();
     expect(lastTool!.x + lastTool!.width, `toolbar Markdown terpotong di ${width}`).toBeLessThanOrEqual(width);
     expect(await docOverflow(page), `Markdown melebar di ${width}`).toBe(0);
@@ -155,7 +155,7 @@ test('E a11y data-rich: axe pada state berisi di viewport sempit', async ({ page
   await audit(page, 'files-preview-data-rich');
 
   await openAt(page, 'Markdown', 360, 800);
-  await panel(page).locator('textarea').first().fill(MARKDOWN_FIXTURE);
+  await panel(page).locator('[data-action="markdown:editor"]').fill(MARKDOWN_FIXTURE);
   await audit(page, 'markdown-edit-data-rich');
   await panel(page).getByRole('button', { name: 'Pratinjau' }).click();
   await expect(panel(page).locator('.md h2')).toHaveText('Dokumen Uji');

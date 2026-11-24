@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { CodeEditor } from '../components/CodeEditor';
-import { Badge, Button, Empty, Icon, PageHeader, SegmentedControl, Tabs, cn } from '../components/ui';
+import { Badge, Button, Empty, Icon, IconButton, PageHeader, SegmentedControl, Select, Tabs, cn } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { useConfirm } from '../components/confirm';
 import { useToast } from '../components/toast';
 import { useI18n } from '../lib/i18n';
 import { usePaletteIntent } from '../lib/palette';
+import { formatDocument, loadFormatPreferences, saveFormatPreferences, type FormatPreferences } from '../lib/editorFormat';
 import {
   PREVIEW_PRESETS,
   START_CSS,
@@ -47,7 +48,14 @@ export default function HtmlStudioTool() {
   const [truncated, setTruncated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const [formatting, setFormatting] = useState(false);
+  const [prefs, setPrefs] = useState<FormatPreferences>(() => loadFormatPreferences());
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const prefsRef = useRef<HTMLDivElement>(null);
+  const prefsButtonRef = useRef<HTMLButtonElement>(null);
+  // Nilai editor terbaru untuk mendeteksi edit saat formatting berjalan.
+  const contentRef = useRef({ html, css, js });
+  contentRef.current = { html, css, js };
 
   // Layar sempit tidak cukup untuk dua panel; mulai dari editor.
   useEffect(() => {
@@ -59,10 +67,29 @@ export default function HtmlStudioTool() {
     return () => query.removeEventListener('change', onChange);
   }, []);
 
-  // Penanda command palette (data-action) tanpa mengubah CodeEditor.
+  // Popover preferensi format: tutup saat Escape atau klik di luar.
   useEffect(() => {
-    areaRef.current?.setAttribute('data-action', 'html-studio:editor');
-  }, [tab, view]);
+    if (!prefsOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (prefsRef.current?.contains(target) || prefsButtonRef.current?.contains(target)) return;
+      // Listbox Select dirender di portal body; jangan tutup panel saat memilih.
+      if (target?.closest?.('[role="listbox"]')) return;
+      setPrefsOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setPrefsOpen(false);
+      prefsButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [prefsOpen]);
 
   // Debounce supaya ketikan tidak menyusun ulang iframe setiap karakter.
   useEffect(() => {
@@ -147,6 +174,40 @@ export default function HtmlStudioTool() {
     })();
   });
 
+  const updatePrefs = (next: FormatPreferences) => {
+    setPrefs(next);
+    saveFormatPreferences(next);
+  };
+
+  // Format hanya tab aktif. Konten yang berubah saat menunggu tidak ditimpa.
+  const formatActive = async () => {
+    if (formatting) return;
+    const language = tab;
+    const before = contentRef.current[language];
+    setFormatting(true);
+    setError('');
+    try {
+      const next = await formatDocument(before, language, prefs);
+      if (contentRef.current[language] !== before || next === before) return;
+      if (language === 'html') setHtml(next);
+      else if (language === 'css') setCss(next);
+      else setJs(next);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : '';
+      setError(t('htmlStudio.formatFailed') + (detail ? ': ' + detail : ''));
+    } finally {
+      setFormatting(false);
+    }
+  };
+
+  const handleSaveShortcut = () => {
+    if (source) {
+      void save();
+      return;
+    }
+    toast(t('htmlStudio.scratchSaveHint'));
+  };
+
   const reset = async () => {
     const worked = source !== null || dirty.workspaceDirty;
     if (worked) {
@@ -199,24 +260,137 @@ export default function HtmlStudioTool() {
           onChange={setView}
           label={t('a11y.viewMode')}
         />
-        <Button
-          size="sm"
-          icon="save"
-          variant="primary"
-          data-action="html-studio:save"
-          loading={busy}
-          disabled={!source || !dirty.sourceDirty || truncated}
-          title={
-            truncated
-              ? t('htmlStudio.truncated')
-              : source && !dirty.sourceDirty && dirty.workspaceDirty
-                ? t('htmlStudio.separateTabs')
-                : undefined
-          }
-          onClick={() => void save()}
-        >
-          {t('common.save')}
+        <Button size="sm" icon="format" loading={formatting} disabled={formatting} onClick={() => void formatActive()}>
+          {t('htmlStudio.format')}
         </Button>
+        <div className="relative">
+          <IconButton
+            ref={prefsButtonRef}
+            icon="settings"
+            label={t('htmlStudio.formatPrefs')}
+            aria-haspopup="dialog"
+            aria-expanded={prefsOpen}
+            aria-controls="html-studio-format-prefs"
+            onClick={() => setPrefsOpen((open) => !open)}
+          />
+          {prefsOpen ? (
+            <div
+              ref={prefsRef}
+              id="html-studio-format-prefs"
+              role="dialog"
+              aria-label={t('htmlStudio.formatPrefs')}
+              className="popover absolute top-full right-0 z-[60] mt-1 flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-2 p-3 shadow-elev-3"
+            >
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsIndent')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsIndent')}
+                  value={String(prefs.tabWidth)}
+                  onChange={(next) => updatePrefs({ ...prefs, tabWidth: Number(next) as 2 | 4 })}
+                  options={[
+                    { value: '2', label: t('htmlStudio.prefsIndent2') },
+                    { value: '4', label: t('htmlStudio.prefsIndent4') },
+                  ]}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsQuotes')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsQuotes')}
+                  value={prefs.singleQuote ? 'single' : 'double'}
+                  onChange={(next) => updatePrefs({ ...prefs, singleQuote: next === 'single' })}
+                  options={[
+                    { value: 'single', label: t('htmlStudio.prefsQuotesSingle') },
+                    { value: 'double', label: t('htmlStudio.prefsQuotesDouble') },
+                  ]}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsSemi')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsSemi')}
+                  value={prefs.semi ? 'on' : 'off'}
+                  onChange={(next) => updatePrefs({ ...prefs, semi: next === 'on' })}
+                  options={[
+                    { value: 'on', label: t('htmlStudio.prefsOn') },
+                    { value: 'off', label: t('htmlStudio.prefsOff') },
+                  ]}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsTrailing')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsTrailing')}
+                  value={prefs.trailingComma}
+                  onChange={(next) => updatePrefs({ ...prefs, trailingComma: next })}
+                  options={[
+                    { value: 'none', label: t('htmlStudio.prefsTrailingNone') },
+                    { value: 'es5', label: t('htmlStudio.prefsTrailingEs5') },
+                    { value: 'all', label: t('htmlStudio.prefsTrailingAll') },
+                  ]}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsBracket')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsBracket')}
+                  value={prefs.bracketSpacing ? 'on' : 'off'}
+                  onChange={(next) => updatePrefs({ ...prefs, bracketSpacing: next === 'on' })}
+                  options={[
+                    { value: 'on', label: t('htmlStudio.prefsOn') },
+                    { value: 'off', label: t('htmlStudio.prefsOff') },
+                  ]}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
+                {t('htmlStudio.prefsPrintWidth')}
+                <Select
+                  size="sm"
+                  className="w-28"
+                  label={t('htmlStudio.prefsPrintWidth')}
+                  value={String(prefs.printWidth)}
+                  onChange={(next) => updatePrefs({ ...prefs, printWidth: Number(next) as 80 | 100 | 120 })}
+                  options={[
+                    { value: '80', label: '80' },
+                    { value: '100', label: '100' },
+                    { value: '120', label: '120' },
+                  ]}
+                />
+              </label>
+              <p className="text-[11.5px] leading-relaxed text-muted/80">{t('htmlStudio.prefsNote')}</p>
+            </div>
+          ) : null}
+        </div>
+        {source ? (
+          <Button
+            size="sm"
+            icon="save"
+            variant="primary"
+            data-action="html-studio:save"
+            loading={busy}
+            disabled={!dirty.sourceDirty || truncated}
+            title={
+              truncated
+                ? t('htmlStudio.truncated')
+                : !dirty.sourceDirty && dirty.workspaceDirty
+                  ? t('htmlStudio.separateTabs')
+                  : undefined
+            }
+            onClick={() => void save()}
+          >
+            {t('common.save')}
+          </Button>
+        ) : null}
         <Button size="sm" icon="download" data-action="html-studio:export" onClick={exportDoc}>
           {t('htmlStudio.export')}
         </Button>
@@ -256,7 +430,7 @@ export default function HtmlStudioTool() {
                 label={t('htmlStudio.tabsLabel')}
               />
               <span className="mono ml-auto min-w-0 max-w-full truncate text-[11.5px] text-muted">
-                {source ? source.name : t('htmlStudio.untitled')}
+                {source ? source.name : t('htmlStudio.scratch')}
               </span>
             </div>
             {source && (css.trim() || js.trim()) ? (
@@ -271,10 +445,11 @@ export default function HtmlStudioTool() {
               <CodeEditor
                 value={activeValue}
                 onChange={setActiveValue}
-                areaRef={areaRef}
+                language={tab}
+                dataAction="html-studio:editor"
                 placeholder={editorLabel}
                 wrap
-                onSave={() => (source ? void save() : exportDoc())}
+                onSave={handleSaveShortcut}
               />
             </div>
           </div>

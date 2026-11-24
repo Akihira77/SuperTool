@@ -62,6 +62,8 @@ Pencarian isi (`grep`) memakai jail yang sama untuk setiap include path, termasu
 
 ## Isolasi pratinjau HTML Studio
 
+- Editor memakai CodeMirror 6 modular. `CodeEditor` mengendalikan nilai dari React (`applying` mencegah echo `onChange`) dan menyinkronkan label ARIA/placeholder lewat `Compartment` agar ganti bahasa tidak membuat ulang dokumen. Folding hanya dipasang bila `language` diberikan.
+- Format Dokumen memakai Prettier 3 standalone dengan plugin `html`/`postcss`/`babel`+`estree` yang diimpor dinamis, jadi tidak ada kode pengguna yang dikirim keluar dan bundle awal tidak membengkak. Preferensi divalidasi per-field dari `localStorage` `st:editor:format-preferences:v1`.
 - Sumber pengguna tetap di tab HTML. `lib/htmlStudio.ts` menyusun dokumen pratinjau/ekspor: CSP `<meta>` disisipkan setelah `<head>`, lalu CSS/JS tab terpisah disuntikkan dengan penanda `data-st-html-studio`. Penyusunan ulang membuang penanda lama lebih dulu supaya tidak menduplikasi blok.
 - Pratinjau dirender lewat `iframe srcDoc` dengan `sandbox="allow-scripts"` dan tanpa `allow-same-origin`; skrip berjalan di origin opak. Tidak ada `dangerouslySetInnerHTML` dan tidak ada jalur request lewat API/proxy aplikasi. `meta refresh` dibuang saat komposisi.
 - CSP pratinjau: `default-src 'none'`, `script-src 'unsafe-inline'`, `style-src 'unsafe-inline'`, `img-src data: blob:`, `font-src data:`, `media-src data: blob:`, `connect-src 'none'`, `frame-src 'none'`, `worker-src 'none'`, `form-action 'none'`, `base-uri 'none'`. Konsekuensinya resource eksternal tidak tampil; mendukungnya nanti butuh keputusan keamanan terpisah.
@@ -142,7 +144,7 @@ Penulisan catatan diserialisasi lewat satu promise chain di `NotesService` agar 
 | `lib/highlight.ts` | Highlighter JSON ~15 baris, escape HTML sebelum span |
 | `lib/htmlStudio.ts` | Penyusun dokumen pratinjau/ekspor HTML Studio: CSP, injeksi CSS/JS bertanda, validasi payload impor |
 | `tools/HtmlStudioTool.tsx` | Editor HTML/CSS/JS tiga tab, pratinjau `iframe` sandbox, preset viewport, simpan/ekspor, integrasi File Explorer |
-| `components/CodeEditor.tsx` | Textarea + gutter nomor baris + Tab + Ctrl+S |
+| `components/CodeEditor.tsx` | Editor bersama CodeMirror 6 (nomor baris, baris aktif, lipat blok per bahasa), kontrak `editorRef` untuk seleksi, Ctrl+S, menu konteks; plain-text tanpa language tetap tanpa folding |
 | `tools/CalendarTool.tsx` | Kalender visual `react-big-calendar` (bulan/minggu/agenda); judul event di grid, modal detail (WIB/WITA/WIT), rentang bulan berjalan, form Tambah Event, connect/reconnect OAuth, Sync + auto-refresh 5 menit, mapping all-day; pengingat pop-up + bell 1 jam/30/15 menit dengan pilihan tersimpan di `localStorage` |
 | `tools/DownloaderTool.tsx` | Cek link dulu (`/downloader/info`: judul/thumbnail/durasi/resolusi), lalu pilih resolusi/audio-only dan Download; POST `/downloader/proxy`; Chrome/Edge stream ke File System Access, fallback blob; status proses & cancel |
 | `tools/calendar.css` | Override tema `react-big-calendar` dengan token warna/font Super Tool; hanya dimuat di halaman Calendar |

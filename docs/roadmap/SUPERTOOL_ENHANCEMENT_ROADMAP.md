@@ -254,7 +254,7 @@ Kompleksitas: **S** <= 1 hari, **M** 2–4 hari, **L** > 4 hari (perkiraan engin
 | Uji workspace | `node --test apps/api/workspaces.test.mjs` | 6/6 lulus |
 | Unit test frontend | `pnpm --filter @super-tool/web test` | 31/31 lulus (registry, workflow, sesi, composer + status kotor HTML Studio, default pengingat) |
 | Integration test | `node --test apps/api/integration.test.mjs` | 1/1 lulus (login, ganti password, baca berkas, jail, tiket proxy) |
-| Full check | `pnpm check` | lulus (build + 31 unit test web + 87 test API) |
+| Full check | `pnpm check` | lulus (build + 44 unit test web + 87 test API) |
 
 Uji manual keamanan yang sudah dilakukan:
 
@@ -329,11 +329,11 @@ Perubahan arsitektur utama:
 
 Hasil verifikasi aktual:
 
-- `pnpm check` lulus: build web/API, 31 unit test frontend, 87 test API (selfcheck, restore, jobs, HTTP store, workspace, proxy, zip, retention, integrasi).
+- `pnpm check` lulus: build web/API, 44 unit test frontend, 87 test API (selfcheck, restore, jobs, HTTP store, workspace, proxy, zip, retention, integrasi).
 - `pnpm audit --audit-level high` lulus; tersisa 1 low + 2 moderate (bukan high).
 - Uji manual: proxy tiket 401/302/200, WS 401/101, metadata 400, restore traversal/symlink/SQLite rusak/versi skema ditolak, Compose lifecycle, Git commit/branch/stash.
 - CI workflow ditambahkan tetapi belum dijalankan di GitHub (belum ada push remote).
-- `pnpm e2e` lulus 48 test (Chromium, build produksi, data sementara): 14 E2E browser (E2E-01…E2E-05, 5 test aksesibilitas, cek keyboard, semantik checkbox task-list Markdown) + 15 test pembersihan direktori sementara + 2 test layout 360 px + 4 test state berisi data (layout 360/390, tooltip, axe, locale) + 8 test HTML Studio (pratinjau live, isolasi sandbox, buka/simpan dari File Explorer, status kotor CSS/JS, konfirmasi impor ulang, simpan gagal, layout 390, locale).
+- `pnpm e2e` lulus 59 test (Chromium, build produksi, data sementara): 14 E2E browser (E2E-01…E2E-05, 5 test aksesibilitas, cek keyboard, semantik checkbox task-list Markdown) + 15 test pembersihan direktori sementara + 2 test layout 360 px + 4 test state berisi data (layout 360/390, tooltip, axe, locale) + 8 test HTML Studio (pratinjau live, isolasi sandbox, buka/simpan dari File Explorer, status kotor CSS/JS, konfirmasi impor ulang, simpan gagal, layout 390, locale) + 11 test editor bersama (baris aktif, lipat HTML/CSS/JS, edit setelah fold, Format Dokumen per tab, kegagalan format, persistensi preferensi, Ctrl+S sumber vs draf, ekspor draf gabungan, regresi Markdown/JSON/Nginx, sunting berkas teks di File Explorer).
 - HTML Studio diuji di browser: skrip pratinjau tidak bisa membaca DOM induk/`localStorage`, `fetch` dan gambar eksternal diblokir CSP (tidak ada respons keluar), popup serta navigasi top-level diblokir, dan satu-satunya jalur tulis adalah tombol Simpan (`PUT /api/fs/write`).
 - axe WCAG 2.1 A/AA + 2.2 AA: 0 pelanggaran critical/serious pada 9 state yang diaudit (login, ganti password, shell, Catatan, URL Viewer, Command Palette, JSON ke TS, Webhook Receiver, Setelan), tanpa pengecualian rule. Tablist sesi hanya berisi `role=tab`; tombol tutup pindah ke toolbar dan `Delete` pada tab fokus juga menutup sesi.
 - Perbaikan aksesibilitas dari audit: `aria-controls` tab sesi selalu menunjuk panel nyata (panel dirender lebih dulu, konten tetap lazy), kontrol tutup dipindah keluar tablist, checkbox task-list Markdown tetap terbaca screen reader dengan label status, kontras nomor baris editor dinaikkan ke `muted/80`.
@@ -354,4 +354,4 @@ Backlog berprioritas yang tersisa:
 | ~~P3~~ | ~~Audit responsif layar kecil~~ (selesai 23 Nov 2026; lihat `POST_E2E_UI_AUDIT.md`) | Rendah | S | — | `apps/web` | 15 tool × 5 viewport tanpa overflow dokumen; menu proyek 360 px diperbaiki |
 | ~~P2~~ | ~~Audit layout dengan data panjang pada 360 px~~ (selesai 23 Nov 2026; lihat `POST_E2E_UI_AUDIT.md`) | Sedang | S | — | `apps/web`, `e2e` | Tabel Files, preview file besar, dan riwayat webhook penuh tetap usable; dikunci 4 test regresi |
 
-Rekomendasi milestone berikut: milestone **E2E browser + audit aksesibilitas** sudah selesai (`pnpm e2e`, 48 test), termasuk audit state berisi data pada 360/390 px. Berikutnya jalankan checklist screen reader manual (NVDA/VoiceOver) yang sudah disiapkan di `POST_E2E_UI_AUDIT.md`; setelah itu **migrasi skema berversi** sebelum menambah tabel/fitur baru. AI kontekstual ditunda sampai ada kebutuhan eksplisit dan mekanisme consent provider.
+Rekomendasi milestone berikut: milestone **E2E browser + audit aksesibilitas** sudah selesai (`pnpm e2e`, 59 test), termasuk audit state berisi data pada 360/390 px. Berikutnya jalankan checklist screen reader manual (NVDA/VoiceOver) yang sudah disiapkan di `POST_E2E_UI_AUDIT.md`; setelah itu **migrasi skema berversi** sebelum menambah tabel/fitur baru. AI kontekstual ditunda sampai ada kebutuhan eksplisit dan mekanisme consent provider.

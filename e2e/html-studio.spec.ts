@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './support/fixtures';
+import { expect, test, type Locator, type Page } from './support/fixtures';
 import { audit } from './support/a11y';
 import { openTool, signIn } from './support/auth';
 import { seedHtmlFile } from './support/seed';
@@ -19,6 +19,25 @@ async function previewEval(page: Page, expression: string) {
 
 async function fillEditor(page: Page, name: string, value: string) {
   await panel(page).getByRole('textbox', { name }).fill(value);
+}
+
+/** CodeMirror merender konten di contenteditable, bukan textarea. */
+const editorText = async (editor: Locator) =>
+  (
+    await editor.evaluate((el) =>
+      Array.from(el.querySelectorAll('.cm-line'))
+        // Placeholder dirender sebagai baris semu; itu bukan isi dokumen.
+        .map((line) => (line.querySelector('.cm-placeholder') ? '' : (line.textContent ?? '')))
+        .join('\n'),
+    )
+  )
+    .replace(/\u200b/g, '')
+    .trim();
+
+/** Isi editor bisa tertinggal satu frame setelah aksi; tunggu sampai cocok. */
+async function expectEditorText(editor: Locator, expected: string | RegExp) {
+  if (typeof expected === 'string') await expect.poll(() => editorText(editor)).toBe(expected);
+  else await expect.poll(() => editorText(editor)).toMatch(expected);
 }
 
 const sessionTab = (page: Page, name: string) =>
@@ -63,7 +82,7 @@ test('HTML Studio: pratinjau langsung, tab editor, dan preset viewport', async (
   await expect.poll(async () => previewEval(page, 'document.body.dataset.ran')).toBe('yes');
 
   await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
-  await expect(studio.getByRole('textbox', { name: 'Editor HTML' })).toHaveValue(/PREVIEW-1/);
+  await expectEditorText(studio.getByRole('textbox', { name: 'Editor HTML' }), /PREVIEW-1/);
 
   const preview = studio.locator('iframe');
   await studio.getByRole('group', { name: 'Ukuran pratinjau' }).getByRole('button', { name: 'Mobile', exact: true }).click();
@@ -139,7 +158,7 @@ test('HTML Studio: buka dari File Explorer, simpan, dan konfirmasi perubahan', a
 
   const studio = panel(page);
   const editor = studio.getByRole('textbox', { name: 'Editor HTML' });
-  await expect(editor).toHaveValue(/SEEDED-HTML/);
+  await expectEditorText(editor, /SEEDED-HTML/);
   await expect.poll(async () => previewEval(page, `document.getElementById('seeded')?.textContent`)).toBe('SEEDED-HTML');
 
   await editor.fill('<!doctype html><html><body><h1 id="updated">UPDATED</h1></body></html>');
@@ -158,11 +177,11 @@ test('HTML Studio: buka dari File Explorer, simpan, dan konfirmasi perubahan', a
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Batal' }).click();
-  await expect(editor).toHaveValue('<p>BELUM-DISIMPAN</p>');
+  await expectEditorText(editor, '<p>BELUM-DISIMPAN</p>');
 
   await studio.getByRole('button', { name: 'Atur ulang' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Atur ulang', exact: true }).click();
-  await expect(editor).toHaveValue(/Halo, HTML Studio/);
+  await expectEditorText(editor, /Halo, HTML Studio/);
 });
 
 test('HTML Studio: tetap terpakai di 390 tanpa overflow dokumen', async ({ page, app }) => {
@@ -221,7 +240,7 @@ test('HTML Studio: perubahan CSS/JS saja terhitung belum tersimpan', async ({ pa
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Batal' }).click();
-  await expect(studio.getByRole('textbox', { name: 'Editor CSS' })).toHaveValue('body { margin: 9px; }');
+  await expectEditorText(studio.getByRole('textbox', { name: 'Editor CSS' }), 'body { margin: 9px; }');
 
   await studio.getByRole('button', { name: 'Atur ulang' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Atur ulang', exact: true }).click();
@@ -244,7 +263,7 @@ test('HTML Studio: impor ulang minta konfirmasi untuk CSS/JS yang belum tersimpa
   const studio = panel(page);
   const htmlEditor = studio.getByRole('textbox', { name: 'Editor HTML' });
   const cssEditor = studio.getByRole('textbox', { name: 'Editor CSS' });
-  await expect(htmlEditor).toHaveValue(/SEED-A/);
+  await expectEditorText(htmlEditor, /SEED-A/);
   await expect(studio.getByText('Tersimpan', { exact: true })).toBeVisible();
 
   await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
@@ -258,7 +277,7 @@ test('HTML Studio: impor ulang minta konfirmasi untuk CSS/JS yang belum tersimpa
   await dialog.getByRole('button', { name: 'Batal' }).click();
   await expect(dialog).toBeHidden();
   await expect(studio).toContainText(first.path);
-  await expect(cssEditor).toHaveValue('body { margin: 7px; }');
+  await expectEditorText(cssEditor, 'body { margin: 7px; }');
 
   // JavaScript juga dihitung sebelum impor berikutnya.
   await studio.getByRole('tab', { name: 'JavaScript', exact: true }).click();
@@ -271,13 +290,13 @@ test('HTML Studio: impor ulang minta konfirmasi untuk CSS/JS yang belum tersimpa
   await expect(dialog).toBeHidden();
 
   await expect(studio).toContainText(second.path);
-  await expect(htmlEditor).toHaveValue(/SEED-B/);
+  await expectEditorText(htmlEditor, /SEED-B/);
   await expect(studio.getByText('Tersimpan', { exact: true })).toBeVisible();
   expect(await unloadBlocked(page)).toBe(false);
   await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
-  await expect(cssEditor).toHaveValue('');
+  await expectEditorText(cssEditor, '');
   await studio.getByRole('tab', { name: 'JavaScript', exact: true }).click();
-  await expect(jsEditor).toHaveValue('');
+  await expectEditorText(jsEditor, '');
 });
 
 test('HTML Studio: simpan hanya HTML dan mempertahankan CSS/JS saat gagal', async ({ page, app }) => {
@@ -313,7 +332,7 @@ test('HTML Studio: simpan hanya HTML dan mempertahankan CSS/JS saat gagal', asyn
     .toContain('UPDATED-SAVE');
 
   await studio.getByRole('tab', { name: 'CSS', exact: true }).click();
-  await expect(cssEditor).toHaveValue('body { margin: 11px; }');
+  await expectEditorText(cssEditor, 'body { margin: 11px; }');
 
   // Simpan gagal tidak boleh menghapus isi editor atau menandai tersimpan.
   await studio.getByRole('tab', { name: 'HTML', exact: true }).click();
@@ -323,7 +342,7 @@ test('HTML Studio: simpan hanya HTML dan mempertahankan CSS/JS saat gagal', asyn
   );
   await saveButton.click();
   await expect(studio.getByRole('alert')).toContainText('disk penuh');
-  await expect(htmlEditor).toHaveValue('<p>GAGAL-SIMPAN</p>');
+  await expectEditorText(htmlEditor, '<p>GAGAL-SIMPAN</p>');
   await expect(studio.getByText('Belum disimpan', { exact: true })).toBeVisible();
   await page.unroute('**/api/fs/write');
 });
