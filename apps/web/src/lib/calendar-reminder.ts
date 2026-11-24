@@ -12,7 +12,12 @@ export type ReminderEvent = {
 
 export function readRemindBefore(): number {
   try {
-    const value = Number(localStorage.getItem(REMIND_KEY));
+    const raw = localStorage.getItem(REMIND_KEY);
+    // Key yang belum ada berbeda dari "0": pengguna baru harus dapat default,
+    // sedangkan pilihan nonaktif eksplisit tetap dihormati.
+    if (raw === null) return 30;
+    const text = raw.trim();
+    const value = text === '' ? Number.NaN : Number(text);
     if (value === 0 || REMIND_CHOICES.includes(value)) return value;
   } catch {
     // localStorage bisa diblokir; pakai default.
